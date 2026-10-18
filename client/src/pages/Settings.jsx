@@ -1572,7 +1572,7 @@ export default function Settings() {
                                 if (e.key === 'Enter') handleRegisterPhone(sub.chatId);
                                 if (e.key === 'Escape') { setTgEditPhone(null); setTgPhoneVal(''); }
                               }}
-                              placeholder="e.g. 0918592028"
+                              placeholder="e.g. 0912627366"
                               autoFocus
                               className="w-32 rounded-lg border border-blue-300 px-2 py-1 text-xs outline-none focus:border-blue-500"
                             />

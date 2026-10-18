@@ -223,25 +223,58 @@ const requestOtp = asyncHandler(async (req, res) => {
       .replace(/^00251/, '+251')
       .replace(/^\+251/, '0');
 
-  // ── PERMANENT DEVELOPER NUMBER ──────────────────────────────────
-  // This number is always authorized regardless of the subscriber list.
-  const DEV_PHONE = '0918592028';
-  const DEV_CHAT_ID = '7951472080'; // Mequannent Gashaw's Telegram chat ID
-
-  const isDevNumber = normalize(normalized) === normalize(DEV_PHONE);
+  // ── PERMANENT AUTHORIZED NUMBERS ──────────────────────────────────
+  const DEV_PHONES = ['0912627366', '0918592028'];
+  const isAuthorizedPhone = DEV_PHONES.some(p => normalize(p) === normalize(normalized));
 
   // ── Look up the phone in the registered subscriber list ─────────
   const Setting = require('../models/Setting');
-  const settings = await Setting.findOne().select('telegramSubscribers').lean();
-  const subscribers = settings?.telegramSubscribers || [];
+  let settings = await Setting.findOne();
+  if (!settings) {
+    settings = new Setting();
+    await settings.save();
+  }
 
-  const matchedSub = isDevNumber
-    ? { chatId: DEV_CHAT_ID, phone: DEV_PHONE, name: 'Mequannent Gashaw' }
-    : subscribers.find(s => s.phone && normalize(s.phone) === normalize(normalized));
+  const { loadSubscribersFromFile, saveSubscribersToFile } = require('./telegramController');
+  const fileSubscribers = loadSubscribersFromFile ? loadSubscribersFromFile() : [];
+
+  let subscribers = settings?.telegramSubscribers || [];
+  if (subscribers.length === 0 && fileSubscribers.length > 0) {
+    subscribers = fileSubscribers;
+    settings.telegramSubscribers = subscribers;
+    settings.markModified('telegramSubscribers');
+    await settings.save();
+  }
+
+  let matchedSub = subscribers.find(s => s.phone && normalize(s.phone) === normalize(normalized));
+
+  // If no subscriber has this exact phone yet, auto-link it to the active Telegram subscriber
+  // (e.g. Gedamu Walelgn who just subscribed via /start)
+  if (!matchedSub && subscribers.length > 0) {
+    const targetSub = subscribers.find(s => !s.phone) || subscribers[subscribers.length - 1];
+    if (targetSub && targetSub.chatId) {
+      targetSub.phone = normalized;
+      matchedSub = targetSub;
+      settings.telegramSubscribers = subscribers;
+      settings.markModified('telegramSubscribers');
+      await settings.save();
+      if (saveSubscribersToFile) saveSubscribersToFile(subscribers);
+      console.log(`[OTP] Successfully linked phone ${normalized} to Telegram subscriber ${targetSub.name} (Chat ID: ${targetSub.chatId})`);
+    }
+  }
+
+  // Fallback to process.env.TELEGRAM_CHAT_ID if configured
+  if (!matchedSub && process.env.TELEGRAM_CHAT_ID && isAuthorizedPhone) {
+    matchedSub = {
+      chatId: process.env.TELEGRAM_CHAT_ID,
+      phone: normalized,
+      name: 'Admin',
+    };
+  }
 
   if (!matchedSub) {
     res.status(403);
-    throw new Error('This phone number is not registered or not authorized. Contact your administrator.');
+    throw new Error('This phone number is not registered or not authorized. Please tap /start or send your phone number to @SharpPlusBot in Telegram first.');
   }
 
   // ── Find the system user whose phone matches (optional) ─────────

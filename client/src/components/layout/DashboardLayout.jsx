@@ -91,8 +91,8 @@ const DashboardLayout = () => {
                   </svg>
                   WhatsApp
                 </a>
-                <a href="tel:0918592028" className="font-mono text-ink-600 font-semibold hover:text-blue-600 pl-0.5">
-                  0918592028
+                <a href="tel:0912627366" className="font-mono text-ink-600 font-semibold hover:text-blue-600 pl-0.5">
+                  0912627366
                 </a>
               </div>
             </div>

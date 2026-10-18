@@ -1014,14 +1014,14 @@ export default function Login() {
                   Telegram
                 </a>
                 <a
-                  href="https://wa.me/251918592028"
+                  href="https://wa.me/251912627366"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="login-pill login-pill--wa"
                 >
                   WhatsApp
                 </a>
-                <a href="tel:0918592028" className="login-footer__phone">0918592028</a>
+                <a href="tel:0912627366" className="login-footer__phone">0912627366</a>
               </div>
             </div>
             <div className="login-footer__bottom">

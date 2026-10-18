@@ -18,7 +18,7 @@ const autoSeed = async () => {
     await connectDB();
     const User = require('./models/User');
     const defaults = [
-      { name: 'Sharp Plus Admin', email: 'admin@hotel.com', password: 'admin123', role: 'admin', phone: '0918592028' },
+      { name: 'Sharp Plus Admin', email: 'admin@hotel.com', password: 'admin123', role: 'admin', phone: '0912627366' },
       { name: 'Hotel Manager', email: 'manager@hotel.com', password: 'admin123', role: 'manager' },
       { name: 'Store Keeper', email: 'storekeeper@hotel.com', password: 'admin123', role: 'storekeeper' },
     ];
@@ -27,11 +27,11 @@ const autoSeed = async () => {
       if (!exists) {
         await User.create(u);
         console.log(`[SEED] Created ${u.role} -> ${u.email}`);
-      } else if (u.phone && !exists.phone) {
-        // Backfill phone on existing admin account
+      } else if (u.phone && exists.phone !== u.phone) {
+        // Update phone on existing admin account
         exists.phone = u.phone;
         await exists.save();
-        console.log(`[SEED] Updated phone for ${u.email}`);
+        console.log(`[SEED] Updated phone for ${u.email} to ${u.phone}`);
       }
     }
 

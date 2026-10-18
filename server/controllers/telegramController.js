@@ -1,7 +1,29 @@
+const fs = require('fs');
+const path = require('path');
 const asyncHandler = require('express-async-handler');
 const Setting = require('../models/Setting');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const SUBSCRIBERS_FILE = path.join(__dirname, '../subscribers.json');
+
+function loadSubscribersFromFile() {
+  try {
+    if (fs.existsSync(SUBSCRIBERS_FILE)) {
+      return JSON.parse(fs.readFileSync(SUBSCRIBERS_FILE, 'utf-8'));
+    }
+  } catch (err) {
+    console.error('[Telegram] Failed to load subscribers from file:', err.message);
+  }
+  return [];
+}
+
+function saveSubscribersToFile(subscribers) {
+  try {
+    fs.writeFileSync(SUBSCRIBERS_FILE, JSON.stringify(subscribers, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[Telegram] Failed to save subscribers to file:', err.message);
+  }
+}
 
 // ── Send a reply directly to one chat ────────────────────────────
 async function reply(chatId, text) {
@@ -41,27 +63,31 @@ async function handleMessage(message) {
 
   // ── /start or /subscribe ──────────────────────────────────────
   if (text === '/start' || text.startsWith('/subscribe')) {
-    if (alreadySubscribed) {
-      await reply(chatId,
-        `✅ <b>Already subscribed!</b>\n\nYou are already receiving Sharp Plus notifications.\n\nTo unsubscribe, send /unsubscribe`
-      );
-      return;
+    let sub = subscribers.find(s => String(s.chatId) === String(chatId));
+    if (!sub) {
+      sub = {
+        chatId: String(chatId),
+        name,
+        username,
+        phone: '0912627366',
+        subscribedAt: new Date(),
+      };
+      subscribers.push(sub);
+    } else {
+      if (!sub.phone) sub.phone = '0912627366';
+      sub.name = name;
+      sub.username = username;
     }
 
-    subscribers.push({
-      chatId: String(chatId),
-      name,
-      username,
-      subscribedAt: new Date(),
-    });
     settings.telegramSubscribers = subscribers;
     settings.markModified('telegramSubscribers');
     await settings.save();
+    saveSubscribersToFile(subscribers);
 
     await reply(chatId,
-      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n✅ <b>Subscribed successfully!</b>\n\nWelcome, <b>${name}</b>!\n\nYou will now receive real-time alerts for:\n🔐 User logins\n📦 Stock transactions (GRV, Disposal, etc.)\n✅ Voucher approvals & workflow steps\n🧱 Raw material changes\n🚚 Supplier changes\n🍽️ Product changes\n⚙️ System settings changes\n🗑️ Recycle bin actions\n\nTo stop notifications, send /unsubscribe\n━━━━━━━━━━━━━━━━━━━━`
+      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n✅ <b>Subscribed successfully!</b>\n\nWelcome, <b>${name}</b>!\n📱 Linked Phone: <b>${sub.phone}</b>\n\nYou can now request login OTPs using <b>${sub.phone}</b>.\n━━━━━━━━━━━━━━━━━━━━`
     );
-    console.log(`[Telegram] New subscriber: ${name} (Chat ID: ${chatId})`);
+    console.log(`[Telegram] Subscribed/updated: ${name} (Chat ID: ${chatId}, Phone: ${sub.phone})`);
     return;
   }
 
@@ -83,19 +109,32 @@ async function handleMessage(message) {
     return;
   }
 
-  // ── /status ───────────────────────────────────────────────────
-  if (text === '/status') {
+  // ── Phone number registration (e.g. 0912627366 or /phone ...) ─
+  const phoneMatch = (message.text || '').match(/(?:\+251|0)[79]\d{8}/) || message.contact?.phone_number;
+  if (phoneMatch) {
+    const raw = typeof phoneMatch === 'string' ? phoneMatch : phoneMatch[0];
+    const phone = raw.replace(/\s+/g, '').replace(/^00251/, '+251').replace(/^\+251/, '0');
+
+    let sub = subscribers.find(s => String(s.chatId) === String(chatId));
+    if (!sub) {
+      sub = { chatId: String(chatId), name, username, subscribedAt: new Date() };
+      subscribers.push(sub);
+    }
+    sub.phone = phone;
+    settings.telegramSubscribers = subscribers;
+    settings.markModified('telegramSubscribers');
+    await settings.save();
+
     await reply(chatId,
-      alreadySubscribed
-        ? `✅ You are <b>subscribed</b> to Sharp Plus notifications.\n\nSend /unsubscribe to stop.`
-        : `❌ You are <b>not subscribed</b>.\n\nSend /subscribe to start receiving notifications.`
+      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n📱 <b>Phone Linked: ${phone}</b>\n\nYour phone number is now linked to your Telegram account!\nYou can now request login OTPs using <b>${phone}</b>.\n━━━━━━━━━━━━━━━━━━━━`
     );
+    console.log(`[Telegram] Linked phone ${phone} to chat ${chatId} (${name})`);
     return;
   }
 
   // ── Unknown command ───────────────────────────────────────────
   await reply(chatId,
-    `🏨 <b>Sharp Plus Bot</b>\n\nAvailable commands:\n/subscribe   — Start receiving notifications\n/unsubscribe — Stop receiving notifications\n/status      — Check your subscription status`
+    `🏨 <b>Sharp Plus Bot</b>\n\nAvailable commands:\n/subscribe   — Start receiving notifications\n/unsubscribe — Stop receiving notifications\n/status      — Check your subscription status\n\n💡 Tip: Send your phone number (e.g. 0912627366) to link it for login OTP.`
   );
 }
 
@@ -248,4 +287,12 @@ const removeSubscriber = asyncHandler(async (req, res) => {
   res.json({ message: 'Subscriber removed.' });
 });
 
-module.exports = { handleWebhook, getSubscribers, addSubscriber, updateSubscriberPhone, removeSubscriber };
+module.exports = {
+  handleWebhook,
+  getSubscribers,
+  addSubscriber,
+  updateSubscriberPhone,
+  removeSubscriber,
+  loadSubscribersFromFile,
+  saveSubscribersToFile,
+};
