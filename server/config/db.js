@@ -52,21 +52,26 @@ const connectDB = async () => {
 
     // Fall back to MongoMemoryServer
     try {
-      console.log('[DB] Launching embedded MongoDB instance...');
-      const { MongoMemoryServer } = require('mongodb-memory-server');
-      if (!mongoServer) {
-        mongoServer = await MongoMemoryServer.create();
+      console.log('[DB] Attempting embedded MongoDB instance fallback...');
+      let MongoMemoryServer;
+      try {
+        MongoMemoryServer = require('mongodb-memory-server').MongoMemoryServer;
+      } catch (reqErr) {
+        console.warn('[DB] mongodb-memory-server is not installed in production:', reqErr.message);
       }
-      const memUri = mongoServer.getUri();
-      const conn = await mongoose.connect(memUri, {
-        family: 4,
-      });
-      console.log(`[DB] Embedded MongoDB connected: ${conn.connection.host}`);
-      connectionPromise = null;
+      if (MongoMemoryServer) {
+        if (!mongoServer) {
+          mongoServer = await MongoMemoryServer.create();
+        }
+        const memUri = mongoServer.getUri();
+        const conn = await mongoose.connect(memUri, { family: 4 });
+        console.log(`[DB] Embedded MongoDB connected: ${conn.connection.host}`);
+        connectionPromise = null;
+        return;
+      }
     } catch (memErr) {
       console.error('[DB] Failed to launch embedded MongoDB:', memErr.message);
       connectionPromise = null;
-      throw memErr;
     }
   };
 
