@@ -768,7 +768,7 @@ export default function Login() {
               <span className="login-hero__wave" role="img" aria-label="waving hand">👋</span>
             </h1>
             <p className="login-hero__desc">
-              Run every store and kitchen from one desk. Receive goods, cost recipes,
+              Run every store and branch from one desk. Receive goods, cost recipes,
               approve vouchers and balance the stock ledger without the paperwork.
             </p>
           </div>

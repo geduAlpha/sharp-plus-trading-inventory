@@ -21,6 +21,8 @@ import Employees from './pages/Employees';
 import ErrorBoundary from './components/ErrorBoundary';
 import { SessionTimeoutProvider } from './context/SessionTimeoutContext';
 import SessionTimeoutModal from './components/common/SessionTimeoutModal';
+import CashSales from './pages/CashSales';
+import CreditSales from './pages/CreditSales';
 
 function App() {
   return (
@@ -49,6 +51,8 @@ function App() {
             <Route path="/transactions/disposal"       element={<StockTransactions defaultVoucher="disposal" />} />
             <Route path="/transactions/neg-adjustment" element={<StockTransactions defaultVoucher="neg_adjustment" />} />
             <Route path="/sales-import" element={<SalesImport />} />
+            <Route path="/sales/cash" element={<CashSales />} />
+            <Route path="/sales/credit" element={<CreditSales />} />
             <Route
               path="/stock-requests"
               element={

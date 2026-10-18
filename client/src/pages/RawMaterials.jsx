@@ -9,7 +9,7 @@ import Modal from '../components/ui/Modal';
 import ExportDropdown from '../components/ui/ExportDropdown';
 const emptyForm = { code: '', name: '', category: '', unit: '', currentStock: 0, reorderLevel: 10, unitCost: 0, storeLocation: 'Main Store' };
 
-// Common units for hospitality / kitchen / store
+// Common units for hospitality / branch / store
 const UNITS = [
   { group: 'Volume', items: ['Litre (L)', 'Millilitre (ml)', 'Gallon', 'Fluid oz'] },
   { group: 'Weight', items: ['Kilogram (kg)', 'Gram (g)', 'Pound (lb)', 'Ounce (oz)'] },
@@ -18,9 +18,9 @@ const UNITS = [
   { group: 'Other', items: ['Portion', 'Serving', 'Tray', 'Batch', 'Pair', 'Set'] },
 ];
 
-// Common categories for hospitality / kitchen / store
+// Common categories for hospitality / branch / store
 const CATEGORIES = [
-  { group: 'Food & Kitchen', items: ['Produce', 'Meat & Poultry', 'Fish & Seafood', 'Dairy & Eggs', 'Bakery & Pastry', 'Grains', 'Spices & Seasonings', 'Pantry', 'Frozen Foods'] },
+  { group: 'Food & branch', items: ['Produce', 'Meat & Poultry', 'Fish & Seafood', 'Dairy & Eggs', 'Bakery & Pastry', 'Grains', 'Spices & Seasonings', 'Pantry', 'Frozen Foods'] },
   { group: 'Beverages & Bar', items: ['Beverages', 'Soft Drinks & Juices', 'Beer & Wine', 'Liquor & Spirits', 'Coffee & Tea', 'Mineral Water'] },
   { group: 'Housekeeping & Maintenance', items: ['Housekeeping', 'Cleaning Supplies', 'Linens & Bedding', 'Toiletries & Amenities', 'Disposables & Packaging', 'Maintenance & Hardware', 'Stationery'] },
   { group: 'Other', items: ['General'] },

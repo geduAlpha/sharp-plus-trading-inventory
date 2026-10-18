@@ -8,7 +8,7 @@ A full-stack stock/inventory management system for a hotel, built with **React (
 - **Suppliers** — add, edit, and search supplier records
 - **Items** — track every item in the store with unit, reorder level, and cost
 - **Purchases** — record purchases from suppliers; receiving a purchase automatically increases stock
-- **Stock movements** — record stock in/out (kitchen use, housekeeping use, damage, returns, adjustments) with automatic stock level updates
+- **Stock movements** — record stock in/out (branch use, housekeeping use, damage, returns, adjustments) with automatic stock level updates
 - **Dashboard** — attractive overview with stat cards, a 7-day stock movement chart, low-stock alerts, and recent activity
 - **Reports** — daily report, current stock levels, and purchase history (with print support)
 - **Staff accounts** — admins can create and disable staff logins

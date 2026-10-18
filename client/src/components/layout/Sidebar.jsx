@@ -8,8 +8,14 @@ import {
   BarChart2, Calendar, PackageOpen, Settings as SettingsIcon, UploadCloud,
   Scale, ClipboardList, Trash2, Coffee, UserCog, Sparkles,
   SendToBack, X, Rocket, ClipboardCheck, ArrowRightLeft, History,
+  BadgeDollarSign, Banknote,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+const SALES_ITEMS = [
+  { to: '/sales/cash',   label: 'Cash Sales',   icon: ShoppingBag },
+  { to: '/sales/credit', label: 'Credit Sales', icon: CreditCard },
+];
 
 const STOCK_ITEMS = [
   { to: '/transactions', label: 'All Movements', icon: ArrowLeftRight, end: true },
@@ -100,7 +106,7 @@ const COMING_SOON_FEATURES = [
     bg: 'bg-blue-50',
     text: 'text-blue-700',
     title: 'Stock Request',
-    desc: 'Kitchen, Bar & Housekeeping request items from the main store with quantity and urgency level.',
+    desc: 'branch, Bar & Housekeeping request items from the main store with quantity and urgency level.',
   },
   {
     icon: SendToBack,
@@ -116,7 +122,7 @@ const COMING_SOON_FEATURES = [
     bg: 'bg-violet-50',
     text: 'text-violet-700',
     title: 'Branch-to-Branch Transfer',
-    desc: 'Transfer excess stock between departments (e.g. Bar → Kitchen) with full audit trail.',
+    desc: 'Transfer excess stock between departments (e.g. Bar → branch) with full audit trail.',
   },
   {
     icon: History,
@@ -203,9 +209,15 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
 
   const onTransactions = location.pathname.startsWith('/transactions');
   const onReports = location.pathname.startsWith('/reports');
+  const onSales = location.pathname.startsWith('/sales');
 
   const [stockOpen, setStockOpen] = useState(onTransactions);
   const [reportOpen, setReportOpen] = useState(onReports);
+  const [salesOpen, setSalesOpen] = useState(onSales);
+
+  React.useEffect(() => {
+    if (onSales) setSalesOpen(true);
+  }, [onSales]);
 
   const linkCls = (isActive) =>
     `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
@@ -319,6 +331,26 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
                 isActive={onTransactions} open={stockOpen}
                 onToggle={() => setStockOpen(o => !o)} collapsed={collapsed}>
                 {STOCK_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
+              </CollapsibleNav>
+            )
+          )}
+
+          {/* Sales and Marketing MS */}
+          {canSeeNav('salesMarketing') && (
+            collapsed ? (
+              <NavLink to="/sales" onClick={onClose} title="Sales and Marketing MS"
+                className={({ isActive }) => linkCls(isActive || onSales)}>
+                {({ isActive }) => (
+                  <span className={iconSpan(isActive || onSales)}>
+                    <BadgeDollarSign size={15} strokeWidth={2} />
+                  </span>
+                )}
+              </NavLink>
+            ) : (
+              <CollapsibleNav label="Sales and Marketing MS" icon={BadgeDollarSign}
+                isActive={onSales} open={salesOpen}
+                onToggle={() => setSalesOpen(o => !o)} collapsed={collapsed}>
+                {SALES_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
               </CollapsibleNav>
             )
           )}

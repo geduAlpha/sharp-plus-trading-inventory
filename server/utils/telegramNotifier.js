@@ -133,6 +133,8 @@ const VOUCHER_EMOJI = {
   neg_adjustment: '📉',
   disposal: '🗑️',
   sales_import: '📥',
+  cash_sale: '💵',
+  credit_sale: '💳',
 };
 
 const VOUCHER_LABEL = {
@@ -143,6 +145,8 @@ const VOUCHER_LABEL = {
   neg_adjustment: 'Negative Adjustment',
   disposal: 'Disposal',
   sales_import: 'Sales Import',
+  cash_sale: 'Cash Sale',
+  credit_sale: 'Credit Sale',
 };
 
 /** New stock transaction created */
@@ -150,10 +154,19 @@ function notifyTransaction(txn, user) {
   const emoji = VOUCHER_EMOJI[txn.voucherType] || '📦';
   const label = VOUCHER_LABEL[txn.voucherType] || txn.voucherType;
   const direction = txn.type === 'in' ? '📥 IN' : '📤 OUT';
+  const isSale = ['cash_sale', 'credit_sale'].includes(txn.voucherType);
 
   const items = (txn.items || []).map(i =>
-    `  • ${i.material?.name || '—'} × <b>${i.quantity}</b> ${i.material?.unit || ''} @ ${etb(i.unitCost)}`
+    `  • ${i.material?.name || '—'} × <b>${i.quantity}</b> ${i.material?.unit || ''} @ ${etb(i.sellingPrice || i.unitCost)}`
   ).join('\n');
+
+  const partyLine = isSale
+    ? `👤 <b>Customer:</b>   ${txn.customerName || 'Walk-in Customer'}`
+    : `🏪 <b>Supplier:</b>   ${txn.supplier?.name || '—'}`;
+
+  const valueLine = isSale
+    ? `💰 <b>Sale Total:</b>  ${etb(txn.totalRevenue || txn.totalAmount)}\n📦 <b>Stock Cost:</b>  ${etb(txn.totalAmount)}`
+    : `💰 <b>Total:</b>       ${etb(txn.totalAmount)}`;
 
   sendTelegram(
     `🏨 <b>${HOTEL}</b>
@@ -162,9 +175,9 @@ ${emoji} <b>NEW ${label.toUpperCase()}</b>
 
 🔖 <b>Voucher No:</b>  ${txn.voucherNo || 'Auto'}
 ↕️  <b>Direction:</b>  ${direction}
-🏪 <b>Supplier:</b>   ${txn.supplier?.name || '—'}
-💰 <b>Total:</b>      ${etb(txn.totalAmount)}
-📋 <b>Status:</b>     ${(txn.status || 'pending').toUpperCase()}
+${partyLine}
+${valueLine}
+📋 <b>Status:</b>     ${(txn.status || 'posted').toUpperCase()}
 
 📦 <b>Items:</b>
 ${items || '  —'}

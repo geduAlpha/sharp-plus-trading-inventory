@@ -478,7 +478,7 @@ export default function Consumption() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-ink-700 mb-1">Department</label>
-              <input value={form.department} placeholder="e.g. Kitchen, F&B, Front Office"
+              <input value={form.department} placeholder="e.g. branch, F&B, Front Office"
                 onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
                 className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
             </div>

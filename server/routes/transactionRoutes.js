@@ -11,6 +11,7 @@ const {
   getVoucherSummary,
   advanceTransaction,
   importSales,
+  recordSalePayment,
 } = require('../controllers/transactionController');
 const { protect, authorizePermission } = require('../middleware/authMiddleware');
 
@@ -22,6 +23,7 @@ router.post('/', authorizePermission('recordGoods'), createTransaction);
 router.post('/import-sales', authorizePermission('recordGoods'), importSales);
 router.post('/parse-image-sales', authorizePermission('recordGoods'), require('../controllers/transactionController').parseImageSales);
 router.delete('/bulk', authorizePermission('voidTransactions'), bulkDeleteTransactions);
+router.put('/:id/payment', authorizePermission('recordGoods'), recordSalePayment);
 router.put('/:id', authorizePermission('recordGoods'), updateTransaction);
 router.post('/:id/advance', advanceTransaction);
 router.post('/:id/restore', authorizePermission('voidTransactions'), restoreTransaction);

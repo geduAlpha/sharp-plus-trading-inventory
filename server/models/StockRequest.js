@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 /*
   Stock Issue & Request Workflow
   ─────────────────────────────────────────────────────────────────
-  REQUEST FLOW  (initiated by Kitchen / Bar / Housekeeping / etc.)
+  REQUEST FLOW  (initiated by branch / Bar / Housekeeping / etc.)
     pending   → manager/admin reviews
     approved  → storekeeper issues stock  (deducts from RawMaterial.currentStock)
     issued    → goods physically handed over, stock deducted
@@ -16,7 +16,7 @@ const mongoose = require('mongoose');
 */
 
 const DEPARTMENTS = [
-  'Kitchen',
+  'branch',
   'Bar',
   'Housekeeping',
   'Restaurant',
@@ -30,31 +30,31 @@ const REQUEST_STATUSES = ['pending', 'approved', 'issued', 'rejected', 'cancelle
 
 const lineItemSchema = new mongoose.Schema(
   {
-    material:        { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
-    requestedQty:    { type: Number, required: true, min: 0.001 },
-    issuedQty:       { type: Number, default: 0 },     // may differ if partial
-    unitCost:        { type: Number, default: 0 },
-    totalCost:       { type: Number, default: 0 },
-    note:            { type: String, default: '' },
+    material: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
+    requestedQty: { type: Number, required: true, min: 0.001 },
+    issuedQty: { type: Number, default: 0 },     // may differ if partial
+    unitCost: { type: Number, default: 0 },
+    totalCost: { type: Number, default: 0 },
+    note: { type: String, default: '' },
   },
   { _id: false }
 );
 
 const trailEntrySchema = new mongoose.Schema(
   {
-    action:  { type: String },
-    by:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    byName:  { type: String },
-    byRole:  { type: String },
-    at:      { type: Date, default: Date.now },
-    note:    { type: String, default: '' },
+    action: { type: String },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    byName: { type: String },
+    byRole: { type: String },
+    at: { type: Date, default: Date.now },
+    note: { type: String, default: '' },
   },
   { _id: false }
 );
 
 const stockRequestSchema = new mongoose.Schema(
   {
-    voucherNo:   { type: String, trim: true, default: '' },
+    voucherNo: { type: String, trim: true, default: '' },
 
     // Who is requesting and from where
     requestType: {
@@ -62,7 +62,7 @@ const stockRequestSchema = new mongoose.Schema(
       enum: ['request', 'direct_issue'],
       default: 'request',
     },
-    department:  { type: String, enum: DEPARTMENTS, required: true },
+    department: { type: String, enum: DEPARTMENTS, required: true },
     requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     requestedAt: { type: Date, default: Date.now },
 
@@ -84,32 +84,32 @@ const stockRequestSchema = new mongoose.Schema(
     },
 
     // Approval
-    approvedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    approvedAt:  { type: Date },
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    approvedAt: { type: Date },
     approveNote: { type: String, default: '' },
 
     // Issuance
-    issuedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    issuedAt:    { type: Date },
-    issueNote:   { type: String, default: '' },
+    issuedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    issuedAt: { type: Date },
+    issueNote: { type: String, default: '' },
 
     // Rejection / Cancellation
-    rejectedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    rejectedAt:   { type: Date },
+    rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    rejectedAt: { type: Date },
     rejectReason: { type: String, default: '' },
 
     // Totals
-    totalCost:  { type: Number, default: 0 },
+    totalCost: { type: Number, default: 0 },
 
-    notes:      { type: String, default: '' },
-    date:       { type: Date, default: Date.now },
+    notes: { type: String, default: '' },
+    date: { type: Date, default: Date.now },
 
     // Audit trail
     trail: [trailEntrySchema],
 
     // Soft delete
-    deletedAt:   { type: Date, default: null },
-    deletedBy:   { type: String, default: null },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: String, default: null },
   },
   { timestamps: true }
 );

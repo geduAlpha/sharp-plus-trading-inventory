@@ -27,6 +27,8 @@ const generateVoucherNo = async (voucherType) => {
     pos_adjustment: 'PADJ',
     fresh_bazaar:   'FBR',
     sales_import:   'SALE',
+    cash_sale:      'CSALE',
+    credit_sale:    'CRSALE',
   };
   const prefix = prefixes[voucherType] ?? 'TXN';
   const count = await StockTransaction.countDocuments({ voucherType });
@@ -35,10 +37,24 @@ const generateVoucherNo = async (voucherType) => {
 
 // ── GET /api/transactions ─────────────────────────────────────────────
 const getTransactions = asyncHandler(async (req, res) => {
-  const { voucherType, material, from, to } = req.query;
+  const { voucherType, material, from, to, paymentStatus, paymentType, search } = req.query;
   const filter = {};
-  if (voucherType) filter.voucherType = voucherType;
-  if (material)    filter.$or = [{ material }, { 'items.material': material }];
+  if (voucherType === 'sales') {
+    filter.voucherType = { $in: ['cash_sale', 'credit_sale'] };
+  } else if (voucherType) {
+    filter.voucherType = voucherType;
+  }
+  if (paymentStatus && paymentStatus !== 'all') filter.paymentStatus = paymentStatus;
+  if (paymentType && paymentType !== 'all') filter.paymentType = paymentType;
+  if (material) filter.$or = [{ material }, { 'items.material': material }];
+  if (search) {
+    filter.$or = [
+      { voucherNo: { $regex: search, $options: 'i' } },
+      { customerName: { $regex: search, $options: 'i' } },
+      { customerPhone: { $regex: search, $options: 'i' } },
+      { reference: { $regex: search, $options: 'i' } },
+    ];
+  }
   if (from || to) {
     filter.date = {};
     if (from) filter.date.$gte = new Date(from);
@@ -46,10 +62,10 @@ const getTransactions = asyncHandler(async (req, res) => {
   }
 
   const transactions = await StockTransaction.find(filter)
-    .populate('material', 'name unit')
-    .populate('items.material', 'name unit unitCost')
+    .populate('material', 'name unit unitCost category currentStock')
+    .populate('items.material', 'name unit unitCost category currentStock')
     .populate('supplier', 'name')
-    .populate('performedBy', 'name')
+    .populate('performedBy', 'name role')
     .sort({ date: -1 })
     .limit(500)
     .lean();
@@ -66,6 +82,13 @@ const createTransaction = asyncHandler(async (req, res) => {
     reason, reference, notes, date,
     attachments = [],
     attachment = '',
+    customerName,
+    customerPhone,
+    customerAddress,
+    paymentType,
+    paymentStatus,
+    amountPaid,
+    dueDate,
   } = req.body;
 
   if (!VOUCHER_DIRECTION[voucherType]) {
@@ -98,12 +121,31 @@ const createTransaction = asyncHandler(async (req, res) => {
         `Insufficient stock for "${mat.name}". Available: ${mat.currentStock} ${mat.unit}, requested: ${item.quantity}.`
       );
     }
-    const unitCost  = Number(item.unitCost) || mat.unitCost || 0;
-    const totalCost = unitCost * Number(item.quantity);
-    resolvedItems.push({ material: mat._id, quantity: Number(item.quantity), unitCost, totalCost, _doc: mat });
+    const unitCost     = Number(item.unitCost) || mat.unitCost || 0;
+    const sellingPrice = Number(item.sellingPrice) || unitCost;
+    const totalCost    = unitCost * Number(item.quantity);
+    const totalRevenue = sellingPrice * Number(item.quantity);
+    resolvedItems.push({
+      material: mat._id,
+      quantity: Number(item.quantity),
+      unitCost,
+      sellingPrice,
+      totalCost,
+      totalRevenue,
+      _doc: mat
+    });
   }
 
-  const totalAmount = resolvedItems.reduce((s, i) => s + i.totalCost, 0);
+  const totalAmount  = resolvedItems.reduce((s, i) => s + i.totalCost, 0);
+  const totalRevenue = resolvedItems.reduce((s, i) => s + (i.totalRevenue || 0), 0);
+  const grossProfit  = totalRevenue - totalAmount;
+
+  const isSale = (voucherType === 'cash_sale' || voucherType === 'credit_sale');
+  const assignedPaymentType = paymentType || (voucherType === 'credit_sale' ? 'credit' : 'cash');
+  const initialAmountPaid = isSale ? (voucherType === 'credit_sale' ? Number(amountPaid) || 0 : totalRevenue) : 0;
+  const assignedPaymentStatus = paymentStatus || (voucherType === 'credit_sale'
+    ? (initialAmountPaid >= totalRevenue && totalRevenue > 0 ? 'paid' : (initialAmountPaid > 0 ? 'partial' : 'unpaid'))
+    : 'paid');
 
   const formattedAttachments = Array.isArray(attachments) && attachments.length > 0
     ? attachments.map(a => ({
@@ -124,8 +166,10 @@ const createTransaction = asyncHandler(async (req, res) => {
     material:  firstItem.material,
     quantity:  firstItem.quantity,
     unitCost:  firstItem.unitCost,
-    items:     resolvedItems.map(({ material, quantity, unitCost, totalCost }) => ({ material, quantity, unitCost, totalCost })),
-    reason:    reason || '',
+    items:     resolvedItems.map(({ material, quantity, unitCost, sellingPrice, totalCost, totalRevenue }) => ({
+      material, quantity, unitCost, sellingPrice, totalCost, totalRevenue
+    })),
+    reason:    reason || (isSale ? `${voucherType === 'cash_sale' ? 'Cash Sale' : 'Credit Sale'}` : ''),
     reference: reference || '',
     notes:     notes || '',
     date:      date ? new Date(date) : new Date(),
@@ -133,25 +177,90 @@ const createTransaction = asyncHandler(async (req, res) => {
     attachments: formattedAttachments,
     performedBy: req.user._id,
     totalAmount,
-    status: 'pending',
-    trail: [{ action: 'pending', by: req.user._id, byName: req.user.name, byRole: req.user.role }],
+    totalRevenue: isSale ? totalRevenue : 0,
+    grossProfit:  isSale ? grossProfit : 0,
+    customerName: customerName || (voucherType === 'cash_sale' ? 'Walk-in Customer' : ''),
+    customerPhone: customerPhone || '',
+    customerAddress: customerAddress || '',
+    paymentType: assignedPaymentType,
+    paymentStatus: assignedPaymentStatus,
+    amountPaid: initialAmountPaid,
+    dueDate: dueDate ? new Date(dueDate) : null,
+    status: isSale ? 'posted' : 'pending',
+    postedBy: isSale ? req.user._id : undefined,
+    postedAt: isSale ? new Date() : undefined,
+    trail: [{
+      action: isSale ? 'posted' : 'pending',
+      by: req.user._id,
+      byName: req.user.name,
+      byRole: req.user.role,
+      note: isSale ? `${voucherType === 'credit_sale' ? 'Credit' : 'Cash'} sale completed & stock deducted` : '',
+    }],
   };
 
   const transaction = await StockTransaction.create(txnData);
 
-  // ⚠️ Stock is NOT applied on creation (Pending status).
-  // Stock will be applied when the transaction is CHECKED (first approval stage).
-  // This ensures pending vouchers have zero effect on the balance sheet.
+  // If this is a direct sale, apply immediate stock deduction & create SalesRecord
+  if (isSale) {
+    for (const item of resolvedItems) {
+      item._doc.currentStock = Math.max(0, (item._doc.currentStock || 0) - item.quantity);
+      await item._doc.save();
+    }
+
+    try {
+      const SalesRecord = require('../models/SalesRecord');
+      await SalesRecord.create({
+        saleDate: txnData.date,
+        reference: txnData.voucherNo,
+        notes: `${voucherType === 'cash_sale' ? 'Cash Sale' : 'Credit Sale'}${customerName ? ' — ' + customerName : ''}`,
+        source: voucherType,
+        lines: resolvedItems.map(i => ({
+          productName: i._doc.name,
+          productCode: i._doc.code || '',
+          quantitySold: i.quantity,
+          sellingPrice: i.sellingPrice,
+          revenue: i.totalRevenue,
+          cogs: i.totalCost,
+          grossProfit: i.totalRevenue - i.totalCost,
+          matchStatus: 'direct_material',
+          ingredientsUsed: [{
+            materialId: i.material,
+            materialName: i._doc.name,
+            unit: i._doc.unit,
+            quantityUsed: i.quantity,
+            unitCost: i.unitCost,
+            totalCost: i.totalCost,
+          }],
+        })),
+        totalRevenue: txnData.totalRevenue,
+        totalCOGS: txnData.totalAmount,
+        grossProfit: txnData.grossProfit,
+        profitMargin: txnData.totalRevenue > 0 ? (txnData.grossProfit / txnData.totalRevenue) * 100 : 0,
+        stockTransaction: transaction._id,
+        importedBy: req.user._id,
+      });
+    } catch (sErr) {
+      console.warn('[Sale] Could not create companion SalesRecord:', sErr.message);
+    }
+  }
 
   const populated = await StockTransaction.findById(transaction._id)
-    .populate('material', 'name unit')
-    .populate('items.material', 'name unit unitCost')
+    .populate('material', 'name unit unitCost category currentStock')
+    .populate('items.material', 'name unit unitCost category currentStock')
     .populate('supplier', 'name')
-    .populate('performedBy', 'name');
+    .populate('performedBy', 'name role');
 
   invalidateDashboardCache();
   tg.notifyTransaction(populated, req.user);
-  notify.push({ type: 'transaction', title: 'New Stock Transaction', message: `${req.user.name} recorded a ${populated.voucherType?.replace('_',' ')} — ${populated.items?.length || 1} item(s)`, icon: populated.type === 'in' ? '📥' : '📤', link: '/transactions', severity: 'info', userId: req.user._id });
+  notify.push({
+    type: 'transaction',
+    title: isSale ? (voucherType === 'cash_sale' ? 'New Cash Sale' : 'New Credit Sale') : 'New Stock Transaction',
+    message: `${req.user.name} recorded ${populated.voucherNo} (${populated.items?.length || 1} item(s)) — ETB ${(populated.totalRevenue || populated.totalAmount).toLocaleString()}`,
+    icon: isSale ? '💰' : (populated.type === 'in' ? '📥' : '📤'),
+    link: isSale ? '/sales' : '/transactions',
+    severity: 'info',
+    userId: req.user._id
+  });
   res.status(201).json(populated);
 });
 // ── PUT /api/transactions/:id ─────────────────────────────────────────
@@ -902,6 +1011,63 @@ const parseImageSales = asyncHandler(async (req, res) => {
       ? `Detected ${rows.length} product line(s) from the image.`
       : 'No product lines detected. The image may be unclear or not in CNET format.',
   });
+// ── PUT /api/transactions/:id/payment ─────────────────────────────────
+// Record payment against credit sale
+const recordSalePayment = asyncHandler(async (req, res) => {
+  const { amount, notes } = req.body;
+  const paymentAmount = Number(amount);
+  if (!paymentAmount || paymentAmount <= 0) {
+    res.status(400);
+    throw new Error('Valid payment amount is required');
+  }
+
+  const txn = await StockTransaction.findById(req.params.id);
+  if (!txn) {
+    res.status(404);
+    throw new Error('Transaction not found');
+  }
+
+  const newAmountPaid = (txn.amountPaid || 0) + paymentAmount;
+  txn.amountPaid = newAmountPaid;
+  const total = txn.totalRevenue || txn.totalAmount;
+
+  if (newAmountPaid >= total) {
+    txn.paymentStatus = 'paid';
+  } else if (newAmountPaid > 0) {
+    txn.paymentStatus = 'partial';
+  }
+
+  txn.trail = txn.trail || [];
+  txn.trail.push({
+    action: 'payment',
+    by: req.user._id,
+    byName: req.user.name,
+    byRole: req.user.role,
+    note: `Received payment of ETB ${paymentAmount.toFixed(2)}${notes ? ' (' + notes + ')' : ''}. Total paid: ETB ${newAmountPaid.toFixed(2)} / ${total.toFixed(2)}`,
+  });
+
+  await txn.save();
+
+  const populated = await StockTransaction.findById(txn._id)
+    .populate('material', 'name unit unitCost category currentStock')
+    .populate('items.material', 'name unit unitCost category currentStock')
+    .populate('supplier', 'name')
+    .populate('performedBy', 'name role');
+
+  res.json(populated);
 });
 
-module.exports = { getTransactions, createTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, restoreTransaction, permanentDeleteTransaction, getVoucherSummary, advanceTransaction, importSales, parseImageSales };
+module.exports = {
+  getTransactions,
+  createTransaction,
+  updateTransaction,
+  deleteTransaction,
+  bulkDeleteTransactions,
+  restoreTransaction,
+  permanentDeleteTransaction,
+  getVoucherSummary,
+  advanceTransaction,
+  importSales,
+  parseImageSales,
+  recordSalePayment,
+};

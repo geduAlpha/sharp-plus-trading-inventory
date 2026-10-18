@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const DEPARTMENTS = [
-  'Kitchen',
+  'branch',
   'Food & Beverage',
   'Front Office',
   'Housekeeping',
@@ -17,19 +17,19 @@ const DEPARTMENTS = [
 
 const employeeSchema = new mongoose.Schema(
   {
-    employeeId:  { type: String, trim: true, default: '' },   // e.g. EMP-001
-    firstName:   { type: String, required: true, trim: true },
-    lastName:    { type: String, required: true, trim: true },
-    department:  { type: String, trim: true, default: 'Other' },
-    position:    { type: String, trim: true, default: '' },   // e.g. Chef, Waiter
-    phone:       { type: String, trim: true, default: '' },
-    email:       { type: String, trim: true, lowercase: true, default: '' },
-    hireDate:    { type: Date,   default: null },
-    status:      { type: String, enum: ['active', 'inactive', 'on_leave'], default: 'active' },
-    notes:       { type: String, trim: true, default: '' },
+    employeeId: { type: String, trim: true, default: '' },   // e.g. EMP-001
+    firstName: { type: String, required: true, trim: true },
+    lastName: { type: String, required: true, trim: true },
+    department: { type: String, trim: true, default: 'Other' },
+    position: { type: String, trim: true, default: '' },   // e.g. Chef, Waiter
+    phone: { type: String, trim: true, default: '' },
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    hireDate: { type: Date, default: null },
+    status: { type: String, enum: ['active', 'inactive', 'on_leave'], default: 'active' },
+    notes: { type: String, trim: true, default: '' },
     // Soft delete
-    deletedAt:   { type: Date,   default: null },
-    deletedBy:   { type: String, default: null },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: String, default: null },
   },
   { timestamps: true }
 );
@@ -39,7 +39,7 @@ employeeSchema.virtual('name').get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
-employeeSchema.set('toJSON',   { virtuals: true });
+employeeSchema.set('toJSON', { virtuals: true });
 employeeSchema.set('toObject', { virtuals: true });
 
 employeeSchema.index({ department: 1, status: 1 });

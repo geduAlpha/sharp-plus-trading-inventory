@@ -13,16 +13,16 @@ import Modal from '../components/ui/Modal';
 
 // ── Constants ────────────────────────────────────────────────────
 const DEPARTMENTS = [
-  'Kitchen', 'Bar', 'Housekeeping', 'Restaurant',
+  'branch', 'Bar', 'Housekeeping', 'Restaurant',
   'Laundry', 'Management', 'Maintenance', 'Other',
 ];
 
 const STATUS_CONFIG = {
-  pending:   { label: 'Pending',   color: 'bg-amber-50 text-amber-700 border-amber-200',   icon: Clock,         dot: 'bg-amber-500'  },
-  approved:  { label: 'Approved',  color: 'bg-blue-50 text-blue-700 border-blue-200',      icon: CheckCircle2,  dot: 'bg-blue-500'   },
-  issued:    { label: 'Issued',    color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: PackageCheck, dot: 'bg-emerald-500' },
-  rejected:  { label: 'Rejected',  color: 'bg-rose-50 text-rose-700 border-rose-200',      icon: XCircle,       dot: 'bg-rose-500'   },
-  cancelled: { label: 'Cancelled', color: 'bg-ink-100 text-ink-500 border-ink-200',        icon: X,             dot: 'bg-ink-400'    },
+  pending: { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200', icon: Clock, dot: 'bg-amber-500' },
+  approved: { label: 'Approved', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: CheckCircle2, dot: 'bg-blue-500' },
+  issued: { label: 'Issued', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: PackageCheck, dot: 'bg-emerald-500' },
+  rejected: { label: 'Rejected', color: 'bg-rose-50 text-rose-700 border-rose-200', icon: XCircle, dot: 'bg-rose-500' },
+  cancelled: { label: 'Cancelled', color: 'bg-ink-100 text-ink-500 border-ink-200', icon: X, dot: 'bg-ink-400' },
 };
 
 const PRIORITY_CONFIG = {
@@ -74,39 +74,39 @@ export default function StockIssueRequest() {
   const { user, can } = useAuth();
 
   // ── Data state ───────────────────────────────────────────────
-  const [requests,  setRequests]  = useState([]);
+  const [requests, setRequests] = useState([]);
   const [materials, setMaterials] = useState([]);
-  const [summary,   setSummary]   = useState({});
-  const [loading,   setLoading]   = useState(true);
+  const [summary, setSummary] = useState({});
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // ── Filters ──────────────────────────────────────────────────
-  const [filterStatus, setFilterStatus]  = useState('');
-  const [filterDept,   setFilterDept]    = useState('');
-  const [search,       setSearch]        = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [search, setSearch] = useState('');
 
   // ── Create/Edit modal ────────────────────────────────────────
-  const [createOpen,  setCreateOpen]  = useState(false);
-  const [editTarget,  setEditTarget]  = useState(null);
-  const [formDept,    setFormDept]    = useState('Kitchen');
-  const [formType,    setFormType]    = useState('request');       // 'request' | 'direct_issue'
-  const [formPriority,setFormPriority]= useState('normal');
-  const [formNotes,   setFormNotes]   = useState('');
-  const [formItems,   setFormItems]   = useState([{ ...EMPTY_ITEM }]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [formDept, setFormDept] = useState('branch');
+  const [formType, setFormType] = useState('request');       // 'request' | 'direct_issue'
+  const [formPriority, setFormPriority] = useState('normal');
+  const [formNotes, setFormNotes] = useState('');
+  const [formItems, setFormItems] = useState([{ ...EMPTY_ITEM }]);
   const [formLoading, setFormLoading] = useState(false);
-  const [formError,   setFormError]   = useState('');
+  const [formError, setFormError] = useState('');
 
   // ── Detail drawer ────────────────────────────────────────────
-  const [detailOpen,    setDetailOpen]    = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [detailRequest, setDetailRequest] = useState(null);
 
   // ── Action modal (approve/issue/reject) ──────────────────────
-  const [actionOpen,    setActionOpen]    = useState(false);
-  const [actionType,    setActionType]    = useState('');   // 'approve'|'issue'|'reject'|'cancel'
-  const [actionTarget,  setActionTarget]  = useState(null);
-  const [actionNote,    setActionNote]    = useState('');
+  const [actionOpen, setActionOpen] = useState(false);
+  const [actionType, setActionType] = useState('');   // 'approve'|'issue'|'reject'|'cancel'
+  const [actionTarget, setActionTarget] = useState(null);
+  const [actionNote, setActionNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [actionError,   setActionError]   = useState('');
+  const [actionError, setActionError] = useState('');
 
   // ── Issue qty overrides ──────────────────────────────────────
   const [issueQtys, setIssueQtys] = useState({});
@@ -152,13 +152,13 @@ export default function StockIssueRequest() {
   const filtered = useMemo(() => {
     return requests.filter(r => {
       if (filterStatus && r.status !== filterStatus) return false;
-      if (filterDept   && r.department !== filterDept) return false;
+      if (filterDept && r.department !== filterDept) return false;
       if (search) {
         const q = search.toLowerCase();
         const matchVoucher = r.voucherNo?.toLowerCase().includes(q);
-        const matchDept    = r.department?.toLowerCase().includes(q);
-        const matchReqBy   = r.requestedBy?.name?.toLowerCase().includes(q);
-        const matchItem    = r.items?.some(i => i.material?.name?.toLowerCase().includes(q));
+        const matchDept = r.department?.toLowerCase().includes(q);
+        const matchReqBy = r.requestedBy?.name?.toLowerCase().includes(q);
+        const matchItem = r.items?.some(i => i.material?.name?.toLowerCase().includes(q));
         if (!matchVoucher && !matchDept && !matchReqBy && !matchItem) return false;
       }
       return true;
@@ -168,7 +168,7 @@ export default function StockIssueRequest() {
   // ── Form helpers ─────────────────────────────────────────────
   const openCreate = () => {
     setEditTarget(null);
-    setFormDept('Kitchen');
+    setFormDept('branch');
     setFormType('request');
     setFormPriority('normal');
     setFormNotes('');
@@ -194,7 +194,7 @@ export default function StockIssueRequest() {
     loadMaterials(); // lazy load
   };
 
-  const addItem    = () => setFormItems(prev => [...prev, { ...EMPTY_ITEM }]);
+  const addItem = () => setFormItems(prev => [...prev, { ...EMPTY_ITEM }]);
   const removeItem = (idx) => setFormItems(prev => prev.filter((_, i) => i !== idx));
   const updateItem = (idx, field, value) => {
     setFormItems(prev => prev.map((item, i) =>
@@ -227,14 +227,14 @@ export default function StockIssueRequest() {
     setFormLoading(true);
     try {
       const payload = {
-        department:  formDept,
+        department: formDept,
         requestType: formType,
-        priority:    formPriority,
-        notes:       formNotes,
-        items:       validItems.map(i => ({
-          material:     i.material,
+        priority: formPriority,
+        notes: formNotes,
+        items: validItems.map(i => ({
+          material: i.material,
           requestedQty: Number(i.requestedQty),
-          note:         i.note,
+          note: i.note,
         })),
       };
       let response;
@@ -283,13 +283,13 @@ export default function StockIssueRequest() {
       const url = `/stock-requests/${actionTarget._id}/${actionType}`;
       let body = { note: actionNote };
 
-      if (actionType === 'reject')  body = { reason: actionNote };
-      if (actionType === 'cancel')  body = { reason: actionNote };
+      if (actionType === 'reject') body = { reason: actionNote };
+      if (actionType === 'cancel') body = { reason: actionNote };
       if (actionType === 'issue') {
         body = {
           note: actionNote,
           items: actionTarget.items.map(i => ({
-            material:  i.material?._id || i.material,
+            material: i.material?._id || i.material,
             issuedQty: Number(issueQtys[i.material?._id || i.material] || i.requestedQty),
           })),
         };
@@ -331,7 +331,7 @@ export default function StockIssueRequest() {
 
   // ── Helpers ───────────────────────────────────────────────────
   const canApprove = user?.role === 'admin' || user?.role === 'manager';
-  const canIssue   = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'storekeeper';
+  const canIssue = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'storekeeper';
 
   const getMaterialStock = (matId) => {
     const mat = materials.find(m => (m._id || m) === matId);
@@ -345,10 +345,10 @@ export default function StockIssueRequest() {
 
   // ── Action config ─────────────────────────────────────────────
   const ACTION_CONFIG = {
-    approve: { title: 'Approve Request',     btn: 'Approve',      btnClass: 'bg-blue-600 hover:bg-blue-700',    label: 'Approval note (optional)' },
-    issue:   { title: 'Issue Stock',         btn: 'Issue Stock',  btnClass: 'bg-emerald-600 hover:bg-emerald-700', label: 'Issue note (optional)' },
-    reject:  { title: 'Reject Request',      btn: 'Reject',       btnClass: 'bg-rose-600 hover:bg-rose-700',    label: 'Reason for rejection *' },
-    cancel:  { title: 'Cancel Request',      btn: 'Cancel Request', btnClass: 'bg-ink-600 hover:bg-ink-700',   label: 'Reason for cancellation (optional)' },
+    approve: { title: 'Approve Request', btn: 'Approve', btnClass: 'bg-blue-600 hover:bg-blue-700', label: 'Approval note (optional)' },
+    issue: { title: 'Issue Stock', btn: 'Issue Stock', btnClass: 'bg-emerald-600 hover:bg-emerald-700', label: 'Issue note (optional)' },
+    reject: { title: 'Reject Request', btn: 'Reject', btnClass: 'bg-rose-600 hover:bg-rose-700', label: 'Reason for rejection *' },
+    cancel: { title: 'Cancel Request', btn: 'Cancel Request', btnClass: 'bg-ink-600 hover:bg-ink-700', label: 'Reason for cancellation (optional)' },
   };
 
   // ── Loading skeleton ──────────────────────────────────────────
@@ -357,7 +357,7 @@ export default function StockIssueRequest() {
       <div className="space-y-6 pb-8 animate-pulse">
         <div className="h-8 w-64 rounded-xl bg-ink-200/60" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-24 rounded-2xl bg-white border border-ink-100" />)}
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 rounded-2xl bg-white border border-ink-100" />)}
         </div>
         <div className="h-96 rounded-2xl bg-white border border-ink-100" />
       </div>
@@ -408,10 +408,10 @@ export default function StockIssueRequest() {
       {/* ── Summary KPI Cards ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { label: 'Pending',  value: summary.pending  || 0, icon: Clock,        color: 'from-amber-500 to-orange-500',   bg: 'bg-amber-50',   text: 'text-amber-700' },
-          { label: 'Approved', value: summary.approved || 0, icon: CheckCircle2, color: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50',    text: 'text-blue-700' },
-          { label: 'Issued',   value: summary.issued   || 0, icon: PackageCheck, color: 'from-emerald-500 to-teal-600',   bg: 'bg-emerald-50', text: 'text-emerald-700' },
-          { label: 'Rejected', value: summary.rejected || 0, icon: XCircle,      color: 'from-rose-500 to-red-600',       bg: 'bg-rose-50',    text: 'text-rose-700' },
+          { label: 'Pending', value: summary.pending || 0, icon: Clock, color: 'from-amber-500 to-orange-500', bg: 'bg-amber-50', text: 'text-amber-700' },
+          { label: 'Approved', value: summary.approved || 0, icon: CheckCircle2, color: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-700' },
+          { label: 'Issued', value: summary.issued || 0, icon: PackageCheck, color: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+          { label: 'Rejected', value: summary.rejected || 0, icon: XCircle, color: 'from-rose-500 to-red-600', bg: 'bg-rose-50', text: 'text-rose-700' },
         ].map(({ label, value, icon: Icon, color, bg, text }) => (
           <div key={label} className={`rounded-2xl border border-ink-100 bg-white p-4 shadow-soft cursor-pointer hover:shadow-md transition`}
             onClick={() => setFilterStatus(filterStatus === label.toLowerCase() ? '' : label.toLowerCase())}>
@@ -522,11 +522,10 @@ export default function StockIssueRequest() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border ${
-                        req.requestType === 'direct_issue'
+                      <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border ${req.requestType === 'direct_issue'
                           ? 'bg-violet-50 text-violet-700 border-violet-200'
                           : 'bg-blue-50 text-blue-700 border-blue-200'
-                      }`}>
+                        }`}>
                         {req.requestType === 'direct_issue' ? 'Direct Issue' : 'Request'}
                       </span>
                     </td>
@@ -661,14 +660,13 @@ export default function StockIssueRequest() {
               {!editTarget && (
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { value: 'request',      label: 'Stock Request',   desc: 'Requires approval',    icon: ClipboardList, color: 'border-blue-400 bg-blue-50' },
-                    { value: 'direct_issue', label: 'Direct Issue',    desc: 'Instant stock deduction', icon: Zap,          color: 'border-violet-400 bg-violet-50' },
+                    { value: 'request', label: 'Stock Request', desc: 'Requires approval', icon: ClipboardList, color: 'border-blue-400 bg-blue-50' },
+                    { value: 'direct_issue', label: 'Direct Issue', desc: 'Instant stock deduction', icon: Zap, color: 'border-violet-400 bg-violet-50' },
                   ].map(t => (
                     <button key={t.value}
                       onClick={() => setFormType(t.value)}
-                      className={`flex items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition ${
-                        formType === t.value ? t.color : 'border-ink-200 bg-white hover:bg-ink-50'
-                      }`}
+                      className={`flex items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition ${formType === t.value ? t.color : 'border-ink-200 bg-white hover:bg-ink-50'
+                        }`}
                     >
                       <t.icon size={18} className={formType === t.value ? 'text-blue-600' : 'text-ink-400'} />
                       <div>
@@ -816,12 +814,11 @@ export default function StockIssueRequest() {
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className={`px-6 py-5 border-b border-ink-100 ${
-              actionType === 'approve' ? 'bg-blue-600'
-              : actionType === 'issue'  ? 'bg-emerald-600'
-              : actionType === 'reject' ? 'bg-rose-600'
-              : 'bg-ink-800'
-            }`}>
+            <div className={`px-6 py-5 border-b border-ink-100 ${actionType === 'approve' ? 'bg-blue-600'
+                : actionType === 'issue' ? 'bg-emerald-600'
+                  : actionType === 'reject' ? 'bg-rose-600'
+                    : 'bg-ink-800'
+              }`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-black text-white">{ACTION_CONFIG[actionType]?.title}</h2>
                 <button onClick={() => setActionOpen(false)}
@@ -838,31 +835,29 @@ export default function StockIssueRequest() {
               {/* Items summary */}
               <div className="rounded-xl border border-ink-100 bg-ink-50/40 p-3 space-y-2.5">
                 {actionTarget.items?.map((item, i) => {
-                  const matId       = item.material?._id || item.material;
+                  const matId = item.material?._id || item.material;
                   const currentStock = item.material?.currentStock ?? 0;
-                  const issueQty    = Number(issueQtys[matId] ?? item.requestedQty);
+                  const issueQty = Number(issueQtys[matId] ?? item.requestedQty);
                   const isInsufficient = actionType === 'issue' && issueQty > currentStock;
-                  const isExact        = actionType === 'issue' && issueQty === currentStock && currentStock < item.requestedQty;
+                  const isExact = actionType === 'issue' && issueQty === currentStock && currentStock < item.requestedQty;
 
                   return (
-                    <div key={i} className={`rounded-xl border p-3 ${
-                      isInsufficient ? 'border-rose-200 bg-rose-50' : 'border-ink-100 bg-white'
-                    }`}>
+                    <div key={i} className={`rounded-xl border p-3 ${isInsufficient ? 'border-rose-200 bg-rose-50' : 'border-ink-100 bg-white'
+                      }`}>
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <span className="font-bold text-ink-900">{item.material?.name || '—'}</span>
                         {actionType === 'issue' && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            isInsufficient
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isInsufficient
                               ? 'bg-rose-100 text-rose-700'
                               : currentStock >= item.requestedQty
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}>
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
                             {isInsufficient
                               ? `⚠ Only ${currentStock} ${item.material?.unit} available`
                               : currentStock >= item.requestedQty
-                              ? `✓ ${currentStock} ${item.material?.unit} in stock`
-                              : `⚡ ${currentStock} ${item.material?.unit} available`
+                                ? `✓ ${currentStock} ${item.material?.unit} in stock`
+                                : `⚡ ${currentStock} ${item.material?.unit} available`
                             }
                           </span>
                         )}
@@ -882,11 +877,10 @@ export default function StockIssueRequest() {
                                 ...prev,
                                 [matId]: e.target.value,
                               }))}
-                              className={`w-24 rounded-lg border px-2 py-1 text-xs text-center outline-none focus:ring-1 ${
-                                isInsufficient
+                              className={`w-24 rounded-lg border px-2 py-1 text-xs text-center outline-none focus:ring-1 ${isInsufficient
                                   ? 'border-rose-400 bg-rose-50 text-rose-700 focus:border-rose-500 focus:ring-rose-200'
                                   : 'border-ink-200 bg-white focus:border-blue-500 focus:ring-blue-200'
-                              }`}
+                                }`}
                             />
                             <span className="text-ink-400">/ {item.requestedQty} {item.material?.unit}</span>
                           </div>
@@ -916,11 +910,11 @@ export default function StockIssueRequest() {
                 const currentStock = item.material?.currentStock ?? 0;
                 return Number(issueQtys[matId] ?? item.requestedQty) > currentStock;
               }) && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700">
-                  <p className="font-bold mb-1">⚠ Insufficient Balance</p>
-                  <p>One or more items exceed available stock. Please reduce the issue quantity to available amount or the system will block this action.</p>
-                </div>
-              )}
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700">
+                    <p className="font-bold mb-1">⚠ Insufficient Balance</p>
+                    <p>One or more items exceed available stock. Please reduce the issue quantity to available amount or the system will block this action.</p>
+                  </div>
+                )}
 
               {/* Note/Reason input */}
               <div>
@@ -933,9 +927,9 @@ export default function StockIssueRequest() {
                   rows={3}
                   className="w-full rounded-xl border border-ink-200 px-3 py-2.5 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
                   placeholder={
-                    actionType === 'reject'  ? 'Provide a clear reason for rejection...'
-                    : actionType === 'cancel' ? 'Reason for cancellation...'
-                    : 'Optional note...'
+                    actionType === 'reject' ? 'Provide a clear reason for rejection...'
+                      : actionType === 'cancel' ? 'Reason for cancellation...'
+                        : 'Optional note...'
                   }
                 />
               </div>
@@ -960,9 +954,9 @@ export default function StockIssueRequest() {
                 {actionLoading
                   ? <RefreshCw size={13} className="animate-spin" />
                   : actionType === 'approve' ? <CheckCircle2 size={13} />
-                  : actionType === 'issue'   ? <PackageCheck size={13} />
-                  : actionType === 'reject'  ? <XCircle size={13} />
-                  : <X size={13} />
+                    : actionType === 'issue' ? <PackageCheck size={13} />
+                      : actionType === 'reject' ? <XCircle size={13} />
+                        : <X size={13} />
                 }
                 {ACTION_CONFIG[actionType]?.btn}
               </button>
@@ -1005,13 +999,13 @@ export default function StockIssueRequest() {
               {/* Info grid */}
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {[
-                  { label: 'Department',    value: detailRequest.department },
-                  { label: 'Type',          value: detailRequest.requestType === 'direct_issue' ? 'Direct Issue' : 'Request' },
-                  { label: 'Requested By',  value: detailRequest.requestedBy?.name },
-                  { label: 'Date',          value: new Date(detailRequest.date || detailRequest.createdAt).toLocaleDateString('en-US', { dateStyle: 'medium' }) },
-                  detailRequest.approvedBy  && { label: 'Approved By',  value: detailRequest.approvedBy?.name },
-                  detailRequest.issuedBy    && { label: 'Issued By',    value: detailRequest.issuedBy?.name },
-                  detailRequest.rejectedBy  && { label: 'Rejected By',  value: detailRequest.rejectedBy?.name },
+                  { label: 'Department', value: detailRequest.department },
+                  { label: 'Type', value: detailRequest.requestType === 'direct_issue' ? 'Direct Issue' : 'Request' },
+                  { label: 'Requested By', value: detailRequest.requestedBy?.name },
+                  { label: 'Date', value: new Date(detailRequest.date || detailRequest.createdAt).toLocaleDateString('en-US', { dateStyle: 'medium' }) },
+                  detailRequest.approvedBy && { label: 'Approved By', value: detailRequest.approvedBy?.name },
+                  detailRequest.issuedBy && { label: 'Issued By', value: detailRequest.issuedBy?.name },
+                  detailRequest.rejectedBy && { label: 'Rejected By', value: detailRequest.rejectedBy?.name },
                   detailRequest.rejectReason && { label: 'Reject Reason', value: detailRequest.rejectReason },
                 ].filter(Boolean).map(({ label, value }) => (
                   <div key={label} className="rounded-xl border border-ink-100 bg-ink-50/40 p-2.5">

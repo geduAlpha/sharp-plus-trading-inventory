@@ -68,7 +68,7 @@ const consumptionSchema = new mongoose.Schema(
     // Who consumed / beneficiary
     beneficiary: { type: String, trim: true, default: '' }, // e.g. "5 Staff on night shift" or "Mr. John - VIP Guest"
     pax: { type: Number, default: 1 },              // number of people
-    department: { type: String, trim: true, default: '' }, // e.g. Kitchen, F&B, Housekeeping
+    department: { type: String, trim: true, default: '' }, // e.g. branch, F&B, Housekeeping
 
     // Products consumed (linked to recipes)
     items: [consumedItemSchema],

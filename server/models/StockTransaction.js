@@ -20,6 +20,8 @@ const VOUCHER_TYPES = [
   'pos_adjustment',
   'fresh_bazaar',
   'sales_import',
+  'cash_sale',
+  'credit_sale',
 ];
 
 // Direction each voucher type moves stock
@@ -31,14 +33,18 @@ const VOUCHER_DIRECTION = {
   pos_adjustment: 'in',
   fresh_bazaar:   'in',
   sales_import:   'out',
+  cash_sale:      'out',
+  credit_sale:    'out',
 };
 
 const lineItemSchema = new mongoose.Schema(
   {
-    material: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
-    quantity: { type: Number, required: true, min: 0.001 },
-    unitCost: { type: Number, default: 0 },
-    totalCost: { type: Number, default: 0 },
+    material:     { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
+    quantity:     { type: Number, required: true, min: 0.001 },
+    unitCost:     { type: Number, default: 0 },
+    sellingPrice: { type: Number, default: 0 },
+    totalCost:    { type: Number, default: 0 },
+    totalRevenue: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -118,7 +124,16 @@ const stockTransactionSchema = new mongoose.Schema(
       },
     ],
 
-    totalAmount: { type: Number, default: 0 },
+    totalAmount:     { type: Number, default: 0 },
+    customerName:    { type: String, trim: true, default: '' },
+    customerPhone:   { type: String, trim: true, default: '' },
+    customerAddress: { type: String, trim: true, default: '' },
+    paymentType:     { type: String, enum: ['cash', 'credit'], default: 'cash' },
+    paymentStatus:   { type: String, enum: ['paid', 'unpaid', 'partial'], default: 'paid' },
+    amountPaid:      { type: Number, default: 0 },
+    dueDate:         { type: Date, default: null },
+    totalRevenue:    { type: Number, default: 0 },
+    grossProfit:     { type: Number, default: 0 },
     // Recycle bin fields
     deletedAt:   { type: Date, default: null },
     deletedBy:   { type: String, default: null },
@@ -142,6 +157,9 @@ stockTransactionSchema.virtual('voucherLabel').get(function () {
     neg_adjustment: 'Negative Adjustment',
     pos_adjustment: 'Positive Adjustment',
     fresh_bazaar:   'Fresh Bazaar GRV',
+    sales_import:   'Sales Import',
+    cash_sale:      'Cash Sale',
+    credit_sale:    'Credit Sale',
   };
   return labels[this.voucherType] ?? this.voucherType;
 });
