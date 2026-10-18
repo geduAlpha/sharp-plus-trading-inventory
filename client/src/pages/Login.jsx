@@ -134,6 +134,9 @@ export default function Login() {
       const res = await api.post('/auth/request-otp', { phone: phone.trim() });
       setUserId(res.data.userId || '');
       setMaskedName(res.data.maskedName || '');
+      if (res.data.devOtp) {
+        setOtp(String(res.data.devOtp));
+      }
       setStep('otp');
       setResendTimer(60);
     } catch (err) {
