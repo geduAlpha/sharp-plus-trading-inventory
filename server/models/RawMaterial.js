@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const rawMaterialSchema = new mongoose.Schema(
+const Itemschema = new mongoose.Schema(
   {
     code: { type: String, trim: true, default: '' },
     name: { type: String, required: true, trim: true },
@@ -18,19 +18,19 @@ const rawMaterialSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-rawMaterialSchema.index({ isActive: 1, currentStock: 1 });
-rawMaterialSchema.index({ code: 1 });
-rawMaterialSchema.index({ name: 1 });
-rawMaterialSchema.index({ category: 1 });
+Itemschema.index({ isActive: 1, currentStock: 1 });
+Itemschema.index({ code: 1 });
+Itemschema.index({ name: 1 });
+Itemschema.index({ category: 1 });
 
-rawMaterialSchema.virtual('status').get(function () {
+Itemschema.virtual('status').get(function () {
   if (this.currentStock <= 0) return 'out_of_stock';
   if (this.currentStock <= this.reorderLevel) return 'low_stock';
   return 'in_stock';
 });
 
-rawMaterialSchema.set('toJSON', { virtuals: true });
-rawMaterialSchema.set('toObject', { virtuals: true });
+Itemschema.set('toJSON', { virtuals: true });
+Itemschema.set('toObject', { virtuals: true });
 
-module.exports = mongoose.model('RawMaterial', rawMaterialSchema);
+module.exports = mongoose.model('RawMaterial', Itemschema);
 

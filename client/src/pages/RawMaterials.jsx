@@ -7,7 +7,7 @@ import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ExportDropdown from '../components/ui/ExportDropdown';
-const emptyForm = { code: '', name: '', category: '', unit: '', currentStock: 0, reorderLevel: 10, unitCost: 0, storeLocation: 'Main Store' };
+const emptyForm = { code: '', name: '', category: '', unit: '', currentStock: '', reorderLevel: 10, unitCost: '', storeLocation: 'Main Store' };
 
 // Common units for hospitality / branch / store
 const UNITS = [
@@ -32,7 +32,7 @@ const statusBadge = (status) => {
   return <Badge color="green">In stock</Badge>;
 };
 
-const RawMaterials = () => {
+const Items = () => {
   const [materials, setMaterials] = useState([]);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(new Set());
@@ -116,10 +116,15 @@ const RawMaterials = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const payload = {
+      ...form,
+      currentStock: Number(form.currentStock) || 0,
+      unitCost: Number(form.unitCost) || 0,
+    };
     if (editing) {
-      await api.put(`/materials/${editing._id}`, form);
+      await api.put(`/materials/${editing._id}`, payload);
     } else {
-      await api.post('/materials', form);
+      await api.post('/materials', payload);
     }
     setModalOpen(false);
     load();
@@ -406,8 +411,9 @@ const RawMaterials = () => {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-sm font-medium text-ink-600">Current stock</label>
-              <input type="number" step="0.01" required value={form.currentStock}
-                onChange={(e) => setForm({ ...form, currentStock: Number(e.target.value) })}
+              <input type="text" inputMode="decimal" required value={form.currentStock}
+                placeholder="0.00"
+                onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d*$/.test(v)) setForm({ ...form, currentStock: v }); }}
                 className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brass-400" />
             </div>
             <div>
@@ -418,8 +424,9 @@ const RawMaterials = () => {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-ink-600">Unit cost</label>
-              <input type="number" step="0.01" value={form.unitCost}
-                onChange={(e) => setForm({ ...form, unitCost: Number(e.target.value) })}
+              <input type="text" inputMode="decimal" value={form.unitCost}
+                placeholder="0.00"
+                onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d*$/.test(v)) setForm({ ...form, unitCost: v }); }}
                 className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brass-400" />
             </div>
           </div>

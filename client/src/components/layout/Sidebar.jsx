@@ -13,7 +13,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 
 const SALES_ITEMS = [
-  { to: '/sales/cash',   label: 'Cash Sales',   icon: ShoppingBag },
+  { to: '/sales/cash', label: 'Cash Sales', icon: ShoppingBag },
   { to: '/sales/credit', label: 'Credit Sales', icon: CreditCard },
 ];
 
@@ -309,7 +309,7 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
 
           <SectionLabel collapsed={collapsed}>Main</SectionLabel>
           {canSeeNav('dashboard') && navLink('/', LayoutDashboard, 'Dashboard', true)}
-          {canSeeNav('rawMaterials') && navLink('/materials', Boxes, 'Items')}
+          {canSeeNav('Items') && navLink('/materials', Boxes, 'Items')}
           {canSeeNav('products') && navLink('/products', UtensilsCrossed, 'Products')}
           {canSeeNav('analytics') && navLink('/analytics', TrendingUp, 'Analytics & P&L')}
 

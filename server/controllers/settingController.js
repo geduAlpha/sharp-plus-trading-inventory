@@ -5,7 +5,7 @@ const tg = require('../utils/telegramNotifier');
 
 const DEFAULT_NAV_VISIBILITY = {
   dashboard: { storekeeper: true, manager: true, admin: true },
-  rawMaterials: { storekeeper: true, manager: true, admin: true },
+  Items: { storekeeper: true, manager: true, admin: true },
   products: { storekeeper: true, manager: true, admin: true },
   stockMovements: { storekeeper: true, manager: true, admin: true },
   suppliers: { storekeeper: false, manager: true, admin: true },

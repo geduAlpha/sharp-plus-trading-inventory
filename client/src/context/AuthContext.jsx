@@ -4,25 +4,25 @@ import api from '../api/axios';
 const AuthContext = createContext(null);
 
 const DEFAULT_PERMISSIONS = {
-  recordGoods:      { storekeeper: true,  manager: true,  admin: true },
-  checkReview:      { storekeeper: false, manager: true,  admin: true },
-  approveGoods:     { storekeeper: false, manager: false, admin: true },
-  postLedger:       { storekeeper: false, manager: true,  admin: true },
+  recordGoods: { storekeeper: true, manager: true, admin: true },
+  checkReview: { storekeeper: false, manager: true, admin: true },
+  approveGoods: { storekeeper: false, manager: false, admin: true },
+  postLedger: { storekeeper: false, manager: true, admin: true },
   voidTransactions: { storekeeper: false, manager: false, admin: true },
-  viewReports:      { storekeeper: false, manager: true,  admin: true },
-  manageAccounts:   { storekeeper: false, manager: false, admin: true },
+  viewReports: { storekeeper: false, manager: true, admin: true },
+  manageAccounts: { storekeeper: false, manager: false, admin: true },
 };
 const DEFAULT_NAV_VISIBILITY = {
-  dashboard:      { storekeeper: true,  manager: true,  admin: true },
-  rawMaterials:   { storekeeper: true,  manager: true,  admin: true },
-  products:       { storekeeper: true,  manager: true,  admin: true },
-  stockMovements: { storekeeper: true,  manager: true,  admin: true },
-  salesMarketing: { storekeeper: true,  manager: true,  admin: true },
-  suppliers:      { storekeeper: false, manager: true,  admin: true },
-  consumption:    { storekeeper: true,  manager: true,  admin: true },
-  reports:        { storekeeper: false, manager: true,  admin: true },
-  analytics:      { storekeeper: false, manager: true,  admin: true },
-  staffAccounts:  { storekeeper: false, manager: false, admin: true },
+  dashboard: { storekeeper: true, manager: true, admin: true },
+  Items: { storekeeper: true, manager: true, admin: true },
+  products: { storekeeper: true, manager: true, admin: true },
+  stockMovements: { storekeeper: true, manager: true, admin: true },
+  salesMarketing: { storekeeper: true, manager: true, admin: true },
+  suppliers: { storekeeper: false, manager: true, admin: true },
+  consumption: { storekeeper: true, manager: true, admin: true },
+  reports: { storekeeper: false, manager: true, admin: true },
+  analytics: { storekeeper: false, manager: true, admin: true },
+  staffAccounts: { storekeeper: false, manager: false, admin: true },
 };
 
 /** Clear every settings-related key from localStorage */
@@ -32,9 +32,9 @@ const clearSettingsCache = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]                     = useState(null);
+  const [user, setUser] = useState(null);
   const [rolePermissions, setRolePermissions] = useState(DEFAULT_PERMISSIONS);
-  const [navVisibility,   setNavVisibility]   = useState(DEFAULT_NAV_VISIBILITY);
+  const [navVisibility, setNavVisibility] = useState(DEFAULT_NAV_VISIBILITY);
 
   // loading stays true until BOTH the user AND the server settings are resolved
   const [loading, setLoading] = useState(true);
