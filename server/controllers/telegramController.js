@@ -15,26 +15,20 @@ async function reply(chatId, text) {
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
     };
     const req = https.request(options);
-    req.on('error', () => {});
+    req.on('error', () => { });
     req.write(body);
     req.end();
-  } catch {}
+  } catch { }
 }
 
-// ── POST /api/telegram/webhook ───────────────────────────────────
-// Telegram calls this endpoint for every message sent to the bot.
-const handleWebhook = asyncHandler(async (req, res) => {
-  // Always respond 200 immediately — Telegram will retry if we're slow
-  res.sendStatus(200);
-
-  const update = req.body;
-  const message = update?.message || update?.edited_message;
+// ── Shared message processor for webhook and polling ─────────────
+async function handleMessage(message) {
   if (!message) return;
 
-  const chatId   = message.chat?.id;
-  const from     = message.from;
-  const text     = (message.text || '').trim().toLowerCase();
-  const name     = [from?.first_name, from?.last_name].filter(Boolean).join(' ') || 'Unknown';
+  const chatId = message.chat?.id;
+  const from = message.from;
+  const text = (message.text || '').trim().toLowerCase();
+  const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ') || 'Unknown';
   const username = from?.username || '';
 
   if (!chatId) return;
@@ -49,11 +43,7 @@ const handleWebhook = asyncHandler(async (req, res) => {
   if (text === '/start' || text.startsWith('/subscribe')) {
     if (alreadySubscribed) {
       await reply(chatId,
-`✅ <b>Already subscribed!</b>
-
-You are already receiving Five Stop Hotel notifications.
-
-To unsubscribe, send /unsubscribe`
+        `✅ <b>Already subscribed!</b>\n\nYou are already receiving Sharp Plus notifications.\n\nTo unsubscribe, send /unsubscribe`
       );
       return;
     }
@@ -69,32 +59,16 @@ To unsubscribe, send /unsubscribe`
     await settings.save();
 
     await reply(chatId,
-`🏨 <b>Five Stop Hotel</b>
-━━━━━━━━━━━━━━━━━━━━
-✅ <b>Subscribed successfully!</b>
-
-Welcome, <b>${name}</b>!
-
-You will now receive real-time alerts for:
-🔐 User logins
-📦 Stock transactions (GRV, Disposal, etc.)
-✅ Voucher approvals & workflow steps
-🧱 Raw material changes
-🚚 Supplier changes
-🍽️ Product changes
-⚙️ System settings changes
-🗑️ Recycle bin actions
-
-To stop notifications, send /unsubscribe
-━━━━━━━━━━━━━━━━━━━━`
+      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n✅ <b>Subscribed successfully!</b>\n\nWelcome, <b>${name}</b>!\n\nYou will now receive real-time alerts for:\n🔐 User logins\n📦 Stock transactions (GRV, Disposal, etc.)\n✅ Voucher approvals & workflow steps\n🧱 Raw material changes\n🚚 Supplier changes\n🍽️ Product changes\n⚙️ System settings changes\n🗑️ Recycle bin actions\n\nTo stop notifications, send /unsubscribe\n━━━━━━━━━━━━━━━━━━━━`
     );
+    console.log(`[Telegram] New subscriber: ${name} (Chat ID: ${chatId})`);
     return;
   }
 
   // ── /unsubscribe ──────────────────────────────────────────────
   if (text.startsWith('/unsubscribe')) {
     if (!alreadySubscribed) {
-      await reply(chatId, '❌ You are not currently subscribed to Five Stop notifications.');
+      await reply(chatId, '❌ You are not currently subscribed to Sharp Plus notifications.');
       return;
     }
 
@@ -103,14 +77,9 @@ To stop notifications, send /unsubscribe
     await settings.save();
 
     await reply(chatId,
-`🏨 <b>Five Stop Hotel</b>
-━━━━━━━━━━━━━━━━━━━━
-🔕 <b>Unsubscribed</b>
-
-You will no longer receive notifications.
-Send /subscribe anytime to re-subscribe.
-━━━━━━━━━━━━━━━━━━━━`
+      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n🔕 <b>Unsubscribed</b>\n\nYou will no longer receive notifications.\nSend /subscribe anytime to re-subscribe.\n━━━━━━━━━━━━━━━━━━━━`
     );
+    console.log(`[Telegram] Unsubscribed: ${name} (Chat ID: ${chatId})`);
     return;
   }
 
@@ -118,7 +87,7 @@ Send /subscribe anytime to re-subscribe.
   if (text === '/status') {
     await reply(chatId,
       alreadySubscribed
-        ? `✅ You are <b>subscribed</b> to Five Stop Hotel notifications.\n\nSend /unsubscribe to stop.`
+        ? `✅ You are <b>subscribed</b> to Sharp Plus notifications.\n\nSend /unsubscribe to stop.`
         : `❌ You are <b>not subscribed</b>.\n\nSend /subscribe to start receiving notifications.`
     );
     return;
@@ -126,14 +95,68 @@ Send /subscribe anytime to re-subscribe.
 
   // ── Unknown command ───────────────────────────────────────────
   await reply(chatId,
-`🏨 <b>Five Stop Hotel Bot</b>
-
-Available commands:
-/subscribe   — Start receiving notifications
-/unsubscribe — Stop receiving notifications
-/status      — Check your subscription status`
+    `🏨 <b>Sharp Plus Bot</b>\n\nAvailable commands:\n/subscribe   — Start receiving notifications\n/unsubscribe — Stop receiving notifications\n/status      — Check your subscription status`
   );
+}
+
+// ── POST /api/telegram/webhook ───────────────────────────────────
+// Telegram calls this endpoint for every message sent to the bot (production webhook).
+const handleWebhook = asyncHandler(async (req, res) => {
+  res.sendStatus(200);
+  const update = req.body;
+  const message = update?.message || update?.edited_message;
+  await handleMessage(message);
 });
+
+// ── Long polling for local development ────────────────────────────
+let isPolling = false;
+let lastUpdateId = 0;
+
+function startPolling() {
+  if (isPolling || !BOT_TOKEN) return;
+  isPolling = true;
+  console.log('[Telegram] Bot polling active for @SharpPlusBot');
+
+  const poll = async () => {
+    if (!isPolling) return;
+    try {
+      const https = require('https');
+      const url = `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&timeout=25`;
+      const req = https.get(url, (res) => {
+        let raw = '';
+        res.on('data', chunk => { raw += chunk; });
+        res.on('end', async () => {
+          try {
+            const data = JSON.parse(raw);
+            if (data.ok && Array.isArray(data.result)) {
+              for (const update of data.result) {
+                if (update.update_id >= lastUpdateId) {
+                  lastUpdateId = update.update_id;
+                }
+                const msg = update.message || update.edited_message;
+                if (msg) {
+                  await handleMessage(msg);
+                }
+              }
+            }
+          } catch { }
+          if (isPolling) setTimeout(poll, 1000);
+        });
+      });
+      req.on('error', () => {
+        if (isPolling) setTimeout(poll, 5000);
+      });
+    } catch {
+      if (isPolling) setTimeout(poll, 5000);
+    }
+  };
+
+  poll();
+}
+
+if (BOT_TOKEN) {
+  startPolling();
+}
 
 // ── POST /api/telegram/subscribers (admin only) ──────────────────
 // Manually add a subscriber with name + phone (no bot interaction needed).
@@ -158,10 +181,10 @@ const addSubscriber = asyncHandler(async (req, res) => {
   }
 
   const newSub = {
-    chatId:       chatId ? String(chatId) : null,
-    name:         name.trim(),
-    username:     username ? username.trim().replace(/^@/, '') : '',
-    phone:        phone.trim(),
+    chatId: chatId ? String(chatId) : null,
+    name: name.trim(),
+    username: username ? username.trim().replace(/^@/, '') : '',
+    phone: phone.trim(),
     subscribedAt: new Date(),
     manuallyAdded: true,
   };
