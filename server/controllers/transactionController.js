@@ -1011,6 +1011,8 @@ const parseImageSales = asyncHandler(async (req, res) => {
       ? `Detected ${rows.length} product line(s) from the image.`
       : 'No product lines detected. The image may be unclear or not in CNET format.',
   });
+});
+
 // ── PUT /api/transactions/:id/payment ─────────────────────────────────
 // Record payment against credit sale
 const recordSalePayment = asyncHandler(async (req, res) => {
