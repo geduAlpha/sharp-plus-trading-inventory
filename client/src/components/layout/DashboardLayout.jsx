@@ -12,7 +12,6 @@ const titles = {
   '/transactions': 'Stock Movements',
   '/transactions/cash-grv': 'Cash GRV Entries',
   '/transactions/credit-grv': 'Credit GRV Entries',
-  '/transactions/fresh-bazaar': 'Fresh Bazaar Entries',
   '/transactions/pos-adjustment': '+ve Adjustment Entries',
   '/transactions/disposal': 'Goods Disposal Entries',
   '/transactions/neg-adjustment': '−ve Adjustment Entries',
@@ -26,7 +25,6 @@ const titles = {
   '/reports/daily': 'Daily Movement Report',
   '/reports/cash-grv': 'Cash GRV Report',
   '/reports/credit-grv': 'Credit GRV Report',
-  '/reports/fresh-bazaar': 'Fresh Bazaar Report',
   '/reports/pos-adjustment': '+ve Adjustment Report',
   '/reports/disposal': 'Goods Disposal Report',
   '/reports/neg-adjustment': '−ve Adjustment Report',
@@ -65,7 +63,7 @@ const DashboardLayout = () => {
             <Outlet />
           </div>
           <footer className="mt-12 pt-6 border-t border-ink-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-400 pb-2">
-            <p>© 2026 Sharp Plus Hotel Management System · All rights reserved.</p>
+            <p>© 2026 Sharp Plus Trading PLC System · All rights reserved.</p>
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <span>Developed &amp; Powered by <strong className="text-ink-700 font-semibold">Mequannent Gashaw</strong></span>
               <div className="flex items-center gap-1.5">

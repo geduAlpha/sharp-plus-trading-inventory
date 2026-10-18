@@ -17,12 +17,14 @@ import { useAuth } from '../context/AuthContext';
 const VOUCHERS = [
   { key: 'cash_grv',       label: 'Cash GRV',        fullLabel: 'Cash Goods Receiving Voucher',   icon: ShoppingBag,  badgeCls: 'bg-emerald-100 text-emerald-700', activeCls: 'bg-emerald-600', direction: 'in',  needsSupplier: true,  needsCost: true,  description: 'Goods received and paid in cash' },
   { key: 'credit_grv',     label: 'Credit GRV',      fullLabel: 'Credit Goods Receiving Voucher', icon: CreditCard,   badgeCls: 'bg-blue-100 text-blue-700',       activeCls: 'bg-blue-600',    direction: 'in',  needsSupplier: true,  needsCost: true,  description: 'Goods received on credit / invoice' },
-  { key: 'fresh_bazaar',   label: 'Fresh Bazaar',    fullLabel: 'Fresh Bazaar Receiving Voucher', icon: Leaf,         badgeCls: 'bg-lime-100 text-lime-700',       activeCls: 'bg-lime-600',    direction: 'in',  needsSupplier: false, needsCost: true,  description: 'Fresh market / direct purchase receiving' },
   { key: 'pos_adjustment', label: '+ve Adjustment',  fullLabel: 'Positive Stock Adjustment',      icon: TrendingUp,   badgeCls: 'bg-violet-100 text-violet-700',   activeCls: 'bg-violet-600',  direction: 'in',  needsSupplier: false, needsCost: false, description: 'Correct stock upward after physical count' },
   { key: 'disposal',       label: 'Disposal',        fullLabel: 'Goods Disposal Voucher',         icon: Flame,        badgeCls: 'bg-orange-100 text-orange-700',   activeCls: 'bg-orange-600',  direction: 'out', needsSupplier: false, needsCost: false, description: 'Write off damaged / expired goods' },
   { key: 'neg_adjustment', label: '−ve Adjustment',  fullLabel: 'Negative Stock Adjustment',      icon: TrendingDown, badgeCls: 'bg-red-100 text-red-700',         activeCls: 'bg-red-600',     direction: 'out', needsSupplier: false, needsCost: false, description: 'Correct stock downward after physical count' },
 ];
-const voucherByKey = Object.fromEntries(VOUCHERS.map(v => [v.key, v]));
+const LEGACY_VOUCHERS = {
+  fresh_bazaar: { key: 'fresh_bazaar', label: 'Fresh Bazaar', fullLabel: 'Fresh Bazaar Receiving Voucher', icon: Leaf, badgeCls: 'bg-lime-100 text-lime-700', activeCls: 'bg-lime-600', direction: 'in', needsSupplier: false, needsCost: true, description: 'Fresh market / direct purchase receiving' },
+};
+const voucherByKey = { ...LEGACY_VOUCHERS, ...Object.fromEntries(VOUCHERS.map(v => [v.key, v])) };
 const emptyItem = () => ({ material: '', quantity: '', unitCost: '' });
 const emptyForm = key => ({ voucherType: key, voucherNo: '', supplier: '', reason: '', reference: '', notes: '', date: new Date().toISOString().slice(0, 16), items: [emptyItem()], attachments: [] });
 

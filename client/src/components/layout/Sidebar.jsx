@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Truck, Boxes, ShoppingCart,
   ArrowLeftRight, FileBarChart, Users, UtensilsCrossed,
   ChevronDown, ChevronRight,
-  ShoppingBag, CreditCard, Leaf, TrendingUp, Flame, TrendingDown,
+  ShoppingBag, CreditCard, TrendingUp, Flame, TrendingDown,
   BarChart2, Calendar, PackageOpen, Settings as SettingsIcon, UploadCloud,
   Scale, ClipboardList, Trash2, Coffee, UserCog, Sparkles,
   SendToBack, X, Rocket, ClipboardCheck, ArrowRightLeft, History,
@@ -15,7 +15,6 @@ const STOCK_ITEMS = [
   { to: '/transactions', label: 'All Movements', icon: ArrowLeftRight, end: true },
   { to: '/transactions/cash-grv', label: 'Cash Goods Receiving', icon: ShoppingBag },
   { to: '/transactions/credit-grv', label: 'Credit Goods Receiving', icon: CreditCard },
-  { to: '/transactions/fresh-bazaar', label: 'Fresh Bazaar Receiving', icon: Leaf },
   { to: '/transactions/pos-adjustment', label: 'Positive Adjustment', icon: TrendingUp },
   { to: '/transactions/disposal', label: 'Goods Disposal', icon: Flame },
   { to: '/transactions/neg-adjustment', label: 'Negative Adjustment', icon: TrendingDown },
@@ -29,7 +28,6 @@ const REPORT_ITEMS = [
   { to: '/reports/daily', label: 'Daily Report', icon: Calendar },
   { to: '/reports/cash-grv', label: 'Cash GRV Report', icon: ShoppingBag },
   { to: '/reports/credit-grv', label: 'Credit GRV Report', icon: CreditCard },
-  { to: '/reports/fresh-bazaar', label: 'Fresh Bazaar Report', icon: Leaf },
   { to: '/reports/pos-adjustment', label: '+ve Adjustment Report', icon: TrendingUp },
   { to: '/reports/disposal', label: 'Disposal Report', icon: Flame },
   { to: '/reports/neg-adjustment', label: '−ve Adjustment Report', icon: TrendingDown },
@@ -282,20 +280,13 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
         {/* ── Logo ── */}
         <NavLink to="/" onClick={onClose}
           className={`relative flex items-center gap-3 py-5 hover:opacity-90 transition-opacity ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
-          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%)' }}>
-            <div className="absolute inset-0 opacity-20"
-              style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 60%)' }} />
-            <svg viewBox="0 0 40 40" width="32" height="32" fill="none">
-              <text x="50%" y="56%" dominantBaseline="middle" textAnchor="middle"
-                fill="white" fontSize="14" fontWeight="800" letterSpacing="-0.5">5S</text>
-            </svg>
-            <Sparkles size={8} className="absolute top-1 right-1 text-yellow-300 opacity-80" />
+          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden shadow-md bg-white p-1 ring-1 ring-white/20">
+            <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
           </div>
           {!collapsed && (
             <div>
               <p className="text-[15px] font-extrabold leading-none text-white tracking-tight">Sharp Plus</p>
-              <p className="text-[10px] text-blue-300/70 mt-0.5 tracking-wide font-medium">Hotel Management</p>
+              <p className="text-[10px] text-blue-300/70 mt-0.5 tracking-wide font-medium">Trading PLC</p>
             </div>
           )}
         </NavLink>

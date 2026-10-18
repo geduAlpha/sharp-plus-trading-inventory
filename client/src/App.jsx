@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
@@ -44,7 +44,7 @@ function App() {
             <Route path="/transactions" element={<StockTransactions />} />
             <Route path="/transactions/cash-grv"       element={<StockTransactions defaultVoucher="cash_grv" />} />
             <Route path="/transactions/credit-grv"     element={<StockTransactions defaultVoucher="credit_grv" />} />
-            <Route path="/transactions/fresh-bazaar"   element={<StockTransactions defaultVoucher="fresh_bazaar" />} />
+            <Route path="/transactions/fresh-bazaar"   element={<Navigate to="/transactions" replace />} />
             <Route path="/transactions/pos-adjustment" element={<StockTransactions defaultVoucher="pos_adjustment" />} />
             <Route path="/transactions/disposal"       element={<StockTransactions defaultVoucher="disposal" />} />
             <Route path="/transactions/neg-adjustment" element={<StockTransactions defaultVoucher="neg_adjustment" />} />
@@ -87,7 +87,7 @@ function App() {
             <Route path="/reports/daily"           element={<ProtectedRoute capability="viewReports"><Reports defaultTab="daily"           /></ProtectedRoute>} />
             <Route path="/reports/cash-grv"        element={<ProtectedRoute capability="viewReports"><Reports defaultTab="cash_grv"        /></ProtectedRoute>} />
             <Route path="/reports/credit-grv"      element={<ProtectedRoute capability="viewReports"><Reports defaultTab="credit_grv"      /></ProtectedRoute>} />
-            <Route path="/reports/fresh-bazaar"    element={<ProtectedRoute capability="viewReports"><Reports defaultTab="fresh_bazaar"    /></ProtectedRoute>} />
+            <Route path="/reports/fresh-bazaar"    element={<Navigate to="/reports" replace />} />
             <Route path="/reports/pos-adjustment"  element={<ProtectedRoute capability="viewReports"><Reports defaultTab="pos_adjustment"  /></ProtectedRoute>} />
             <Route path="/reports/disposal"        element={<ProtectedRoute capability="viewReports"><Reports defaultTab="disposal"        /></ProtectedRoute>} />
             <Route path="/reports/neg-adjustment"  element={<ProtectedRoute capability="viewReports"><Reports defaultTab="neg_adjustment"  /></ProtectedRoute>} />

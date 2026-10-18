@@ -435,7 +435,7 @@ export default function Settings() {
           Account &amp; System Settings
         </h1>
         <p className="text-sm text-ink-400 mt-1">
-          Manage your personal credentials, profile identity, and Sharp Plus hotel management configurations
+          Manage your personal credentials, profile identity, and Sharp Plus Trading PLC configurations
         </p>
       </div>
 

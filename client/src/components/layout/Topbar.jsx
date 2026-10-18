@@ -50,7 +50,6 @@ const HELP_SECTIONS = [
       { title: 'Positive Adjustment', desc: 'Use to correct stock upward (e.g., after a physical count finds extra items). Requires a reason.' },
       { title: 'Negative Adjustment', desc: 'Use to correct stock downward. Requires reason and manager/admin approval.' },
       { title: 'Goods Disposal', desc: 'Record expired or damaged goods removed from stock. These reduce stock balance and appear in disposal reports.' },
-      { title: 'Fresh Bazaar', desc: 'For direct market purchases without a formal supplier invoice.' },
     ],
   },
   {
@@ -73,7 +72,7 @@ const HELP_SECTIONS = [
     steps: [
       { title: 'Stock Balance Sheet', desc: 'Shows current stock quantity and value for all materials. Export to PDF or Excel using the Export button.' },
       { title: 'Daily Report', desc: 'Summary of all stock movements for a selected day — inflow, outflow, adjustments, and disposals.' },
-      { title: 'GRV Reports', desc: 'View all Cash, Credit, or Fresh Bazaar receiving records filtered by date range or supplier.' },
+      { title: 'GRV Reports', desc: 'View all Cash or Credit receiving records filtered by date range or supplier.' },
       { title: 'Inventory Count', desc: 'Physical count reconciliation. Compare system stock vs physical count and record variances.' },
       { title: 'Analytics & P&L', desc: 'View stock value trends, category breakdown, top assets, and profit/loss overview from the Analytics page.' },
     ],
@@ -282,7 +281,7 @@ const HelpModal = ({ onClose }) => {
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between border-t border-ink-100 bg-ink-50/40 px-6 py-3">
-          <p className="text-[10px] text-ink-400">Sharp Plus Hotel Management · Powered by MEGA Technology</p>
+          <p className="text-[10px] text-ink-400">Sharp Plus Trading PLC · Powered by MEGA Technology</p>
           <button
             onClick={onClose}
             className="rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition"

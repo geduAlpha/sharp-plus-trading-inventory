@@ -267,7 +267,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
   const lowOrOutCount = (data.lowStockCount || 0) + (data.outOfStockCount || 0);
 
   return (
@@ -461,8 +460,8 @@ export default function Dashboard() {
                   <button
                     onClick={() => setMovementView('area')}
                     className={`rounded-lg px-3 py-1.5 transition ${movementView === 'area'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'hover:text-ink-900'
+                      ? 'bg-white text-blue-700 shadow-sm'
+                      : 'hover:text-ink-900'
                       }`}
                   >
                     Area Curve
@@ -470,8 +469,8 @@ export default function Dashboard() {
                   <button
                     onClick={() => setMovementView('bar')}
                     className={`rounded-lg px-3 py-1.5 transition ${movementView === 'bar'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'hover:text-ink-900'
+                      ? 'bg-white text-blue-700 shadow-sm'
+                      : 'hover:text-ink-900'
                       }`}
                   >
                     Bar Chart
@@ -936,8 +935,8 @@ export default function Dashboard() {
 
                   <div className="text-right flex-shrink-0">
                     <span className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold border ${isOut
-                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
                       }`}>
                       {m.currentStock} {m.unit}
                     </span>

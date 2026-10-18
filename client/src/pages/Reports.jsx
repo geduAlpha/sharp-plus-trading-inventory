@@ -20,7 +20,6 @@ const TABS = [
   { key: 'daily', label: 'Daily Report', endpoint: '/reports/daily' },
   { key: 'cash_grv', label: 'Cash GRV', endpoint: '/reports/cash-grv' },
   { key: 'credit_grv', label: 'Credit GRV', endpoint: '/reports/credit-grv' },
-  { key: 'fresh_bazaar', label: 'Fresh Bazaar', endpoint: '/reports/fresh-bazaar' },
   { key: 'pos_adjustment', label: '+ve Adjustment', endpoint: '/reports/pos-adjustment' },
   { key: 'disposal', label: 'Goods Disposal', endpoint: '/reports/disposal' },
   { key: 'neg_adjustment', label: '−ve Adjustment', endpoint: '/reports/neg-adjustment' },
@@ -985,7 +984,6 @@ export default function Reports({ defaultTab } = {}) {
         'Opening Val (ETB)': m.openingValue.toFixed(2),
         'Cash GRV In': m.cashGrvQty,
         'Credit GRV In': m.creditGrvQty,
-        'Fresh Bazaar In': m.freshBazaarQty,
         '+ve Adj In': m.posAdjQty,
         'Total In Qty': m.totalInQty,
         'Total In (ETB)': m.totalInCost.toFixed(2),
@@ -1451,7 +1449,7 @@ export default function Reports({ defaultTab } = {}) {
                   <th colSpan={2} className="px-3 py-2 text-center border-r border-ink-200 bg-slate-200/60 uppercase tracking-wider text-[11px] text-slate-800">
                     Opening Stock
                   </th>
-                  <th colSpan={5} className="px-3 py-2 text-center border-r border-ink-200 bg-emerald-100/80 uppercase tracking-wider text-[11px] text-emerald-900">
+                  <th colSpan={4} className="px-3 py-2 text-center border-r border-ink-200 bg-emerald-100/80 uppercase tracking-wider text-[11px] text-emerald-900">
                     Receipts / Inwards (+)
                   </th>
                   <th colSpan={4} className="px-3 py-2 text-center border-r border-ink-200 bg-rose-100/80 uppercase tracking-wider text-[11px] text-rose-900">
@@ -1477,7 +1475,6 @@ export default function Reports({ defaultTab } = {}) {
                   {/* Inwards */}
                   <th className="px-2.5 py-2 text-right bg-emerald-50/50">Cash GRV</th>
                   <th className="px-2.5 py-2 text-right bg-emerald-50/50">Credit GRV</th>
-                  <th className="px-2.5 py-2 text-right bg-emerald-50/50">Bazaar</th>
                   <th className="px-2.5 py-2 text-right bg-emerald-50/50">+ve Adj</th>
                   <th className="px-3 py-2 text-right border-r border-ink-200 bg-emerald-100/70 font-bold text-emerald-900">Total In</th>
 
@@ -1501,7 +1498,7 @@ export default function Reports({ defaultTab } = {}) {
               <tbody className="divide-y divide-ink-100">
                 {(!data.items || data.items.length === 0) && (
                   <tr>
-                    <td colSpan={19} className="px-4 py-12 text-center text-ink-400">
+                    <td colSpan={18} className="px-4 py-12 text-center text-ink-400">
                       No stock items matched the selected filters.
                     </td>
                   </tr>
@@ -1537,9 +1534,6 @@ export default function Reports({ defaultTab } = {}) {
                     </td>
                     <td className="px-2.5 py-2 text-right tabular text-indigo-700 bg-emerald-50/20">
                       {item.creditGrvQty > 0 ? `+${item.creditGrvQty}` : '—'}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular text-lime-700 bg-emerald-50/20">
-                      {item.freshBazaarQty > 0 ? `+${item.freshBazaarQty}` : '—'}
                     </td>
                     <td className="px-2.5 py-2 text-right tabular text-violet-700 bg-emerald-50/20">
                       {item.posAdjQty > 0 ? `+${item.posAdjQty}` : '—'}
@@ -1617,7 +1611,7 @@ export default function Reports({ defaultTab } = {}) {
                       {(data.totals?.openingValue || 0).toFixed(2)}
                     </td>
 
-                    <td colSpan={4} className="px-2 py-2.5 text-center text-emerald-800 text-[10.5px]">
+                    <td colSpan={3} className="px-2 py-2.5 text-center text-emerald-800 text-[10.5px]">
                       Inward Total
                     </td>
                     <td className="px-3 py-2.5 text-right tabular text-emerald-950 font-extrabold border-r border-ink-200 bg-emerald-100">
@@ -1670,7 +1664,7 @@ export default function Reports({ defaultTab } = {}) {
                   <p className="tabular mt-1 text-2xl font-bold text-emerald-700">
                     + ETB {(monthlyClosingData.totalsForYear?.totalInward || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
-                  <p className="mt-0.5 text-xs text-emerald-600">All GRVs, Fresh Bazaar, +ve Count Adjustments</p>
+                  <p className="mt-0.5 text-xs text-emerald-600">All GRVs, +ve Count Adjustments</p>
                 </Card>
 
                 <Card className="border-l-4 border-l-rose-500 bg-rose-50/20">

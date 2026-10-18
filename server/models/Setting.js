@@ -45,7 +45,7 @@ const settingSchema = new mongoose.Schema(
       type: Array,
       default: [],
     },
-    notes: { type: String, default: 'Sharp Plus Hotel Management & Stock Control System' },
+    notes: { type: String, default: 'Sharp Plus Trading PLC & Stock Control System' },
 
     // ── Pricing & Cost Parameters ─────────────────────────────────
     // Contingency: % buffer added on top of raw material cost (waste, price fluctuation)

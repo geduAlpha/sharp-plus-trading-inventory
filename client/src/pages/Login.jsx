@@ -753,9 +753,11 @@ export default function Login() {
         <section className="login-hero" aria-label="Application branding">
           <CurvedLines />
 
-          {/* starburst logo */}
+          {/* logo */}
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <Starburst />
+            <div className="h-16 w-16 rounded-2xl bg-white p-2 shadow-2xl ring-2 ring-white/30 flex items-center justify-center">
+              <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
+            </div>
           </div>
 
           {/* headline + body */}
