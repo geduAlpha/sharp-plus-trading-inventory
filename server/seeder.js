@@ -10,41 +10,41 @@ const RawMaterial = require('./models/RawMaterial');
 const run = async () => {
   await connectDB();
 
-  const adminExists = await User.findOne({ email: 'admin@hotel.com' });
+  const adminExists = await User.findOne({ email: 'admin@company.com' });
   if (!adminExists) {
     await User.create({
-      name: 'Hotel Admin',
-      email: 'admin@hotel.com',
+      name: 'company Admin',
+      email: 'admin@company.com',
       password: 'admin123',
       role: 'admin',
     });
-    console.log('Created default admin -> admin@hotel.com / admin123');
+    console.log('Created default admin -> admin@company.com / admin123');
   } else {
     console.log('Admin already exists, skipping.');
   }
 
-  const managerExists = await User.findOne({ email: 'manager@hotel.com' });
+  const managerExists = await User.findOne({ email: 'manager@company.com' });
   if (!managerExists) {
     await User.create({
-      name: 'Hotel Manager',
-      email: 'manager@hotel.com',
+      name: 'company Manager',
+      email: 'manager@company.com',
       password: 'admin123',
       role: 'manager',
     });
-    console.log('Created default manager -> manager@hotel.com / admin123');
+    console.log('Created default manager -> manager@company.com / admin123');
   } else {
     console.log('Manager already exists, skipping.');
   }
 
-  const storekeeperExists = await User.findOne({ email: 'storekeeper@hotel.com' });
+  const storekeeperExists = await User.findOne({ email: 'storekeeper@company.com' });
   if (!storekeeperExists) {
     await User.create({
       name: 'Store Keeper',
-      email: 'storekeeper@hotel.com',
+      email: 'storekeeper@company.com',
       password: 'admin123',
       role: 'storekeeper',
     });
-    console.log('Created default storekeeper -> storekeeper@hotel.com / admin123');
+    console.log('Created default storekeeper -> storekeeper@company.com / admin123');
   } else {
     console.log('Storekeeper already exists, skipping.');
   }

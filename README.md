@@ -1,6 +1,6 @@
-# Sharp PlusPlc Stock — Hotel Stock Management System
+# Sharp PlusPlc Stock — company Stock Management System
 
-A full-stack stock/inventory management system for a hotel, built with **React (Vite + Tailwind)** on the frontend and **Node.js/Express + MongoDB** on the backend.
+A full-stack stock/inventory management system for a company, built with **React (Vite + Tailwind)** on the frontend and **Node.js/Express + MongoDB** on the backend.
 
 ## Features
 
@@ -16,7 +16,7 @@ A full-stack stock/inventory management system for a hotel, built with **React (
 ## Project structure
 
 ```
-hotel-stock-system/
+company-stock-system/
 ├── server/      Node.js + Express + MongoDB API
 └── client/      React (Vite) + Tailwind frontend
 ```
@@ -32,7 +32,7 @@ cp .env.example .env
 Edit `.env`:
 ```
 PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/hotel_stock_db
+MONGO_URI=mongodb://127.0.0.1:27017/company_stock_db
 JWT_SECRET=change_this_to_a_long_random_secret
 JWT_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5173
@@ -44,7 +44,7 @@ Seed a default admin account and a few sample records:
 ```bash
 npm run seed
 ```
-This creates: **admin@hotel.com / admin123** — change this password after first login.
+This creates: **admin@company.com / admin123** — change this password after first login.
 
 Start the API:
 ```bash

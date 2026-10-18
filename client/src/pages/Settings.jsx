@@ -85,7 +85,7 @@ export default function Settings() {
 
   // System settings state (Admin)
   const [systemForm, setSystemForm] = useState({
-    hotelName: 'Sharp Plus',
+    companyName: 'Sharp Plus',
     systemEmail: 'info@Sharp Plus.com',
     phone: '+251 911 000 111',
     address: 'Addis Ababa, Ethiopia',
@@ -469,7 +469,7 @@ export default function Settings() {
               : 'border-transparent text-ink-400 hover:text-ink-700'
               }`}
           >
-            <Building size={16} /> Hotel &amp; System Config
+            <Building size={16} /> company &amp; System Config
           </button>
         )}
 
@@ -616,7 +616,7 @@ export default function Settings() {
                     value={profileForm.name}
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                     className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    placeholder="e.g. Hotel Admin"
+                    placeholder="e.g. company Admin"
                   />
                 </div>
               </div>
@@ -632,7 +632,7 @@ export default function Settings() {
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    placeholder="admin@hotel.com"
+                    placeholder="admin@company.com"
                   />
                 </div>
               </div>
@@ -846,7 +846,7 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── Tab 3: Hotel & System Config (Admin Only) ── */}
+      {/* ── Tab 3: company & System Config (Admin Only) ── */}
       {currentTab === 'system' && hasRole('admin') && (
         <div className="space-y-6">
           <Card className="max-w-3xl">
@@ -856,7 +856,7 @@ export default function Settings() {
                   <Building size={16} />
                 </span>
                 <h3 className="font-display text-base font-bold text-ink-900">
-                  Hotel &amp; Inventory Parameters
+                  company &amp; Inventory Parameters
                 </h3>
               </div>
               <span className="rounded-full bg-brass-50 border border-brass-200 px-2.5 py-0.5 text-xs font-bold text-brass-800">
@@ -864,7 +864,7 @@ export default function Settings() {
               </span>
             </div>
             <p className="text-xs text-ink-400 mb-6">
-              Configure hotel branding, currency symbols, and default stock safety thresholds
+              Configure company branding, currency symbols, and default stock safety thresholds
             </p>
 
             {systemSuccess && (
@@ -884,15 +884,15 @@ export default function Settings() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-ink-700 mb-1">
-                    Hotel / Brand Name
+                    company / Brand Name
                   </label>
                   <div className="relative">
                     <Building size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
                     <input
                       type="text"
                       required
-                      value={systemForm.hotelName}
-                      onChange={(e) => setSystemForm({ ...systemForm, hotelName: e.target.value })}
+                      value={systemForm.companyName}
+                      onChange={(e) => setSystemForm({ ...systemForm, companyName: e.target.value })}
                       className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
                       placeholder="Sharp Plus"
                     />
@@ -1023,7 +1023,7 @@ export default function Settings() {
 
               <div className="pt-3 flex justify-end">
                 <Button type="submit" disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  <Save size={15} /> {systemSaving ? 'Saving Settings…' : 'Save Hotel Settings'}
+                  <Save size={15} /> {systemSaving ? 'Saving Settings…' : 'Save company Settings'}
                 </Button>
               </div>
             </form>

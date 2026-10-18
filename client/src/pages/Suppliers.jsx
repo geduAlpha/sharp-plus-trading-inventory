@@ -11,11 +11,11 @@ const emptyForm = { name: '', contactPerson: '', phone: '', email: '', category:
 
 const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
-  const [search,    setSearch]    = useState('');
-  const [selected,  setSelected]  = useState(new Set());
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(new Set());
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing,   setEditing]   = useState(null);
-  const [form,      setForm]      = useState(emptyForm);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(emptyForm);
   const { hasRole, can } = useAuth();
   const canDelete = hasRole('admin') || can('manageAccounts');
 
@@ -26,16 +26,16 @@ const Suppliers = () => {
   useEffect(() => { load(); }, [search]);
 
   /* ── selection ── */
-  const allIds      = suppliers.map(s => s._id);
-  const allChecked  = allIds.length > 0 && allIds.every(id => selected.has(id));
+  const allIds = suppliers.map(s => s._id);
+  const allChecked = allIds.length > 0 && allIds.every(id => selected.has(id));
   const someChecked = allIds.some(id => selected.has(id));
-  const toggleAll   = () => allChecked ? setSelected(new Set()) : setSelected(new Set(allIds));
-  const toggleOne   = id => setSelected(prev => {
+  const toggleAll = () => allChecked ? setSelected(new Set()) : setSelected(new Set(allIds));
+  const toggleOne = id => setSelected(prev => {
     const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
   });
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setModalOpen(true); };
-  const openEdit   = (s) => { setEditing(s); setForm(s); setModalOpen(true); };
+  const openEdit = (s) => { setEditing(s); setForm(s); setModalOpen(true); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,21 +58,21 @@ const Suppliers = () => {
   };
 
   const exportData = useMemo(() => suppliers.map(s => ({
-    'Supplier Name':  s.name,
-    'Category':       s.category || 'General',
+    'Supplier Name': s.name,
+    'Category': s.category || 'General',
     'Contact Person': s.contactPerson || '—',
-    'Phone':          s.phone || '—',
-    'Email':          s.email || '—',
-    'Address':        s.address || '—',
+    'Phone': s.phone || '—',
+    'Email': s.email || '—',
+    'Address': s.address || '—',
   })), [suppliers]);
 
   const pdfColumns = [
-    { header: 'Supplier Name',  accessor: 'Supplier Name' },
-    { header: 'Category',       accessor: 'Category' },
+    { header: 'Supplier Name', accessor: 'Supplier Name' },
+    { header: 'Category', accessor: 'Category' },
     { header: 'Contact Person', accessor: 'Contact Person' },
-    { header: 'Phone',          accessor: 'Phone' },
-    { header: 'Email',          accessor: 'Email' },
-    { header: 'Address',        accessor: 'Address' },
+    { header: 'Phone', accessor: 'Phone' },
+    { header: 'Email', accessor: 'Email' },
+    { header: 'Address', accessor: 'Address' },
   ];
 
   const columns = [
@@ -90,10 +90,10 @@ const Suppliers = () => {
           className="h-4 w-4 rounded accent-blue-600 cursor-pointer" />
       ),
     }] : []),
-    { key: 'name',          header: 'Supplier' },
-    { key: 'category',      header: 'Category' },
+    { key: 'name', header: 'Supplier' },
+    { key: 'category', header: 'Category' },
     { key: 'contactPerson', header: 'Contact person' },
-    { key: 'phone',         header: 'Phone' },
+    { key: 'phone', header: 'Phone' },
     {
       key: 'actions', header: '',
       render: (r) => (
@@ -119,7 +119,7 @@ const Suppliers = () => {
           <ExportDropdown
             data={exportData}
             fileName="suppliers_directory"
-            pdfTitle="Hotel Suppliers Directory"
+            pdfTitle="company Suppliers Directory"
             pdfColumns={pdfColumns}
           />
           <Button variant="brass" onClick={openCreate}><Plus size={16} /> Add supplier</Button>

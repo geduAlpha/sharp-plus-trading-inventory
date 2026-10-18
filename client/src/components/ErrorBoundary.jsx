@@ -16,8 +16,14 @@ export default class ErrorBoundary extends React.Component {
   }
 
   handleReset = () => {
+    try {
+      localStorage.removeItem('companyStockAuth');
+      localStorage.removeItem('hotelStockAuth');
+      localStorage.removeItem('companyStockPermissions');
+      localStorage.removeItem('companyStockNavVisibility');
+    } catch { }
     this.setState({ hasError: false, error: null });
-    window.location.href = '/';
+    window.location.href = '/login';
   };
 
   handleReload = () => {

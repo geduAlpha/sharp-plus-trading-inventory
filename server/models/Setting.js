@@ -14,7 +14,7 @@ const DEFAULT_NAV_VISIBILITY = {
 
 const settingSchema = new mongoose.Schema(
   {
-    hotelName: { type: String, default: 'Sharp Plus' },
+    companyName: { type: String, default: 'Sharp Plus' },
     systemEmail: { type: String, default: 'info@Sharp Plus.com' },
     phone: { type: String, default: '+251 911 000 111' },
     address: { type: String, default: 'Addis Ababa, Ethiopia' },

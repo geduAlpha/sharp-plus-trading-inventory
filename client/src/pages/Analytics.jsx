@@ -257,7 +257,7 @@ export default function Analytics() {
                 P&amp;L &amp; Stock Analytics
               </h1>
               <p className="text-xs text-ink-500 font-medium">
-                International Hotel &amp; Restaurant Standard · POS Sales, Recipe COGS, Food Cost % &amp; Par Predictions
+                International company &amp; Restaurant Standard · POS Sales, Recipe COGS, Food Cost % &amp; Par Predictions
               </p>
             </div>
           </div>
@@ -279,8 +279,8 @@ export default function Analytics() {
                   key={btn.id}
                   onClick={() => setDateRange(btn.id)}
                   className={`rounded-lg px-3 py-1.5 transition ${dateRange === btn.id || (btn.id === 'daily' && dateRange === 'today')
-                      ? 'bg-white text-blue-600 shadow-sm font-bold'
-                      : 'hover:text-ink-900'
+                    ? 'bg-white text-blue-600 shadow-sm font-bold'
+                    : 'hover:text-ink-900'
                     }`}
                 >
                   {btn.label}
@@ -443,8 +443,8 @@ export default function Analytics() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 border-b-2 px-4 py-3 font-semibold transition whitespace-nowrap ${isActive
-                  ? 'border-blue-600 text-blue-600 font-bold'
-                  : 'border-transparent text-ink-500 hover:text-ink-800'
+                ? 'border-blue-600 text-blue-600 font-bold'
+                : 'border-transparent text-ink-500 hover:text-ink-800'
                 }`}
             >
               <Icon size={16} />
@@ -605,8 +605,8 @@ export default function Analytics() {
                     type="button"
                     onClick={() => setDateRange('daily')}
                     className={`rounded-lg px-2.5 py-1 text-xs transition ${dateRange === 'daily' || dateRange === 'today'
-                        ? 'bg-white text-blue-600 shadow-sm font-bold'
-                        : 'text-ink-600 hover:text-ink-900'
+                      ? 'bg-white text-blue-600 shadow-sm font-bold'
+                      : 'text-ink-600 hover:text-ink-900'
                       }`}
                   >
                     Daily
@@ -615,8 +615,8 @@ export default function Analytics() {
                     type="button"
                     onClick={() => setDateRange('monthly')}
                     className={`rounded-lg px-2.5 py-1 text-xs transition ${dateRange === 'monthly'
-                        ? 'bg-white text-blue-600 shadow-sm font-bold'
-                        : 'text-ink-600 hover:text-ink-900'
+                      ? 'bg-white text-blue-600 shadow-sm font-bold'
+                      : 'text-ink-600 hover:text-ink-900'
                       }`}
                   >
                     Monthly
@@ -625,8 +625,8 @@ export default function Analytics() {
                     type="button"
                     onClick={() => setDateRange('30d')}
                     className={`rounded-lg px-2.5 py-1 text-xs transition ${dateRange === '30d'
-                        ? 'bg-white text-blue-600 shadow-sm font-bold'
-                        : 'text-ink-600 hover:text-ink-900'
+                      ? 'bg-white text-blue-600 shadow-sm font-bold'
+                      : 'text-ink-600 hover:text-ink-900'
                       }`}
                   >
                     30D
@@ -635,8 +635,8 @@ export default function Analytics() {
                     type="button"
                     onClick={() => setDateRange('all')}
                     className={`rounded-lg px-2.5 py-1 text-xs transition ${dateRange === 'all'
-                        ? 'bg-white text-blue-600 shadow-sm font-bold'
-                        : 'text-ink-600 hover:text-ink-900'
+                      ? 'bg-white text-blue-600 shadow-sm font-bold'
+                      : 'text-ink-600 hover:text-ink-900'
                       }`}
                   >
                     All

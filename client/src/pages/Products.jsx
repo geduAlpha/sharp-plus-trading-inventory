@@ -218,7 +218,7 @@ const Products = () => {
     fd.append('file', file);
 
     // Get the auth token from localStorage
-    const stored = localStorage.getItem('hotelStockAuth');
+    const stored = localStorage.getItem('companyStockAuth');
     const token = stored ? JSON.parse(stored).token : '';
     const baseURL = import.meta.env.VITE_API_URL || '/api';
     try {
@@ -277,7 +277,7 @@ const Products = () => {
   // ── Download recipe template ──
   const handleDownloadRecipeTemplate = async () => {
     try {
-      const stored = localStorage.getItem('hotelStockAuth');
+      const stored = localStorage.getItem('companyStockAuth');
       const token = stored ? JSON.parse(stored).token : '';
       const baseURL = import.meta.env.VITE_API_URL || '/api';
       const res = await fetch(`${baseURL}/products/export/recipe-template`, {
@@ -306,7 +306,7 @@ const Products = () => {
     const fd = new FormData();
     fd.append('file', file);
 
-    const stored = localStorage.getItem('hotelStockAuth');
+    const stored = localStorage.getItem('companyStockAuth');
     const token = stored ? JSON.parse(stored).token : '';
     const baseURL = import.meta.env.VITE_API_URL || '/api';
 

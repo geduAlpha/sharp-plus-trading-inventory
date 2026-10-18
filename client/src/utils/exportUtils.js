@@ -57,7 +57,7 @@ export function exportToPDF({
   title = 'Inventory Report',
   columns = [],
   data = [],
-  hotelName = 'Sharp PlusPlc Stock / Sharp Plus',
+  companyName = 'Sharp PlusPlc Stock / Sharp Plus',
   summary = null,
 }) {
   if (!data || data.length === 0) {
@@ -124,12 +124,12 @@ export function exportToPDF({
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>${title} - ${hotelName}</title>
+        <title>${title} - ${companyName}</title>
         <style>
           @page { size: landscape; margin: 12mm 15mm; }
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 0; padding: 15px; }
           .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; }
-          .hotel-title { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; margin: 0 0 4px 0; color: #0f172a; }
+          .company-title { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; margin: 0 0 4px 0; color: #0f172a; }
           .doc-title { font-size: 14px; font-weight: 700; color: #2563eb; margin: 0 0 4px 0; text-transform: uppercase; }
           .date { font-size: 11px; color: #64748b; margin: 0; }
           table { width: 100%; border-collapse: collapse; margin-top: 6px; }
@@ -138,7 +138,7 @@ export function exportToPDF({
       </head>
       <body>
         <div class="header">
-          <h1 class="hotel-title">${hotelName}</h1>
+          <h1 class="company-title">${companyName}</h1>
           <div class="doc-title">${title}</div>
           <p class="date">Printed on: ${dateStr} · Total Items: ${data.length}</p>
         </div>
@@ -148,7 +148,7 @@ export function exportToPDF({
           <tbody>${tbodyHtml}</tbody>
         </table>
         <div class="footer">
-          <span>Sharp Plus Hotel Inventory & Stock Management System</span>
+          <span>Sharp Plus company Inventory & Stock Management System</span>
           <span>Confidential Internal Document</span>
         </div>
         <script>

@@ -616,8 +616,8 @@ function InventoryCountPanel() {
             <button
               onClick={() => setShowUncounted(v => !v)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${showUncounted
-                  ? 'bg-amber-50 border-amber-200 text-amber-800'
-                  : 'bg-white border-ink-200 text-ink-600'
+                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                : 'bg-white border-ink-200 text-ink-600'
                 }`}
             >
               {showUncounted ? <Eye size={13} /> : <EyeOff size={13} />}
@@ -793,7 +793,7 @@ export default function Reports({ defaultTab } = {}) {
   const [tab, setTab] = useState(defaultTab || 'stock_balance');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [hotelName, setHotelName] = useState('Sharp Plus');
+  const [companyName, setcompanyName] = useState('Sharp Plus');
 
   // Filter & Search states
   const currentYearMonthStr = () => {
@@ -833,10 +833,10 @@ export default function Reports({ defaultTab } = {}) {
     }
   }, [defaultTab]);
 
-  // Load hotel name for print header
+  // Load company name for print header
   useEffect(() => {
     api.get('/settings').then(res => {
-      if (res.data?.hotelName) setHotelName(res.data.hotelName);
+      if (res.data?.companyName) setcompanyName(res.data.companyName);
     }).catch(() => { });
   }, []);
 
@@ -1035,7 +1035,7 @@ export default function Reports({ defaultTab } = {}) {
 
       {/* ── Print-only header ── */}
       <div id="print-header" style={{ display: 'none' }}>
-        <h1>{hotelName}</h1>
+        <h1>{companyName}</h1>
         <p>{currentTab?.label ?? 'Report'} &mdash; Printed on {printDate}</p>
         {from && to && <p>Period: {from} to {to}</p>}
       </div>
@@ -1081,8 +1081,8 @@ export default function Reports({ defaultTab } = {}) {
                 type="button"
                 onClick={() => setBalanceViewMode('detail')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${balanceViewMode === 'detail'
-                    ? 'bg-white text-emerald-800 shadow-xs'
-                    : 'text-ink-600 hover:text-ink-900'
+                  ? 'bg-white text-emerald-800 shadow-xs'
+                  : 'text-ink-600 hover:text-ink-900'
                   }`}
               >
                 <Scale size={14} /> Monthly Balance Sheet
@@ -1091,8 +1091,8 @@ export default function Reports({ defaultTab } = {}) {
                 type="button"
                 onClick={() => { setBalanceViewMode('monthly_summary'); loadMonthlyClosing(summaryYear); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${balanceViewMode === 'monthly_summary'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-ink-600 hover:text-ink-900'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-ink-600 hover:text-ink-900'
                   }`}
               >
                 <Calendar size={14} /> 12-Month Closing Evolution
@@ -1729,8 +1729,8 @@ export default function Reports({ defaultTab } = {}) {
                       <tr
                         key={m.month}
                         className={`transition-colors ${m.isCurrent
-                            ? 'bg-blue-50/40 font-semibold'
-                            : 'hover:bg-ink-50/50'
+                          ? 'bg-blue-50/40 font-semibold'
+                          : 'hover:bg-ink-50/50'
                           }`}
                       >
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -1897,8 +1897,8 @@ export default function Reports({ defaultTab } = {}) {
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment'].includes(row.voucherType)
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
                                 }`}>
                                 {VOUCHER_LABELS[row.voucherType] || row.voucherType}
                               </span>

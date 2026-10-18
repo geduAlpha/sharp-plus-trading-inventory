@@ -191,10 +191,10 @@ async function buildSystemContext(userRole = 'storekeeper') {
   const monthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   let ctx = `
-=== Sharp Plus HOTEL — LIVE SYSTEM SNAPSHOT ===
+=== Sharp Plus company — LIVE SYSTEM SNAPSHOT ===
 Date: ${today}
 User Role: ${userRole.toUpperCase()}
-Hotel: Sharp Plus Hotel (Sharp PlusPlc Stock Management System)
+company: Sharp Plus company (Sharp PlusPlc Stock Management System)
 
 --- STOCK OVERVIEW ---
 Total Active Materials: ${materialCount}

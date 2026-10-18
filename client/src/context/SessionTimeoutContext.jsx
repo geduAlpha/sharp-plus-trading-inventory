@@ -4,8 +4,8 @@ import { useAuth } from './AuthContext';
 
 const SessionTimeoutContext = createContext(null);
 
-const STORAGE_KEY_TIMEOUT = 'hotelStockSessionTimeoutMinutes';
-const STORAGE_KEY_LAST_ACTIVITY = 'hotelStockLastActivity';
+const STORAGE_KEY_TIMEOUT = 'companyStockSessionTimeoutMinutes';
+const STORAGE_KEY_LAST_ACTIVITY = 'companyStockLastActivity';
 
 // Options for timeout in minutes: 0 means disabled / never
 export const TIMEOUT_OPTIONS = [
@@ -55,7 +55,7 @@ export const SessionTimeoutProvider = ({ children }) => {
     lastRecordedRef.current = now;
     try {
       localStorage.setItem(STORAGE_KEY_LAST_ACTIVITY, String(now));
-    } catch {}
+    } catch { }
     setShowWarning(false);
   }, []);
 
@@ -66,7 +66,7 @@ export const SessionTimeoutProvider = ({ children }) => {
       lastRecordedRef.current = now;
       try {
         localStorage.setItem(STORAGE_KEY_LAST_ACTIVITY, String(now));
-      } catch {}
+      } catch { }
     }
   }, []);
 
@@ -76,7 +76,7 @@ export const SessionTimeoutProvider = ({ children }) => {
     lastRecordedRef.current = now;
     try {
       localStorage.setItem(STORAGE_KEY_LAST_ACTIVITY, String(now));
-    } catch {}
+    } catch { }
     setShowWarning(false);
     if (timeoutMinutes > 0) {
       setRemainingSeconds(timeoutMinutes * 60);
@@ -113,7 +113,7 @@ export const SessionTimeoutProvider = ({ children }) => {
     lastRecordedRef.current = now;
     try {
       localStorage.setItem(STORAGE_KEY_LAST_ACTIVITY, String(now));
-    } catch {}
+    } catch { }
 
     const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
     const handleActivity = () => {
@@ -157,7 +157,7 @@ export const SessionTimeoutProvider = ({ children }) => {
             lastRecordedRef.current = parsed;
           }
         }
-      } catch {}
+      } catch { }
 
       const elapsedMs = Date.now() - lastActivityTime;
       const totalAllowedMs = timeoutMinutes * 60 * 1000;

@@ -7,8 +7,9 @@ const ProtectedRoute = ({ children, roles, capability }) => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-ink-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-ink-200 border-t-brass-400" />
+      <div className="flex h-screen flex-col items-center justify-center bg-slate-50 gap-3">
+        <div className="h-9 w-9 animate-spin rounded-full border-3 border-slate-200 border-t-blue-600" />
+        <span className="text-xs font-semibold text-slate-500 tracking-wide">Loading Sharp Plus System...</span>
       </div>
     );
   }

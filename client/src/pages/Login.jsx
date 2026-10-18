@@ -6,9 +6,9 @@ import api from '../api/axios';
 
 /* ─── role quick-fill data ─────────────────────────────────────── */
 const ROLES = [
-  { label: 'Admin', email: 'admin@hotel.com' },
-  { label: 'Manager', email: 'manager@hotel.com' },
-  { label: 'Store Keeper', email: 'storekeeper@hotel.com' },
+  { label: 'Admin', email: 'admin@company.com' },
+  { label: 'Manager', email: 'manager@company.com' },
+  { label: 'Store Keeper', email: 'storekeeper@company.com' },
 ];
 
 /* ─── Starburst / asterisk SVG logo mark ───────────────────────── */
@@ -48,11 +48,11 @@ function CurvedLines() {
 }
 /* ─── Floating-label input ──────────────────────────────────────── */
 const FloatingInput = React.forwardRef(function FloatingInput({
-  id, label, type = 'text', value, onChange,
+  id, label, type = 'text', value = '', onChange,
   autoComplete, required, hasError, errorMsg,
   suffix,
 }, ref) {
-  const filled = value.length > 0;
+  const filled = Boolean(value && String(value).length > 0);
   return (
     <div className="login-field">
       <div
@@ -775,7 +775,7 @@ export default function Login() {
 
           {/* left footer */}
           <footer className="login-hero__footer">
-            © 2026 Sharp Plus Hotel &amp; Resort Management SC. All rights reserved.
+            © 2026 Sharp Plus company &amp; Resort Management SC. All rights reserved.
           </footer>
         </section>
 

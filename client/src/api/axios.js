@@ -5,10 +5,12 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const stored = localStorage.getItem('hotelStockAuth');
+  const stored = localStorage.getItem('companyStockAuth') || localStorage.getItem('hotelStockAuth');
   if (stored) {
-    const { token } = JSON.parse(stored);
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const { token } = JSON.parse(stored);
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+    } catch { }
   }
   return config;
 });
@@ -18,6 +20,7 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response && error.response.status === 401) {
+      localStorage.removeItem('companyStockAuth');
       localStorage.removeItem('hotelStockAuth');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';

@@ -18,9 +18,9 @@ const autoSeed = async () => {
     await connectDB();
     const User = require('./models/User');
     const defaults = [
-      { name: 'Sharp Plus Admin', email: 'admin@hotel.com', password: 'admin123', role: 'admin', phone: '0912627366' },
-      { name: 'Hotel Manager', email: 'manager@hotel.com', password: 'admin123', role: 'manager' },
-      { name: 'Store Keeper', email: 'storekeeper@hotel.com', password: 'admin123', role: 'storekeeper' },
+      { name: 'Sharp Plus Admin', email: 'admin@company.com', password: 'admin123', role: 'admin', phone: '0912627366' },
+      { name: 'company Manager', email: 'manager@company.com', password: 'admin123', role: 'manager' },
+      { name: 'Store Keeper', email: 'storekeeper@company.com', password: 'admin123', role: 'storekeeper' },
     ];
     for (const u of defaults) {
       const exists = await User.findOne({ email: u.email });
@@ -80,7 +80,7 @@ app.use(async (req, res, next) => {
   }
 });
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'hotel-stock-server' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'company-stock-server' }));
 
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));

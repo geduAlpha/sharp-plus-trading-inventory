@@ -1,7 +1,7 @@
 {
-  "name": "hotel-stock-system",
+  "name": "company-stock-system",
   "version": "1.0.0",
-  "description": "Hotel Stock Management System",
+  "description": "company Stock Management System",
   "main": "server/server.js",
   "scripts": {
     "build": "npm install --prefix client && npm run build --prefix client && npm install --prefix server",

@@ -27,8 +27,8 @@ const DEFAULT_NAV_VISIBILITY = {
 
 /** Clear every settings-related key from localStorage */
 const clearSettingsCache = () => {
-  localStorage.removeItem('hotelStockPermissions');
-  localStorage.removeItem('hotelStockNavVisibility');
+  localStorage.removeItem('companyStockPermissions');
+  localStorage.removeItem('companyStockNavVisibility');
 };
 
 export const AuthProvider = ({ children }) => {
@@ -44,18 +44,18 @@ export const AuthProvider = ({ children }) => {
       const res = await api.get('/settings');
       if (res.data?.rolePermissions) {
         setRolePermissions(res.data.rolePermissions);
-        localStorage.setItem('hotelStockPermissions', JSON.stringify(res.data.rolePermissions));
+        localStorage.setItem('companyStockPermissions', JSON.stringify(res.data.rolePermissions));
       }
       if (res.data?.navVisibility) {
         setNavVisibility(res.data.navVisibility);
-        localStorage.setItem('hotelStockNavVisibility', JSON.stringify(res.data.navVisibility));
+        localStorage.setItem('companyStockNavVisibility', JSON.stringify(res.data.navVisibility));
       }
       return res.data;
     } catch (err) {
       // Network failure: fall back to localStorage cache if available, else hardcoded defaults
       try {
-        const cachedRP = localStorage.getItem('hotelStockPermissions');
-        const cachedNV = localStorage.getItem('hotelStockNavVisibility');
+        const cachedRP = localStorage.getItem('companyStockPermissions');
+        const cachedNV = localStorage.getItem('companyStockNavVisibility');
         if (cachedRP) setRolePermissions(JSON.parse(cachedRP));
         if (cachedNV) setNavVisibility(JSON.parse(cachedNV));
       } catch { /* ignore parse errors */ }
@@ -65,31 +65,48 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // On mount: restore user from localStorage, then AWAIT fetchPermissions before
-  // clearing the loading flag. This prevents a flash of wrong nav items.
+  // clearing the loading flag. Includes failsafe timeout to prevent infinite white screen loading.
   useEffect(() => {
+    let active = true;
+    const safetyTimer = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 3500);
+
     const init = async () => {
-      const stored = localStorage.getItem('hotelStockAuth');
+      const stored = localStorage.getItem('companyStockAuth') || localStorage.getItem('hotelStockAuth');
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          setUser(parsed);
+          if (active) setUser(parsed);
+          // If stored under legacy key, migrate to new key
+          if (!localStorage.getItem('companyStockAuth')) {
+            localStorage.setItem('companyStockAuth', stored);
+          }
           // Fetch server settings BEFORE showing the app
           await fetchPermissions();
         } catch {
+          localStorage.removeItem('companyStockAuth');
           localStorage.removeItem('hotelStockAuth');
         }
       }
-      // Only now allow the app to render
-      setLoading(false);
+      if (active) {
+        setLoading(false);
+        clearTimeout(safetyTimer);
+      }
     };
     init();
+
+    return () => {
+      active = false;
+      clearTimeout(safetyTimer);
+    };
   }, [fetchPermissions]);
 
   const login = async (email, password, otpToken) => {
     const { data } = await api.post('/auth/login', { email, password }, {
       headers: { 'x-otp-token': otpToken || '' },
     });
-    localStorage.setItem('hotelStockAuth', JSON.stringify(data));
+    localStorage.setItem('companyStockAuth', JSON.stringify(data));
     setUser(data);
     // Fetch authoritative settings right after login — no stale cache possible
     await fetchPermissions();
@@ -97,7 +114,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('hotelStockAuth');
+    localStorage.removeItem('companyStockAuth');
     // Clear ALL cached settings so the next login always reads fresh server data
     clearSettingsCache();
     setUser(null);
@@ -107,7 +124,7 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = (updatedData) => {
     const newUser = { ...user, ...updatedData };
-    localStorage.setItem('hotelStockAuth', JSON.stringify(newUser));
+    localStorage.setItem('companyStockAuth', JSON.stringify(newUser));
     setUser(newUser);
   };
 
@@ -138,11 +155,11 @@ export const AuthProvider = ({ children }) => {
       const nv = newSettings.navVisibility ?? null;
 
       setRolePermissions(rp);
-      localStorage.setItem('hotelStockPermissions', JSON.stringify(rp));
+      localStorage.setItem('companyStockPermissions', JSON.stringify(rp));
 
       if (nv) {
         setNavVisibility(nv);
-        localStorage.setItem('hotelStockNavVisibility', JSON.stringify(nv));
+        localStorage.setItem('companyStockNavVisibility', JSON.stringify(nv));
       }
       return newSettings;
     }

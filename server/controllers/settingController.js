@@ -22,7 +22,7 @@ const getSettings = asyncHandler(async (req, res) => {
   let settings = await Setting.findOne();
   if (!settings) {
     settings = await Setting.create({
-      hotelName: 'Sharp Plus',
+      companyName: 'Sharp Plus',
       systemEmail: 'info@Sharp Plus.com',
       phone: '+251 911 000 111',
       address: 'Addis Ababa, Ethiopia',
@@ -62,7 +62,7 @@ const updateSettings = asyncHandler(async (req, res) => {
   }
 
   const allowedFields = [
-    'hotelName', 'systemEmail', 'phone', 'address',
+    'companyName', 'systemEmail', 'phone', 'address',
     'currency', 'currencySymbol', 'lowStockThresholdDefault',
     'taxRate', 'autoGenerateVoucherNo', 'allowNegativeStock', 'notes',
     // Pricing & Cost Parameters

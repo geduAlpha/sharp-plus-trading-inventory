@@ -166,7 +166,7 @@ export default function Employees() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink-900">Employee Management</h1>
-          <p className="text-xs text-ink-400 mt-0.5">Register and manage hotel staff by department</p>
+          <p className="text-xs text-ink-400 mt-0.5">Register and manage company staff by department</p>
         </div>
         <div className="flex items-center gap-2">
           <ExportDropdown
@@ -396,7 +396,7 @@ export default function Employees() {
                 <Mail size={11} className="inline mr-1" />Email
               </label>
               <input type="email" value={form.email} onChange={e => f('email', e.target.value)}
-                placeholder="abebe@hotel.com"
+                placeholder="abebe@company.com"
                 className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
             </div>
           </div>

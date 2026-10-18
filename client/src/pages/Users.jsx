@@ -11,17 +11,17 @@ const emptyForm = {
   phone: '', telegramChatId: '',
 };
 
-const roleColor  = { admin: 'brass', manager: 'green', storekeeper: 'ink' };
+const roleColor = { admin: 'brass', manager: 'green', storekeeper: 'ink' };
 
 const Users = () => {
-  const [users,      setUsers]      = useState([]);
-  const [modalOpen,  setModalOpen]  = useState(false);
-  const [editUser,   setEditUser]   = useState(null);
-  const [form,       setForm]       = useState(emptyForm);
-  const [error,      setError]      = useState('');
-  const [saving,     setSaving]     = useState(false);
-  const [page,       setPage]       = useState(1);
-  const [pageSize,   setPageSize]   = useState(10);
+  const [users, setUsers] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const load = () => api.get('/users')
     .then((res) => setUsers(Array.isArray(res.data) ? res.data : []))
@@ -39,11 +39,11 @@ const Users = () => {
   const openEdit = (u) => {
     setEditUser(u);
     setForm({
-      name:           u.name || '',
-      email:          u.email || '',
-      password:       '',
-      role:           u.role || 'storekeeper',
-      phone:          u.phone || '',
+      name: u.name || '',
+      email: u.email || '',
+      password: '',
+      role: u.role || 'storekeeper',
+      phone: u.phone || '',
       telegramChatId: u.telegramChatId || '',
     });
     setError('');
@@ -56,9 +56,9 @@ const Users = () => {
     try {
       if (editUser) {
         const payload = {
-          name:           form.name,
-          role:           form.role,
-          phone:          form.phone,
+          name: form.name,
+          role: form.role,
+          phone: form.phone,
           telegramChatId: form.telegramChatId,
         };
         if (form.password) payload.password = form.password;
@@ -183,7 +183,7 @@ const Users = () => {
             <input type="email" required={!editUser} value={form.email}
               onChange={e => f('email', e.target.value)}
               disabled={!!editUser}
-              placeholder="abebe@hotel.com"
+              placeholder="abebe@company.com"
               className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500 disabled:bg-ink-50 disabled:text-ink-400" />
           </div>
 

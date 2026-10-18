@@ -47,7 +47,7 @@ body {
     font-family: 'Inter', sans-serif !important;
   }
 
-  /* Print header — hotel name */
+  /* Print header — company name */
   #print-header {
     display: block !important;
     text-align: center !important;

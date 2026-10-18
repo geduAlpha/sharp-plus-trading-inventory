@@ -36,7 +36,7 @@ export default function SessionTimeoutModal() {
               </h3>
             </div>
             <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-              No activity was detected for almost {timeoutMinutes} {timeoutMinutes === 1 ? 'minute' : 'minutes'}. To safeguard hotel inventory and financial records, you will be automatically signed out.
+              No activity was detected for almost {timeoutMinutes} {timeoutMinutes === 1 ? 'minute' : 'minutes'}. To safeguard company inventory and financial records, you will be automatically signed out.
             </p>
           </div>
         </div>
