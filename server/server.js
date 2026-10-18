@@ -1,0 +1,158 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// ── Startup diagnostics ────────────────────────────────────────────────
+console.log('[STARTUP] NODE_ENV:', process.env.NODE_ENV);
+console.log('[STARTUP] PORT:', process.env.PORT);
+console.log('[STARTUP] MONGO_URI set:', !!process.env.MONGO_URI);
+console.log('[STARTUP] JWT_SECRET set:', !!process.env.JWT_SECRET);
+const express = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
+const connectDB = require('./config/db');
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+
+// ── Auto-seed default accounts and sample data on startup ─────────────
+const autoSeed = async () => {
+  try {
+    await connectDB();
+    const User = require('./models/User');
+    const defaults = [
+      { name: 'Five Stop Admin', email: 'admin@hotel.com',       password: 'admin123', role: 'admin',       phone: '0918592028' },
+      { name: 'Hotel Manager',   email: 'manager@hotel.com',     password: 'admin123', role: 'manager'      },
+      { name: 'Store Keeper',    email: 'storekeeper@hotel.com', password: 'admin123', role: 'storekeeper'  },
+    ];
+    for (const u of defaults) {
+      const exists = await User.findOne({ email: u.email });
+      if (!exists) {
+        await User.create(u);
+        console.log(`[SEED] Created ${u.role} -> ${u.email}`);
+      } else if (u.phone && !exists.phone) {
+        // Backfill phone on existing admin account
+        exists.phone = u.phone;
+        await exists.save();
+        console.log(`[SEED] Updated phone for ${u.email}`);
+      }
+    }
+
+    const Supplier = require('./models/Supplier');
+    const supplierCount = await Supplier.countDocuments();
+    if (supplierCount === 0) {
+      await Supplier.insertMany([
+        { name: 'Green Valley Farms', category: 'Produce', contactPerson: 'Abel Tesfaye', phone: '+251911000111' },
+        { name: 'Addis Meat Suppliers', category: 'Meat & Poultry', contactPerson: 'Sara Girma', phone: '+251911000222' },
+        { name: 'Blue Nile Beverages', category: 'Beverages', contactPerson: 'Yonas Bekele', phone: '+251911000333' },
+      ]);
+      console.log('[SEED] Seeded sample suppliers.');
+    }
+
+    const RawMaterial = require('./models/RawMaterial');
+    const materialCount = await RawMaterial.countDocuments();
+    if (materialCount === 0) {
+      await RawMaterial.insertMany([
+        { name: 'Basmati Rice', category: 'Grains', unit: 'kg', currentStock: 120, reorderLevel: 30, unitCost: 85 },
+        { name: 'Chicken Breast', category: 'Meat & Poultry', unit: 'kg', currentStock: 18, reorderLevel: 20, unitCost: 320 },
+        { name: 'Cooking Oil', category: 'Pantry', unit: 'ltr', currentStock: 40, reorderLevel: 15, unitCost: 210 },
+        { name: 'Fresh Tomatoes', category: 'Produce', unit: 'kg', currentStock: 8, reorderLevel: 15, unitCost: 45 },
+        { name: 'Bottled Water 500ml', category: 'Beverages', unit: 'pcs', currentStock: 300, reorderLevel: 100, unitCost: 8 },
+        { name: 'Bath Towels', category: 'Housekeeping', unit: 'pcs', currentStock: 5, reorderLevel: 20, unitCost: 150 },
+      ]);
+      console.log('[SEED] Seeded sample raw materials.');
+    }
+  } catch (err) {
+    console.error('[SEED] Auto-seed error:', err.message);
+  }
+};
+autoSeed();
+
+const app = express();
+app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+if (process.env.NODE_ENV !== 'production') app.use(morgan('dev'));
+// Ensure DB is connected for serverless requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'hotel-stock-server' }));
+
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/suppliers', require('./routes/supplierRoutes'));
+app.use('/api/materials', require('./routes/materialRoutes'));
+app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/transactions', require('./routes/transactionRoutes'));
+app.use('/api/reports', require('./routes/reportRoutes'));
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/settings', require('./routes/settingRoutes'));
+app.use('/api/analytics', require('./routes/analyticsRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/inventory-count', require('./routes/inventoryCountRoutes'));
+app.use('/api/recycle-bin',    require('./routes/recycleBinRoutes'));
+app.use('/api/telegram',      require('./routes/telegramRoutes'));
+app.use('/api/consumption',   require('./routes/consumptionRoutes'));
+app.use('/api/employees',     require('./routes/employeeRoutes'));
+app.use('/api/stock-requests', require('./routes/stockRequestRoutes'));
+app.use('/api/notifications',  require('./routes/notificationRoutes'));
+app.use('/api/ai',             require('./routes/aiRoutes'));
+
+// Serve Frontend in production (for Aletcloud, Render, etc.)
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  
+  // Exclude /api routes from being caught by the wildcard
+  app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => res.send('Please set to production'));
+}
+
+app.use(notFound);
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
+
+// Listen on port unless we are in Vercel's serverless environment
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+
+    // ── Keep-alive ping every 10 minutes ──────────────────────────
+    // Prevents free-tier hosting (Aletcloud, Render) from sleeping.
+    // Only runs if a PUBLIC_URL env var is set (set it in Aletcloud
+    // to your server URL, e.g. https://five-stop.app.aletcloud.com)
+    const publicUrl = process.env.PUBLIC_URL;
+    if (publicUrl) {
+      const https = require('https');
+      const http  = require('http');
+      const INTERVAL = 10 * 60 * 1000; // 10 minutes
+
+      setInterval(() => {
+        try {
+          const url = new URL(`${publicUrl}/api/health`);
+          const lib = url.protocol === 'https:' ? https : http;
+          lib.get(url.toString(), (res) => {
+            console.log(`[KEEP-ALIVE] Pinged ${url.toString()} — status ${res.statusCode}`);
+            res.resume();
+          }).on('error', (err) => {
+            console.warn('[KEEP-ALIVE] Ping failed:', err.message);
+          });
+        } catch (err) {
+          console.warn('[KEEP-ALIVE] Invalid PUBLIC_URL:', err.message);
+        }
+      }, INTERVAL);
+
+      console.log(`[KEEP-ALIVE] Server ping active every 10 min → ${publicUrl}/api/health`);
+    }
+  });
+}
+
+module.exports = app;

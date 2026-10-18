@@ -1,0 +1,1715 @@
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  User,
+  Shield,
+  Building,
+  KeyRound,
+  CheckCircle2,
+  AlertCircle,
+  Save,
+  Lock,
+  Mail,
+  Phone,
+  MapPin,
+  Coins,
+  BadgeAlert,
+  Sparkles,
+  Layers,
+  Check,
+  Camera,
+  Upload,
+  Trash2,
+  Clock,
+  Send,
+} from 'lucide-react';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
+import { useSessionTimeout, TIMEOUT_OPTIONS } from '../context/SessionTimeoutContext';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+
+const CAPABILITIES = [
+  { key: 'recordGoods',      label: 'Record Goods Receiving (Cash/Credit GRV)' },
+  { key: 'checkReview',      label: 'Check & Review Transactions (Stage 1)' },
+  { key: 'approveGoods',     label: 'Approve Goods & Vouchers (Stage 2)' },
+  { key: 'postLedger',       label: 'Post Documents to Ledger (Final Stage)' },
+  { key: 'voidTransactions', label: 'Void / Reverse Transactions' },
+  { key: 'viewReports',      label: 'View Financial & Valuation Reports' },
+  { key: 'manageAccounts',   label: 'Manage Staff Accounts & Passwords' },
+];
+
+const NAV_ITEMS = [
+  { key: 'dashboard',      label: 'Dashboard' },
+  { key: 'rawMaterials',   label: 'Raw Materials' },
+  { key: 'products',       label: 'Products' },
+  { key: 'stockMovements', label: 'Stock Movements' },
+  { key: 'suppliers',      label: 'Suppliers' },
+  { key: 'consumption',    label: 'Consumption' },
+  { key: 'reports',        label: 'Reports' },
+  { key: 'analytics',      label: 'Analytics & P&L' },
+  { key: 'staffAccounts',  label: 'Staff Accounts' },
+];
+
+export default function Settings() {
+  const { user, updateUser, hasRole, refreshPermissions } = useAuth();
+  const { timeoutMinutes, setTimeoutMinutes } = useSessionTimeout();
+  const [sessionTimeoutSuccess, setSessionTimeoutSuccess] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'profile';
+
+  const setTab = (tab) => {
+    setSearchParams({ tab });
+  };
+
+  // Profile state
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [profileError, setProfileError] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  // Password state
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  // System settings state (Admin)
+  const [systemForm, setSystemForm] = useState({
+    hotelName: 'Five Stop',
+    systemEmail: 'info@fivestop.com',
+    phone: '+251 911 000 111',
+    address: 'Addis Ababa, Ethiopia',
+    currency: 'ETB',
+    currencySymbol: 'ETB',
+    lowStockThresholdDefault: 15,
+    taxRate: 15,
+    autoGenerateVoucherNo: true,
+    allowNegativeStock: false,
+    // Pricing & Cost Parameters
+    contingencyPercent: 10,
+    overheadPercent: 25,
+    defaultFoodCostPercent: 30,
+    rawMaterialPriceAdjustType: 'percent',
+    rawMaterialPriceAdjustValue: 0,
+    productSellingPriceAdjustPercent: 0,
+    rolePermissions: {
+      recordGoods: { storekeeper: true, manager: true, admin: true },
+      checkReview: { storekeeper: false, manager: true, admin: true },
+      approveGoods: { storekeeper: false, manager: false, admin: true },
+      postLedger: { storekeeper: false, manager: true, admin: true },
+      voidTransactions: { storekeeper: false, manager: false, admin: true },
+      viewReports: { storekeeper: false, manager: true, admin: true },
+      manageAccounts: { storekeeper: false, manager: false, admin: true }
+    },
+    navVisibility: {
+      dashboard:      { storekeeper: true,  manager: true,  admin: true },
+      rawMaterials:   { storekeeper: true,  manager: true,  admin: true },
+      products:       { storekeeper: true,  manager: true,  admin: true },
+      stockMovements: { storekeeper: true,  manager: true,  admin: true },
+      suppliers:      { storekeeper: false, manager: true,  admin: true },
+      consumption:    { storekeeper: true,  manager: true,  admin: true },
+      reports:        { storekeeper: false, manager: true,  admin: true },
+      analytics:      { storekeeper: false, manager: true,  admin: true },
+      staffAccounts:  { storekeeper: false, manager: false, admin: true },
+    },
+    notes: '',
+  });
+  const [systemLoading, setSystemLoading] = useState(false);
+  const [systemSaving, setSystemSaving] = useState(false);
+  const [systemSuccess, setSystemSuccess] = useState('');
+  const [systemError, setSystemError] = useState('');
+
+  // Bulk product price adjustment state
+  const [bulkPricePercent, setBulkPricePercent]   = useState('');
+  const [bulkPriceApplying, setBulkPriceApplying] = useState(false);
+  const [bulkPriceSuccess, setBulkPriceSuccess]   = useState('');
+  const [bulkPriceError, setBulkPriceError]       = useState('');
+
+  // Telegram subscribers state (Admin)
+  const [tgSubscribers,   setTgSubscribers]   = useState([]);
+  const [tgLoading,       setTgLoading]       = useState(false);
+  const [tgRemoving,      setTgRemoving]      = useState(null);
+  const [tgSuccess,       setTgSuccess]       = useState('');
+  const [tgError,         setTgError]         = useState('');
+  // Phone registration inline edit state
+  const [tgEditPhone,     setTgEditPhone]     = useState(null);  // chatId being edited
+  const [tgPhoneVal,      setTgPhoneVal]      = useState('');
+  const [tgPhoneSaving,   setTgPhoneSaving]   = useState(false);
+  // Manual add subscriber modal
+  const [tgAddOpen,       setTgAddOpen]       = useState(false);
+  const [tgAddForm,       setTgAddForm]       = useState({ name: '', phone: '', username: '', chatId: '' });
+  const [tgAddSaving,     setTgAddSaving]     = useState(false);
+
+  // Sync profile when user updates
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+      });
+    }
+  }, [user]);
+
+  // Load system settings
+  useEffect(() => {
+    if (user) {
+      setSystemLoading(true);
+      api
+        .get('/settings')
+        .then((res) => {
+          if (res.data) {
+            setSystemForm((prev) => ({ ...prev, ...res.data }));
+          }
+        })
+        .catch((err) => console.error('Failed to load settings', err))
+        .finally(() => setSystemLoading(false));
+    }
+  }, [user]);
+
+  // Load Telegram subscribers (admin only)
+  const loadTgSubscribers = () => {
+    if (!hasRole('admin')) return;
+    setTgLoading(true);
+    setTgError('');
+    api.get('/telegram/subscribers')
+      .then(res => setTgSubscribers(res.data || []))
+      .catch(() => {
+        setTgError('Failed to load subscribers.');
+        setTimeout(() => setTgError(''), 3000);
+      })
+      .finally(() => setTgLoading(false));
+  };
+  useEffect(() => {
+    if (currentTab === 'telegram' && hasRole('admin')) loadTgSubscribers();
+  }, [currentTab]);
+
+  // Handle Telegram subscriber removal
+  const handleRemoveTgSubscriber = async (chatId, name) => {
+    if (!window.confirm(`Remove "${name}" from bot subscribers? They will stop receiving notifications.`)) return;
+    setTgRemoving(chatId);
+    setTgError('');
+    try {
+      await api.delete(`/telegram/subscribers/${chatId}`);
+      setTgSuccess(`"${name}" removed from subscribers.`);
+      setTimeout(() => setTgSuccess(''), 4000);
+      loadTgSubscribers();
+    } catch (err) {
+      setTgError(err.response?.data?.message || 'Failed to remove subscriber.');
+    } finally {
+      setTgRemoving(null);
+    }
+  };
+
+  // Handle phone number registration for a subscriber
+  const handleRegisterPhone = async (chatId) => {
+    if (!tgPhoneVal.trim()) return;
+    setTgPhoneSaving(true);
+    setTgError('');
+    try {
+      await api.put(`/telegram/subscribers/${chatId}/phone`, { phone: tgPhoneVal.trim() });
+      setTgSuccess('Phone number registered — this number can now receive OTP codes.');
+      setTimeout(() => setTgSuccess(''), 5000);
+      setTgEditPhone(null);
+      setTgPhoneVal('');
+      loadTgSubscribers();
+    } catch (err) {
+      setTgError(err.response?.data?.message || 'Failed to register phone.');
+    } finally {
+      setTgPhoneSaving(false); }
+  };
+
+  // Handle manually adding a new subscriber
+  const handleAddSubscriber = async (e) => {
+    e.preventDefault();
+    setTgAddSaving(true);
+    setTgError('');
+    try {
+      await api.post('/telegram/subscribers', tgAddForm);
+      setTgSuccess(`"${tgAddForm.name}" added successfully.`);
+      setTimeout(() => setTgSuccess(''), 4000);
+      setTgAddOpen(false);
+      setTgAddForm({ name: '', phone: '', username: '', chatId: '' });
+      loadTgSubscribers();
+    } catch (err) {
+      setTgError(err.response?.data?.message || 'Failed to add subscriber.');
+    } finally {
+      setTgAddSaving(false);
+    }
+  };
+
+  // Handle Profile Update
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    setProfileSuccess('');
+    setProfileError('');
+
+    try {
+      const res = await api.put('/auth/profile', profileForm);
+      updateUser(res.data);
+      setProfileSuccess('Profile details successfully updated.');
+      setTimeout(() => setProfileSuccess(''), 4000);
+    } catch (err) {
+      setProfileError(err.response?.data?.message || 'Failed to update profile.');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  // Handle Profile Photo Upload
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setProfileError('Please select a valid image file (PNG, JPG, or WEBP).');
+      return;
+    }
+
+    setAvatarUploading(true);
+    setProfileError('');
+    setProfileSuccess('');
+
+    try {
+      // Compress image client-side to max 500x500 JPEG
+      const compressedBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = () => {
+            const maxWidth = 500;
+            const maxHeight = 500;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = Math.round((width * maxHeight) / height);
+                height = maxHeight;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          };
+          img.onerror = reject;
+        };
+        reader.onerror = reject;
+      });
+
+      const res = await api.put('/auth/profile', { avatar: compressedBase64 });
+      updateUser(res.data);
+      setProfileSuccess('Profile photo updated successfully!');
+      setTimeout(() => setProfileSuccess(''), 4000);
+    } catch (err) {
+      setProfileError(err.response?.data?.message || 'Failed to upload profile photo.');
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = '';
+    }
+  };
+  // Handle Remove Profile Photo
+  const handleRemoveAvatar = async () => {
+    if (!window.confirm('Are you sure you want to remove your profile photo?')) return;
+    setAvatarUploading(true);
+    setProfileError('');
+    try {
+      const res = await api.put('/auth/profile', { avatar: '' });
+      updateUser(res.data);
+      setProfileSuccess('Profile photo removed.');
+      setTimeout(() => setProfileSuccess(''), 4000);
+    } catch (err) {
+      setProfileError(err.response?.data?.message || 'Failed to remove profile photo.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+  // Handle Password Update
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordSaving(true);
+    setPasswordSuccess('');
+    setPasswordError('');
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New password and confirm password do not match.');
+      setPasswordSaving(false);
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long.');
+      setPasswordSaving(false);
+      return;
+    }
+    try {
+      await api.put('/auth/password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordSuccess('Password successfully updated!');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => setPasswordSuccess(''), 4000);
+    } catch (err) {
+      setPasswordError(err.response?.data?.message || 'Failed to update password.');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+  // Handle System Settings Update
+  const handleSystemSubmit = async (e) => {
+    e.preventDefault();
+    setSystemSaving(true);
+    setSystemSuccess('');
+    setSystemError('');
+    try {
+      const res = await api.put('/settings', systemForm);
+      setSystemForm((prev) => ({ ...prev, ...res.data }));
+      if (res.data?.rolePermissions || res.data?.navVisibility) {
+        await refreshPermissions(res.data);
+      } else {
+        await refreshPermissions();
+      }
+      setSystemSuccess('Five Stop system settings & role permissions saved and activated immediately.');
+      setTimeout(() => setSystemSuccess(''), 4000);
+    } catch (err) {
+      setSystemError(err.response?.data?.message || 'Failed to update system settings.');
+    } finally {
+      setSystemSaving(false);
+    }
+  };
+
+  // Handle Bulk Product Price Adjustment
+  const handleBulkPriceApply = async () => {
+    const pct = Number(bulkPricePercent);
+    if (!pct || pct <= 0) { setBulkPriceError('Enter a valid percentage greater than 0.'); return; }
+    if (!window.confirm(`This will permanently increase ALL product selling prices by +${pct}%. This cannot be undone automatically. Continue?`)) return;
+    setBulkPriceApplying(true);
+    setBulkPriceError('');
+    setBulkPriceSuccess('');
+    try {
+      const res = await api.post('/settings/apply-product-price-adjustment', { percent: pct });
+      setBulkPriceSuccess(`✓ ${res.data.message}`);
+      setBulkPricePercent('');
+      setTimeout(() => setBulkPriceSuccess(''), 6000);
+    } catch (err) {
+      setBulkPriceError(err.response?.data?.message || 'Failed to apply price adjustment.');
+    } finally {
+      setBulkPriceApplying(false);
+    }
+  };
+
+  const roleBadgeColor = {
+    admin: 'bg-brass-100 text-brass-800 border-brass-300',
+    manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    storekeeper: 'bg-blue-50 text-blue-700 border-blue-200',
+  }[user?.role || 'storekeeper'];
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* ── Page Header ── */}
+      <div>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900">
+          Account &amp; System Settings
+        </h1>
+        <p className="text-sm text-ink-400 mt-1">
+          Manage your personal credentials, profile identity, and Five Stop hotel management configurations
+        </p>
+      </div>
+
+      {/* ── Navigation Tabs ── */}
+      <div className="flex border-b border-ink-100 space-x-1 sm:space-x-4 overflow-x-auto">
+        <button
+          onClick={() => setTab('profile')}
+          className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${
+            currentTab === 'profile'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-ink-400 hover:text-ink-700'
+          }`}
+        >
+          <User size={16} /> My Profile
+        </button>
+
+        <button
+          onClick={() => setTab('security')}
+          className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${
+            currentTab === 'security'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-ink-400 hover:text-ink-700'
+          }`}
+        >
+          <Shield size={16} /> Security &amp; Password
+        </button>
+
+        {hasRole('admin') && (
+          <button
+            onClick={() => setTab('system')}
+            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${
+              currentTab === 'system'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-ink-400 hover:text-ink-700'
+            }`}
+          >
+            <Building size={16} /> Hotel &amp; System Config
+          </button>
+        )}
+
+        <button
+          onClick={() => setTab('permissions')}
+          className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${
+            currentTab === 'permissions'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-ink-400 hover:text-ink-700'
+          }`}
+        >
+          <Layers size={16} /> Role Privileges
+        </button>
+
+        {hasRole('admin') && (
+          <button
+            onClick={() => setTab('telegram')}
+            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${
+              currentTab === 'telegram'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-ink-400 hover:text-ink-700'
+            }`}
+          >
+            <Send size={16} /> Telegram Subscribers
+          </button>
+        )}
+      </div>
+
+      {/* ── Tab 1: Profile ── */}
+      {currentTab === 'profile' && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Identity Card */}
+          <Card className="lg:col-span-1 flex flex-col items-center text-center p-6">
+            {/* Avatar with Photo Upload */}
+            <div className="relative mb-3 group">
+              <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-3xl font-black text-white shadow-md overflow-hidden ring-4 ring-white border border-ink-100">
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user?.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  user?.name?.[0]?.toUpperCase() || 'U'
+                )}
+              </div>
+
+              {/* Upload Badge Button */}
+              <label
+                className={`absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-blue-600 text-white shadow-md ring-2 ring-white transition hover:bg-blue-700 hover:scale-105 ${
+                  avatarUploading ? 'animate-pulse pointer-events-none opacity-80' : ''
+                }`}
+                title="Upload profile photo"
+              >
+                <Camera size={15} />
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                  disabled={avatarUploading}
+                />
+              </label>
+            </div>
+            {/* Photo Action Buttons */}
+            <div className="flex items-center gap-2 mb-2">
+              <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-ink-700 shadow-xs hover:bg-ink-50 hover:border-ink-300 transition">
+                <Upload size={12} className="text-blue-600" />
+                {avatarUploading ? 'Uploading...' : user?.avatar ? 'Change Photo' : 'Upload Photo'}
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                  disabled={avatarUploading}
+                />
+              </label>
+
+              {user?.avatar && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  disabled={avatarUploading}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50/50 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-100 transition"
+                  title="Remove profile photo"
+                >
+                  <Trash2 size={11} /> Remove
+                </button>
+              )}
+            </div>
+            <h3 className="font-display text-lg font-bold text-ink-900">{user?.name}</h3>
+            <p className="text-xs text-ink-400 mt-0.5">{user?.email}</p>
+
+            <span className={`mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold capitalize ${roleBadgeColor}`}>
+              {user?.role} Account
+            </span>
+
+            <div className="mt-6 w-full border-t border-ink-100 pt-4 text-left text-xs space-y-2.5 text-ink-500">
+              <div className="flex justify-between">
+                <span>Account Status:</span>
+                <span className="font-semibold text-emerald-600 flex items-center gap-1">
+                  <CheckCircle2 size={13} /> Active
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Enterprise:</span>
+                <span className="font-semibold text-ink-800">Five Stop</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Contact Phone:</span>
+                <span className="font-semibold text-ink-800">{user?.phone || 'Not specified'}</span>
+              </div>
+            </div>
+          </Card>
+          {/* Edit Profile Form */}
+          <Card className="lg:col-span-2">
+            <h3 className="font-display text-base font-bold text-ink-900 mb-1">
+              Personal Information
+            </h3>
+            <p className="text-xs text-ink-400 mb-5">
+              Update your display name and email address used for sign-in and audit logs
+            </p>
+
+            {profileSuccess && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
+                <CheckCircle2 size={16} className="flex-shrink-0" />
+                <span>{profileSuccess}</span>
+              </div>
+            )}
+            {profileError && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
+                <AlertCircle size={16} className="flex-shrink-0" />
+                <span>{profileError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="text"
+                    required
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="e.g. Hotel Admin"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Email Address (Login Account)
+                </label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="email"
+                    required
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="admin@hotel.com"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Contact Phone Number
+                </label>
+                <div className="relative">
+                  <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="text"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="+251 911 000 000"
+                  />
+                </div>
+              </div>
+              <div className="pt-2 flex justify-end">
+                <Button type="submit" disabled={profileSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Save size={15} /> {profileSaving ? 'Saving…' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+      {/* ── Tab 2: Security & Password ── */}
+      {currentTab === 'security' && (
+        <div className="max-w-2xl">
+          <Card>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="rounded-lg bg-blue-50 p-1.5 text-blue-600">
+                <KeyRound size={16} />
+              </span>
+              <h3 className="font-display text-base font-bold text-ink-900">
+                Change Password
+              </h3>
+            </div>
+            <p className="text-xs text-ink-400 mb-5">
+              Ensure your account uses a secure password to protect stock transactions and sign-offs
+            </p>
+
+            {passwordSuccess && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
+                <CheckCircle2 size={16} className="flex-shrink-0" />
+                <span>{passwordSuccess}</span>
+              </div>
+            )}
+            {passwordError && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
+                <AlertCircle size={16} className="flex-shrink-0" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Current Password
+                </label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="password"
+                    required
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  New Password
+                </label>
+                <div className="relative">
+                  <KeyRound size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="At least 6 characters"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <KeyRound size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="Repeat new password"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-ink-50 p-3 text-xs text-ink-500 space-y-1">
+                <p className="font-semibold text-ink-700">Security Recommendation:</p>
+                <p>• Avoid reusing common passwords.</p>
+                <p>• Remember that this password is also used for voucher check, approval, and receipt gates.</p>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <Button type="submit" disabled={passwordSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Lock size={15} /> {passwordSaving ? 'Updating…' : 'Update Password'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          {/* Session Inactivity Timeout Card */}
+          <Card className="mt-6">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-amber-50 p-1.5 text-amber-600">
+                  <Clock size={16} />
+                </span>
+                <h3 className="font-display text-base font-bold text-ink-900">
+                  Session Inactivity &amp; Auto-Logout
+                </h3>
+              </div>
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                timeoutMinutes === 0
+                  ? 'bg-slate-100 text-slate-600 border-slate-300'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                {timeoutMinutes === 0 ? 'Auto-Logout: Disabled' : `Active Policy: ${timeoutMinutes} min idle`}
+              </span>
+            </div>
+            <p className="text-xs text-ink-400 mb-5">
+              Automatically logs out when idle (no mouse, typing, or touch activity) to prevent unauthorized access at storerooms, reception, or cash counters.
+            </p>
+
+            {sessionTimeoutSuccess && (
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700 animate-in fade-in">
+                <CheckCircle2 size={16} className="flex-shrink-0" />
+                <span>{sessionTimeoutSuccess}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-2">
+                  Choose Inactivity Idle Timeout Duration:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {TIMEOUT_OPTIONS.map((opt) => {
+                    const isSelected = timeoutMinutes === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setTimeoutMinutes(opt.value);
+                          setSessionTimeoutSuccess(`Session timeout updated to ${opt.label}.`);
+                          setTimeout(() => setSessionTimeoutSuccess(''), 3500);
+                        }}
+                        className={`flex items-center justify-between p-3 rounded-xl border text-left transition ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-500'
+                            : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50/50'
+                        }`}
+                      >
+                        <div>
+                          <p className="text-xs font-bold leading-tight">{opt.label}</p>
+                          <p className="text-[10px] text-ink-400 mt-0.5">
+                            {opt.value === 0
+                              ? 'Remain logged in indefinitely'
+                              : opt.value === 2
+                              ? 'Recommended security standard'
+                              : `Signs out after ${opt.value} minutes idle`}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                            <Check size={12} strokeWidth={3} />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-900 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5 text-amber-900">
+                  <Shield size={14} className="text-amber-600" />
+                  How Auto-Logout Protects You:
+                </p>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  • 35 seconds prior to auto-logout, a warning dialog appears allowing you to extend your session with 1 click.
+                </p>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  • Any active keystrokes, item scanning, or navigation instantly refreshes your session timer.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Tab 3: Hotel & System Config (Admin Only) ── */}
+      {currentTab === 'system' && hasRole('admin') && (
+        <div className="space-y-6">
+        <Card className="max-w-3xl">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="rounded-lg bg-brass-100 p-1.5 text-brass-700">
+                <Building size={16} />
+              </span>
+              <h3 className="font-display text-base font-bold text-ink-900">
+                Hotel &amp; Inventory Parameters
+              </h3>
+            </div>
+            <span className="rounded-full bg-brass-50 border border-brass-200 px-2.5 py-0.5 text-xs font-bold text-brass-800">
+              Admin Exclusive
+            </span>
+          </div>
+          <p className="text-xs text-ink-400 mb-6">
+            Configure hotel branding, currency symbols, and default stock safety thresholds
+          </p>
+
+          {systemSuccess && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
+              <CheckCircle2 size={16} className="flex-shrink-0" />
+              <span>{systemSuccess}</span>
+            </div>
+          )}
+          {systemError && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
+              <AlertCircle size={16} className="flex-shrink-0" />
+              <span>{systemError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSystemSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Hotel / Brand Name
+                </label>
+                <div className="relative">
+                  <Building size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="text"
+                    required
+                    value={systemForm.hotelName}
+                    onChange={(e) => setSystemForm({ ...systemForm, hotelName: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="Five Stop"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Currency Symbol / Code
+                </label>
+                <div className="relative">
+                  <Coins size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="text"
+                    required
+                    value={systemForm.currency}
+                    onChange={(e) => setSystemForm({ ...systemForm, currency: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="ETB"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Official Contact Email
+                </label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="email"
+                    value={systemForm.systemEmail}
+                    onChange={(e) => setSystemForm({ ...systemForm, systemEmail: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="info@fivestop.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Official Phone
+                </label>
+                <div className="relative">
+                  <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="text"
+                    value={systemForm.phone}
+                    onChange={(e) => setSystemForm({ ...systemForm, phone: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="+251 911 000 111"
+                  />
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Physical Address / Location
+                </label>
+                <div className="relative">
+                  <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="text"
+                    value={systemForm.address}
+                    onChange={(e) => setSystemForm({ ...systemForm, address: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="Addis Ababa, Ethiopia"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Default Low Stock Safety Threshold (Units)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={systemForm.lowStockThresholdDefault}
+                  onChange={(e) => setSystemForm({ ...systemForm, lowStockThresholdDefault: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-ink-200 py-2.5 px-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Applicable VAT / Tax Rate (%)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={systemForm.taxRate}
+                  onChange={(e) => setSystemForm({ ...systemForm, taxRate: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-ink-200 py-2.5 px-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Toggles */}
+            <div className="space-y-3 pt-2 border-t border-ink-100">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={systemForm.autoGenerateVoucherNo}
+                  onChange={(e) => setSystemForm({ ...systemForm, autoGenerateVoucherNo: e.target.checked })}
+                  className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-ink-900">Auto-generate Voucher Numbers</p>
+                  <p className="text-[11px] text-ink-400">Automatically creates serial voucher codes (e.g. CGRV-2026-001) if left blank</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={systemForm.allowNegativeStock}
+                  onChange={(e) => setSystemForm({ ...systemForm, allowNegativeStock: e.target.checked })}
+                  className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-ink-900">Permit Negative Stock Quantities</p>
+                  <p className="text-[11px] text-ink-400">Allows issuing or disposing stock even when logged balance is below zero</p>
+                </div>
+              </label>
+            </div>
+
+            <div className="pt-3 flex justify-end">
+              <Button type="submit" disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Save size={15} /> {systemSaving ? 'Saving Settings…' : 'Save Hotel Settings'}
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {/* ── Pricing & Cost Parameters Card ── */}
+        <Card className="mt-6 max-w-3xl">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
+                <Coins size={16} />
+              </span>
+              <h3 className="font-display text-base font-bold text-ink-900">Pricing &amp; Cost Parameters</h3>
+            </div>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">Admin Exclusive</span>
+          </div>
+          <p className="text-xs text-ink-400 mb-6">
+            Configure contingency, overhead, food cost %, and raw material price adjustments. These are applied automatically when calculating recipe costs and suggested selling prices on all products.
+          </p>
+
+          {/* Live Preview */}
+          {(() => {
+            const adjType  = systemForm.rawMaterialPriceAdjustType;
+            const adjVal   = Number(systemForm.rawMaterialPriceAdjustValue) || 0;
+            const cont     = Number(systemForm.contingencyPercent) || 0;
+            const ovhd     = Number(systemForm.overheadPercent) || 0;
+            const fc       = Math.max(Number(systemForm.defaultFoodCostPercent) || 30, 1);
+            // Example: raw material cost = 357.90 ETB (from the screenshot)
+            const exampleRaw = 357.90;
+            const adjCost  = adjType === 'percent'
+              ? exampleRaw * (1 + adjVal / 100)
+              : exampleRaw + adjVal;
+            const withCont = adjCost * (1 + cont / 100);
+            const total    = withCont * (1 + ovhd / 100);
+            const selling  = total / (fc / 100);
+            const fmt = (n) => `ETB ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+            return (
+              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 mb-6">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-3">Live Preview (example: {fmt(exampleRaw)} raw material cost)</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 text-xs">
+                  {[
+                    { label: 'Adjusted Cost',        value: fmt(adjCost),   color: 'text-ink-700' },
+                    { label: `+ Contingency ${cont}%`, value: fmt(withCont - adjCost), color: 'text-amber-600' },
+                    { label: 'After Contingency',    value: fmt(withCont),  color: 'text-ink-700' },
+                    { label: `+ Overhead ${ovhd}%`,  value: fmt(total - withCont), color: 'text-violet-600' },
+                    { label: 'Total Cost',            value: fmt(total),     color: 'text-ink-900 font-black' },
+                    { label: `Selling @ ${fc}% FC`,  value: fmt(selling),   color: 'text-emerald-700 font-black' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="rounded-xl bg-white border border-emerald-100 px-3 py-2 text-center">
+                      <p className="text-[10px] text-ink-400 mb-0.5">{label}</p>
+                      <p className={`font-bold ${color}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Selling price at all benchmarks */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[30, 35, 40, 50].map(pct => (
+                    <span key={pct} className="rounded-lg bg-white border border-emerald-200 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
+                      Food cost {pct}% → Sell at {fmt(total / (pct / 100))}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          <form onSubmit={handleSystemSubmit} className="space-y-5">
+            {/* Raw Material Price Adjustment */}
+            <div className="rounded-2xl border border-ink-100 bg-ink-50/30 p-4 space-y-3">
+              <p className="text-xs font-bold text-ink-800">Raw Material Price Adjustment</p>
+              <p className="text-[11px] text-ink-400">Apply a global adjustment to all raw material unit costs before calculating recipe costs. Use this to simulate future price increases.</p>
+              <div className="flex items-center gap-3">
+                <div className="flex rounded-xl border border-ink-200 overflow-hidden">
+                  {[
+                    { val: 'percent', label: '% Percent' },
+                    { val: 'fixed',   label: 'ETB Fixed' },
+                  ].map(opt => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => setSystemForm(p => ({ ...p, rawMaterialPriceAdjustType: opt.val }))}
+                      className={`px-4 py-2 text-xs font-semibold transition ${
+                        systemForm.rawMaterialPriceAdjustType === opt.val
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-ink-600 hover:bg-ink-50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative flex-1 max-w-[160px]">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={systemForm.rawMaterialPriceAdjustValue}
+                    onChange={e => setSystemForm(p => ({ ...p, rawMaterialPriceAdjustValue: e.target.value }))}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-3 pr-10 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-400">
+                    {systemForm.rawMaterialPriceAdjustType === 'percent' ? '%' : 'ETB'}
+                  </span>
+                </div>
+                {Number(systemForm.rawMaterialPriceAdjustValue) > 0 && (
+                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                    {systemForm.rawMaterialPriceAdjustType === 'percent'
+                      ? `+${systemForm.rawMaterialPriceAdjustValue}% on all material costs`
+                      : `+ETB ${systemForm.rawMaterialPriceAdjustValue} per unit`}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Contingency & Overhead */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-bold text-ink-700 mb-1.5">
+                  Contingency % <span className="font-normal text-ink-400">(waste, spoilage, price buffer)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={systemForm.contingencyPercent}
+                    onChange={e => setSystemForm(p => ({ ...p, contingencyPercent: e.target.value }))}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-3 pr-10 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="10"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-500">%</span>
+                </div>
+                <p className="text-[10px] text-ink-400 mt-1">Added to raw material cost. Industry standard: 5–15%</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-ink-700 mb-1.5">
+                  Overhead % <span className="font-normal text-ink-400">(electricity, labour, equipment)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={systemForm.overheadPercent}
+                    onChange={e => setSystemForm(p => ({ ...p, overheadPercent: e.target.value }))}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-3 pr-10 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="25"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-violet-500">%</span>
+                </div>
+                <p className="text-[10px] text-ink-400 mt-1">Applied after contingency. Industry standard: 20–30%</p>
+              </div>
+            </div>
+
+            {/* Default Food Cost % */}
+            <div>
+              <label className="block text-xs font-bold text-ink-700 mb-1.5">
+                Default Food Cost % <span className="font-normal text-ink-400">(used to calculate suggested selling price)</span>
+              </label>
+              <div className="flex items-center gap-4">
+                <div className="relative w-48">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={systemForm.defaultFoodCostPercent}
+                    onChange={e => setSystemForm(p => ({ ...p, defaultFoodCostPercent: e.target.value }))}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 pl-3 pr-10 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="30"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-600">%</span>
+                </div>
+                <div className="flex gap-2">
+                  {[25, 30, 35, 40].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setSystemForm(p => ({ ...p, defaultFoodCostPercent: pct }))}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold transition border ${
+                        Number(systemForm.defaultFoodCostPercent) === pct
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white text-ink-600 border-ink-200 hover:border-emerald-400 hover:text-emerald-700'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[10px] text-ink-400 mt-1">
+                If total cost = ETB 492, at 30% food cost → suggested price = ETB 1,640. Industry standard: 28–35%
+              </p>
+            </div>
+
+            {systemSuccess && (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
+                <CheckCircle2 size={14} className="flex-shrink-0" /> {systemSuccess}
+              </div>
+            )}
+            {systemError && (
+              <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700">
+                <AlertCircle size={14} className="flex-shrink-0" /> {systemError}
+              </div>
+            )}
+
+            {/* ── Bulk Product Selling Price Adjustment ── */}
+            <div className="rounded-2xl overflow-hidden border border-blue-100">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-600 to-indigo-600">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
+                    <Sparkles size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-white">Bulk Product Price Increase</p>
+                    <p className="text-[11px] text-blue-200">Apply a % increase to all product selling prices at once</p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold text-white">Permanent Action</span>
+              </div>
+
+              <div className="p-5 space-y-4 bg-blue-50/30">
+                <p className="text-xs text-ink-600">
+                  Use this when your menu prices need to increase across the board — for example, a 10% price rise due to inflation.
+                  This <strong>permanently updates</strong> the selling price stored on every active product.
+                </p>
+
+                {/* Input row */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0.01"
+                      max="500"
+                      step="0.1"
+                      value={bulkPricePercent}
+                      onChange={e => { setBulkPricePercent(e.target.value); setBulkPriceError(''); setBulkPriceSuccess(''); }}
+                      placeholder="e.g. 10"
+                      className="w-36 rounded-xl border-2 border-blue-200 bg-white py-2.5 pl-4 pr-10 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-black text-blue-500">%</span>
+                  </div>
+
+                  {/* Live example */}
+                  {Number(bulkPricePercent) > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {[100, 250, 500, 1000].map(ex => (
+                        <div key={ex} className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-center">
+                          <p className="text-[10px] text-ink-400">ETB {ex} →</p>
+                          <p className="text-xs font-black text-blue-700">
+                            ETB {(ex * (1 + Number(bulkPricePercent) / 100)).toFixed(2)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick % buttons */}
+                <div className="flex gap-2 flex-wrap">
+                  <p className="text-[11px] font-semibold text-ink-500 self-center">Quick:</p>
+                  {[5, 10, 15, 20, 25].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => { setBulkPricePercent(pct); setBulkPriceError(''); }}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold border transition ${
+                        Number(bulkPricePercent) === pct
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-ink-600 border-ink-200 hover:border-blue-400 hover:text-blue-700'
+                      }`}
+                    >
+                      +{pct}%
+                    </button>
+                  ))}
+                </div>
+
+                {/* Feedback */}
+                {bulkPriceSuccess && (
+                  <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-semibold text-emerald-700">
+                    <CheckCircle2 size={14} className="flex-shrink-0" /> {bulkPriceSuccess}
+                  </div>
+                )}
+                {bulkPriceError && (
+                  <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs font-semibold text-red-700">
+                    <AlertCircle size={14} className="flex-shrink-0" /> {bulkPriceError}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleBulkPriceApply}
+                  disabled={bulkPriceApplying || !Number(bulkPricePercent)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {bulkPriceApplying
+                    ? <><Sparkles size={15} className="animate-spin" /> Applying…</>
+                    : <><Sparkles size={15} /> Apply +{bulkPricePercent || '0'}% to All Products</>
+                  }
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <Button type="submit" disabled={systemSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Save size={15} /> {systemSaving ? 'Saving…' : 'Save Pricing Settings'}
+              </Button>
+            </div>
+          </form>
+        </Card>
+        </div>
+      )}
+
+      {/* ── Tab 4: Role Privileges ── */}
+      {currentTab === 'permissions' && (
+        <Card className="max-w-3xl">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="rounded-lg bg-blue-50 p-1.5 text-blue-600">
+              <Shield size={16} />
+            </span>
+            <h3 className="font-display text-base font-bold text-ink-900">
+              System Roles &amp; Permissions Matrix
+            </h3>
+          </div>
+          <p className="text-xs text-ink-400 mb-5">
+            Your current assigned role is <strong className="capitalize text-ink-800">{user?.role}</strong>.
+            {hasRole('admin') ? ' You can modify the system permissions below.' : ' You do not have permission to modify these settings.'}
+          </p>
+
+          <form onSubmit={handleSystemSubmit}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-ink-100 bg-ink-50/70 text-ink-600 font-semibold">
+                    <th className="py-2.5 px-3">System Capability</th>
+                    <th className="py-2.5 px-3 text-center">Storekeeper</th>
+                    <th className="py-2.5 px-3 text-center">Manager</th>
+                    <th className="py-2.5 px-3 text-center">Admin</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-50 text-ink-700">
+                  {CAPABILITIES.map((cap) => (
+                    <tr key={cap.key}>
+                      <td className="py-2.5 px-3 font-medium">{cap.label}</td>
+                      {['storekeeper', 'manager', 'admin'].map((r) => (
+                        <td key={r} className="py-2.5 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            disabled={!hasRole('admin')}
+                            checked={systemForm.rolePermissions?.[cap.key]?.[r] || false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setSystemForm(prev => ({
+                                ...prev,
+                                rolePermissions: {
+                                  ...prev.rolePermissions,
+                                  [cap.key]: {
+                                    ...prev.rolePermissions?.[cap.key],
+                                    [r]: checked
+                                  }
+                                }
+                              }));
+                            }}
+                            className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Sidebar Navigation Visibility Matrix ── */}
+            <div className="mt-8 pt-6 border-t border-ink-100">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
+                  <Layers size={15} />
+                </span>
+                <h4 className="text-sm font-bold text-ink-900">Sidebar Navigation Visibility</h4>
+              </div>
+              <p className="text-xs text-ink-400 mb-4">
+                Control which sidebar menu items each role can see. Unchecking a section hides it completely for that role.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-ink-100 bg-ink-50/70 text-ink-600 font-semibold">
+                      <th className="py-2.5 px-3">Sidebar Section</th>
+                      <th className="py-2.5 px-3 text-center">Storekeeper</th>
+                      <th className="py-2.5 px-3 text-center">Manager</th>
+                      <th className="py-2.5 px-3 text-center">Admin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink-50 text-ink-700">
+                    {NAV_ITEMS.map((nav) => (
+                      <tr key={nav.key}>
+                        <td className="py-2.5 px-3 font-medium">{nav.label}</td>
+                        {['storekeeper', 'manager', 'admin'].map((r) => (
+                          <td key={r} className="py-2.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              disabled={!hasRole('admin')}
+                              checked={systemForm.navVisibility?.[nav.key]?.[r] ?? true}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setSystemForm(prev => ({
+                                  ...prev,
+                                  navVisibility: {
+                                    ...prev.navVisibility,
+                                    [nav.key]: {
+                                      ...prev.navVisibility?.[nav.key],
+                                      [r]: checked,
+                                    },
+                                  },
+                                }));
+                              }}
+                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {hasRole('admin') && (
+              <div className="pt-5 flex justify-end">
+                <Button type="submit" disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Save size={15} /> {systemSaving ? 'Saving Permissions…' : 'Save Role Permissions'}
+                </Button>
+              </div>
+            )}
+            
+            {systemSuccess && currentTab === 'permissions' && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
+                <CheckCircle2 size={16} className="flex-shrink-0" />
+                <span>{systemSuccess}</span>
+              </div>
+            )}
+            {systemError && currentTab === 'permissions' && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
+                <AlertCircle size={16} className="flex-shrink-0" />
+                <span>{systemError}</span>
+              </div>
+            )}
+          </form>
+        </Card>
+      )}
+
+      {/* ── Tab 5: Telegram Subscribers (Admin only) ── */}
+      {currentTab === 'telegram' && hasRole('admin') && (
+        <Card className="max-w-3xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="rounded-lg bg-blue-50 p-1.5 text-blue-600">
+                <Send size={16} />
+              </span>
+              <div>
+                <h3 className="font-bold text-base text-ink-900">Telegram Bot Subscribers</h3>
+                <p className="text-xs text-ink-400 mt-0.5">
+                  Everyone who started <strong>@FivestopBot</strong> and receives notifications
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={loadTgSubscribers}
+              disabled={tgLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50 transition"
+            >
+              {tgLoading ? 'Loading…' : '↻ Refresh'}
+            </button>
+            <button
+              onClick={() => { setTgAddOpen(true); setTgError(''); }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white transition"
+            >
+              + Add Manually
+            </button>
+          </div>
+
+          {/* How to add people */}
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+            <p className="font-bold mb-1">📢 How to add someone</p>
+            <p>1. Share <strong>t.me/FivestopBot</strong> — they tap Start to subscribe.</p>
+            <p className="mt-0.5">2. Come back here and click <strong>"Register Phone"</strong> next to their name.</p>
+            <p className="mt-0.5 text-blue-600">Only subscribers with a registered phone can receive OTP login codes.</p>
+          </div>
+
+          {tgSuccess && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
+              <CheckCircle2 size={15} className="flex-shrink-0" />
+              {tgSuccess}
+            </div>
+          )}
+          {tgError && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
+              <AlertCircle size={15} className="flex-shrink-0" />
+              {tgError}
+            </div>
+          )}
+
+          {/* Subscriber list */}
+          {tgLoading ? (
+            <div className="py-8 text-center text-xs text-ink-400">Loading subscribers…</div>
+          ) : tgSubscribers.length === 0 ? (
+            <div className="py-8 text-center">
+              <Send size={28} className="mx-auto mb-2 text-ink-200" />
+              <p className="text-sm font-semibold text-ink-400">No subscribers yet</p>
+              <p className="text-xs text-ink-300 mt-1">Share t.me/FivestopBot to get started</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-ink-100">
+              <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                <thead style={{ background: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%)' }}>
+                  <tr>
+                    {['#', 'Name', 'Username', 'Phone (OTP)', 'Subscribed At', 'Actions'].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-blue-100"
+                        style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tgSubscribers.map((sub, i) => (
+                    <tr key={sub.chatId} className="hover:bg-ink-50/40" style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td className="px-4 py-3 text-xs text-ink-400 tabular-nums">{i + 1}</td>
+                      <td className="px-4 py-3 font-semibold text-ink-800">{sub.name || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-blue-600">
+                        {sub.username ? `@${sub.username}` : '—'}
+                      </td>
+
+                      {/* Phone column with inline register/edit */}
+                      <td className="px-4 py-3 min-w-[180px]">
+                        {tgEditPhone === sub.chatId ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="tel"
+                              value={tgPhoneVal}
+                              onChange={e => setTgPhoneVal(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleRegisterPhone(sub.chatId);
+                                if (e.key === 'Escape') { setTgEditPhone(null); setTgPhoneVal(''); }
+                              }}
+                              placeholder="e.g. 0918592028"
+                              autoFocus
+                              className="w-32 rounded-lg border border-blue-300 px-2 py-1 text-xs outline-none focus:border-blue-500"
+                            />
+                            <button
+                              onClick={() => handleRegisterPhone(sub.chatId)}
+                              disabled={tgPhoneSaving}
+                              className="rounded-lg bg-blue-600 hover:bg-blue-700 px-2 py-1 text-[10px] font-bold text-white transition disabled:opacity-50"
+                            >
+                              {tgPhoneSaving ? '…' : 'Save'}
+                            </button>
+                            <button
+                              onClick={() => { setTgEditPhone(null); setTgPhoneVal(''); }}
+                              className="text-ink-400 hover:text-ink-600 text-xs"
+                            >✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {sub.phone ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                ✅ {sub.phone}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-ink-300 italic">Not registered</span>
+                            )}
+                            <button
+                              onClick={() => { setTgEditPhone(sub.chatId); setTgPhoneVal(sub.phone || ''); setTgError(''); }}
+                              className="text-[10px] font-semibold text-blue-500 hover:text-blue-700 hover:underline"
+                            >
+                              {sub.phone ? 'Edit' : '+ Register'}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 text-xs text-ink-400 whitespace-nowrap">
+                        {sub.subscribedAt ? new Date(sub.subscribedAt).toLocaleString() : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleRemoveTgSubscriber(sub.chatId, sub.name)}
+                          disabled={tgRemoving === sub.chatId}
+                          className="inline-flex items-center gap-1 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 transition disabled:opacity-50"
+                        >
+                          <Trash2 size={12} />
+                          {tgRemoving === sub.chatId ? 'Removing…' : 'Remove'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="border-t border-ink-100 px-4 py-2 text-xs text-ink-400">
+                {tgSubscribers.length} subscriber{tgSubscribers.length !== 1 ? 's' : ''} total
+                {' · '}
+                {tgSubscribers.filter(s => s.phone).length} with registered phone
+              </div>
+            </div>
+          )}
+
+          {/* ── Add Subscriber Modal ── */}
+          {tgAddOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+              <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
+                  <h3 className="font-bold text-ink-900">Add Subscriber Manually</h3>
+                  <button onClick={() => setTgAddOpen(false)} className="text-ink-400 hover:text-ink-700 text-lg font-bold">✕</button>
+                </div>
+                <form onSubmit={handleAddSubscriber} className="p-5 space-y-3">
+                  <p className="text-xs text-ink-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    Add a person who hasn't messaged the bot yet. They can still receive OTP codes if their phone is registered. To also receive system notifications, they need to message <strong>@FivestopBot</strong>.
+                  </p>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-700 mb-1">Full Name *</label>
+                    <input required value={tgAddForm.name}
+                      onChange={e => setTgAddForm(f => ({...f, name: e.target.value}))}
+                      placeholder="e.g. Anteneh Bekele"
+                      className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-700 mb-1">Phone Number * <span className="text-blue-600">(used for OTP login)</span></label>
+                    <input required type="tel" value={tgAddForm.phone}
+                      onChange={e => setTgAddForm(f => ({...f, phone: e.target.value}))}
+                      placeholder="e.g. 0911000000"
+                      className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-700 mb-1">Telegram Username <span className="text-ink-400">(optional, without @)</span></label>
+                    <input value={tgAddForm.username}
+                      onChange={e => setTgAddForm(f => ({...f, username: e.target.value.replace(/^@/,'')}))}
+                      placeholder="e.g. anteneh21"
+                      className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-700 mb-1">Telegram Chat ID <span className="text-ink-400">(optional — needed for notifications)</span></label>
+                    <input value={tgAddForm.chatId}
+                      onChange={e => setTgAddForm(f => ({...f, chatId: e.target.value}))}
+                      placeholder="e.g. 1234567890"
+                      className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+                    <p className="mt-1 text-[10px] text-ink-400">To get their Chat ID: have them message @FivestopBot, then you'll see them appear in this list with their ID.</p>
+                  </div>
+
+                  {tgError && (
+                    <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
+                      ⚠ {tgError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={() => setTgAddOpen(false)}
+                      className="rounded-lg border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50 transition">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={tgAddSaving}
+                      className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-50">
+                      {tgAddSaving ? 'Adding…' : 'Add Subscriber'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}

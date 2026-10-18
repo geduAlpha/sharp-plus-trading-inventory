@@ -1,0 +1,53 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,jsx}'],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      colors: {
+        ink: {
+          50: '#eef1f6',
+          100: '#d7ddea',
+          200: '#aeb9d2',
+          300: '#8393b6',
+          400: '#5a6c98',
+          500: '#3d4f79',
+          600: '#2c3c60',
+          700: '#212e4a',
+          800: '#1b2438',
+          900: '#141a29',
+          950: '#0c101a',
+        },
+        brass: {
+          50: '#fbf6ea',
+          100: '#f4e8c8',
+          200: '#e9d093',
+          300: '#dcb45c',
+          400: '#c89b3c',
+          500: '#b2822f',
+          600: '#906526',
+          700: '#6f4c1f',
+        },
+        fivestop: {
+          50:  '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#1a56db',
+          600: '#1447c0',
+          700: '#1039a0',
+          800: '#0d2d80',
+          900: '#0a2060',
+        },
+      },
+      boxShadow: {
+        soft: '0 1px 2px rgba(20,26,41,0.06), 0 8px 24px -12px rgba(20,26,41,0.18)',
+      },
+    },
+  },
+  plugins: [],
+};
