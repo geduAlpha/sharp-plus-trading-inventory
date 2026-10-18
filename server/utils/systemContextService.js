@@ -194,7 +194,7 @@ async function buildSystemContext(userRole = 'storekeeper') {
 === Sharp Plus HOTEL — LIVE SYSTEM SNAPSHOT ===
 Date: ${today}
 User Role: ${userRole.toUpperCase()}
-Hotel: Sharp Plus Hotel (Nobir Trading Plc Stock Management System)
+Hotel: Sharp Plus Hotel (Sharp PlusPlc Stock Management System)
 
 --- STOCK OVERVIEW ---
 Total Active Materials: ${materialCount}

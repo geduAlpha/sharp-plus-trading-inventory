@@ -220,7 +220,7 @@ function notifyTransactionDeleted(txn, user) {
   );
 }
 
-// ── RAW MATERIALS ────────────────────────────────────────────────
+// ── Items ────────────────────────────────────────────────
 
 /** Raw material created */
 function notifyMaterialCreated(mat, user) {

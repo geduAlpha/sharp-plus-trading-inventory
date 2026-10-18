@@ -1,4 +1,4 @@
-# Nobir Trading Plc Stock — Hotel Stock Management System
+# Sharp PlusPlc Stock — Hotel Stock Management System
 
 A full-stack stock/inventory management system for a hotel, built with **React (Vite + Tailwind)** on the frontend and **Node.js/Express + MongoDB** on the backend.
 
@@ -6,7 +6,7 @@ A full-stack stock/inventory management system for a hotel, built with **React (
 
 - **Role-based login** — Admin, Manager, Store Keeper (JWT authentication)
 - **Suppliers** — add, edit, and search supplier records
-- **Raw materials** — track every item in the store with unit, reorder level, and cost
+- **Items** — track every item in the store with unit, reorder level, and cost
 - **Purchases** — record purchases from suppliers; receiving a purchase automatically increases stock
 - **Stock movements** — record stock in/out (kitchen use, housekeeping use, damage, returns, adjustments) with automatic stock level updates
 - **Dashboard** — attractive overview with stat cards, a 7-day stock movement chart, low-stock alerts, and recent activity
@@ -77,7 +77,7 @@ Open `http://localhost:5173` and log in with the seeded admin account.
 |----------------------------------|:---:|:---:|:---:|
 | View dashboard & stock levels    | ✅ | ✅ | ✅ |
 | Record stock in / out            | ✅ | ✅ | ✅ |
-| Manage raw materials             | ✅ | ✅ | view only |
+| Manage Items             | ✅ | ✅ | view only |
 | Manage suppliers                 | ✅ | ✅ | — |
 | Record purchases                 | ✅ | ✅ | — |
 | View reports                     | ✅ | ✅ | — |

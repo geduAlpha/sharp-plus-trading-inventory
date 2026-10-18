@@ -6,7 +6,7 @@ import AiChat from '../AiChat';
 
 const titles = {
   '/': 'Dashboard',
-  '/materials': 'Raw Materials',
+  '/materials': 'Items',
   '/products': 'Sales Products & Recipes',
   '/analytics': 'Analytics & Performance',
   '/transactions': 'Stock Movements',
@@ -44,7 +44,7 @@ const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);  // mobile overlay
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);  // desktop collapse
   const location = useLocation();
-  const title = titles[location.pathname] || 'Nobir Trading Plc Stock';
+  const title = titles[location.pathname] || 'Sharp PlusPlc Stock';
 
   return (
     <div className="flex h-screen overflow-hidden bg-ink-50">

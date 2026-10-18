@@ -505,7 +505,7 @@ const importRecipesExcel = asyncHandler(async (req, res) => {
   const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
   send({ type: 'start', total });
 
-  // Pre-load all active raw materials once (name → ObjectId map, case-insensitive)
+  // Pre-load all active Items once (name → ObjectId map, case-insensitive)
   const allMaterials = await RawMaterial.find({ isActive: { $ne: false } }).select('name unit').lean();
   const materialMap = new Map(allMaterials.map((m) => [m.name.trim().toLowerCase(), m]));
 

@@ -57,7 +57,7 @@ export function exportToPDF({
   title = 'Inventory Report',
   columns = [],
   data = [],
-  hotelName = 'Nobir Trading Plc Stock / Sharp Plus',
+  hotelName = 'Sharp PlusPlc Stock / Sharp Plus',
   summary = null,
 }) {
   if (!data || data.length === 0) {

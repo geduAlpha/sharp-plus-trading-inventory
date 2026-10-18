@@ -306,7 +306,7 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
 
           <SectionLabel collapsed={collapsed}>Main</SectionLabel>
           {canSeeNav('dashboard') && navLink('/', LayoutDashboard, 'Dashboard', true)}
-          {canSeeNav('rawMaterials') && navLink('/materials', Boxes, 'Raw Materials')}
+          {canSeeNav('rawMaterials') && navLink('/materials', Boxes, 'Items')}
           {canSeeNav('products') && navLink('/products', UtensilsCrossed, 'Products')}
           {canSeeNav('analytics') && navLink('/analytics', TrendingUp, 'Analytics & P&L')}
 

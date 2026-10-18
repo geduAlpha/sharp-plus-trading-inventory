@@ -708,7 +708,7 @@ const Products = () => {
                 <div key={idx} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
                   <select required value={ing.material} onChange={(e) => updateIngredient(idx, 'material', e.target.value)}
                     className="rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500">
-                    <option value="">Select raw material…</option>
+                    <option value="">Select item…</option>
                     {materials.map((m) => (
                       <option key={m._id} value={m._id}>{m.name} ({m.unit})</option>
                     ))}
@@ -797,7 +797,7 @@ const Products = () => {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={3} className="pt-2 text-right text-xs font-semibold text-ink-500">Raw Material Cost</td>
+                      <td colSpan={3} className="pt-2 text-right text-xs font-semibold text-ink-500">Item Cost</td>
                       <td className="pt-2 text-right font-bold text-blue-700">ETB {(selectedProduct.costBreakdown?.rawMaterialCost ?? recipeCost(selectedProduct)).toFixed(2)}</td>
                     </tr>
                   </tfoot>
@@ -813,7 +813,7 @@ const Products = () => {
                   <table className="w-full text-xs">
                     <tbody>
                       {[
-                        { label: 'Raw Material Cost', value: selectedProduct.costBreakdown.rawMaterialCost, color: 'text-ink-700' },
+                        { label: 'Item Cost', value: selectedProduct.costBreakdown.rawMaterialCost, color: 'text-ink-700' },
                         { label: `+ Contingency (${selectedProduct.costBreakdown.settings?.contingencyPercent}%)`, value: selectedProduct.costBreakdown.contingencyAmount, color: 'text-amber-600' },
                         { label: 'Total after Contingency', value: selectedProduct.costBreakdown.withContingency, color: 'text-ink-700 font-semibold', divider: true },
                         { label: `+ Overhead (${selectedProduct.costBreakdown.settings?.overheadPercent}%)`, value: selectedProduct.costBreakdown.overheadAmount, color: 'text-violet-600' },

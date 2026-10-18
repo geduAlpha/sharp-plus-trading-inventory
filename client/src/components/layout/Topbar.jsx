@@ -31,9 +31,9 @@ const HELP_SECTIONS = [
     id: 'raw-materials',
     icon: Package,
     color: 'bg-emerald-600',
-    title: 'Raw Materials',
+    title: 'Items',
     steps: [
-      { title: 'View Materials', desc: 'Go to Raw Materials in the sidebar. All active materials are listed with their current stock, unit, and category.' },
+      { title: 'View Materials', desc: 'Go to Items in the sidebar. All active materials are listed with their current stock, unit, and category.' },
       { title: 'Add a Material', desc: 'Click "+ Add Material". Fill in the name, unit (kg, L, pcs), category, and reorder level, then save.' },
       { title: 'Edit / Archive', desc: "Click the action menu on any material row to edit its details or archive it." },
       { title: 'Reorder Alerts', desc: 'Materials below their reorder level are highlighted in amber/red on the Dashboard and Reports.' },
@@ -181,8 +181,8 @@ const HelpModal = ({ onClose }) => {
                   key={s.id}
                   onClick={() => setActiveSection(s.id)}
                   className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition mb-0.5 ${activeSection === s.id
-                      ? 'bg-white shadow-sm text-blue-700 font-bold border border-ink-100'
-                      : 'text-ink-600 hover:bg-white/70 hover:text-ink-900'
+                    ? 'bg-white shadow-sm text-blue-700 font-bold border border-ink-100'
+                    : 'text-ink-600 hover:bg-white/70 hover:text-ink-900'
                     }`}
                 >
                   <span className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg ${s.color}`}>
@@ -379,8 +379,8 @@ const NotificationBell = () => {
       <button
         onClick={() => { setOpen(v => !v); if (!open) fetchNotifications(); }}
         className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition ${unread > 0
-            ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
-            : 'border-ink-200 bg-white text-ink-500 hover:bg-ink-50'
+          ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
+          : 'border-ink-200 bg-white text-ink-500 hover:bg-ink-50'
           }`}
         title="Notifications"
       >

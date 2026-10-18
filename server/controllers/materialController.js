@@ -17,8 +17,8 @@ const getMaterials = asyncHandler(async (req, res) => {
       m.currentStock <= 0
         ? 'out_of_stock'
         : m.currentStock <= m.reorderLevel
-        ? 'low_stock'
-        : 'in_stock',
+          ? 'low_stock'
+          : 'in_stock',
   }));
 
   if (status) {
@@ -56,12 +56,12 @@ const updateMaterial = asyncHandler(async (req, res) => {
 
   // Build a human-readable diff of what actually changed
   const watchedFields = [
-    { key: 'name',          label: 'Name' },
-    { key: 'category',      label: 'Category' },
-    { key: 'unit',          label: 'Unit' },
-    { key: 'unitCost',      label: 'Unit Cost',      format: v => `ETB ${Number(v).toFixed(2)}` },
-    { key: 'currentStock',  label: 'Current Stock',  format: (v, m) => `${v} ${m?.unit || ''}` },
-    { key: 'reorderLevel',  label: 'Reorder Level',  format: (v, m) => `${v} ${m?.unit || ''}` },
+    { key: 'name', label: 'Name' },
+    { key: 'category', label: 'Category' },
+    { key: 'unit', label: 'Unit' },
+    { key: 'unitCost', label: 'Unit Cost', format: v => `ETB ${Number(v).toFixed(2)}` },
+    { key: 'currentStock', label: 'Current Stock', format: (v, m) => `${v} ${m?.unit || ''}` },
+    { key: 'reorderLevel', label: 'Reorder Level', format: (v, m) => `${v} ${m?.unit || ''}` },
     { key: 'storeLocation', label: 'Store Location' },
   ];
 
@@ -69,8 +69,8 @@ const updateMaterial = asyncHandler(async (req, res) => {
     .filter(f => req.body[f.key] !== undefined && String(before[f.key]) !== String(req.body[f.key]))
     .map(f => ({
       label: f.label,
-      from:  f.format ? f.format(before[f.key], before) : String(before[f.key] ?? '—'),
-      to:    f.format ? f.format(req.body[f.key], material) : String(req.body[f.key]),
+      from: f.format ? f.format(before[f.key], before) : String(before[f.key] ?? '—'),
+      to: f.format ? f.format(req.body[f.key], material) : String(req.body[f.key]),
     }));
 
   tg.notifyMaterialUpdated(material, req.user, changes);
@@ -81,7 +81,7 @@ const updateMaterial = asyncHandler(async (req, res) => {
 const deleteMaterial = asyncHandler(async (req, res) => {
   const material = await RawMaterial.findById(req.params.id);
   if (!material) { res.status(404); throw new Error('Raw material not found'); }
-  material.isActive  = false;
+  material.isActive = false;
   material.deletedAt = new Date();
   material.deletedBy = req.user?.name || 'System';
   material.deletedFrom = 'materials';
@@ -98,7 +98,7 @@ const bulkDeleteMaterials = asyncHandler(async (req, res) => {
     { _id: { $in: ids } },
     { isActive: false, deletedAt: new Date(), deletedBy: req.user?.name || 'System', deletedFrom: 'materials' }
   );
-  tg.notifyBulkDeleted('Raw Materials', ids.length, req.user);
+  tg.notifyBulkDeleted('Items', ids.length, req.user);
   invalidateDashboardCache();
   res.json({ message: `${ids.length} material(s) moved to recycle bin.` });
 });
@@ -106,9 +106,9 @@ const bulkDeleteMaterials = asyncHandler(async (req, res) => {
 const restoreMaterial = asyncHandler(async (req, res) => {
   const material = await RawMaterial.findById(req.params.id);
   if (!material) { res.status(404); throw new Error('Raw material not found'); }
-  material.isActive    = true;
-  material.deletedAt   = null;
-  material.deletedBy   = null;
+  material.isActive = true;
+  material.deletedAt = null;
+  material.deletedBy = null;
   material.deletedFrom = null;
   await material.save();
   invalidateDashboardCache();
@@ -144,7 +144,7 @@ const exportMaterialsExcel = asyncHandler(async (req, res) => {
   const ws = XLSX.utils.json_to_sheet(rows);
   // Set column widths
   ws['!cols'] = [12, 20, 15, 8, 14, 14, 10, 16, 12].map((w) => ({ wch: w }));
-  XLSX.utils.book_append_sheet(wb, ws, 'Raw Materials');
+  XLSX.utils.book_append_sheet(wb, ws, 'Items');
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
   res.setHeader('Content-Disposition', 'attachment; filename="raw_materials.xlsx"');
@@ -172,11 +172,11 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
     const data = {
       code,
       name,
-      category:      String(row['Category']      || 'General').trim(),
-      unit:          String(row['Unit']           || 'pcs').trim(),
-      currentStock:  Number(row['Current Stock']) || 0,
-      reorderLevel:  Number(row['Reorder Level']) || 10,
-      unitCost:      Number(row['Unit Cost'])     || 0,
+      category: String(row['Category'] || 'General').trim(),
+      unit: String(row['Unit'] || 'pcs').trim(),
+      currentStock: Number(row['Current Stock']) || 0,
+      reorderLevel: Number(row['Reorder Level']) || 10,
+      unitCost: Number(row['Unit Cost']) || 0,
       storeLocation: String(row['Store Location'] || 'Main Store').trim(),
     };
 

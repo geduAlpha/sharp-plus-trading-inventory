@@ -57,7 +57,7 @@ const autoSeed = async () => {
         { name: 'Bottled Water 500ml', category: 'Beverages', unit: 'pcs', currentStock: 300, reorderLevel: 100, unitCost: 8 },
         { name: 'Bath Towels', category: 'Housekeeping', unit: 'pcs', currentStock: 5, reorderLevel: 20, unitCost: 150 },
       ]);
-      console.log('[SEED] Seeded sample raw materials.');
+      console.log('[SEED] Seeded sample Items.');
     }
   } catch (err) {
     console.error('[SEED] Auto-seed error:', err.message);

@@ -41,7 +41,7 @@ const CAPABILITIES = [
 
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'rawMaterials', label: 'Raw Materials' },
+  { key: 'rawMaterials', label: 'Items' },
   { key: 'products', label: 'Products' },
   { key: 'stockMovements', label: 'Stock Movements' },
   { key: 'suppliers', label: 'Suppliers' },

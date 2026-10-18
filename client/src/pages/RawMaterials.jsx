@@ -11,11 +11,11 @@ const emptyForm = { code: '', name: '', category: '', unit: '', currentStock: 0,
 
 // Common units for hospitality / kitchen / store
 const UNITS = [
-  { group: 'Volume',  items: ['Litre (L)', 'Millilitre (ml)', 'Gallon', 'Fluid oz'] },
-  { group: 'Weight',  items: ['Kilogram (kg)', 'Gram (g)', 'Pound (lb)', 'Ounce (oz)'] },
-  { group: 'Count',   items: ['Piece (Pcs)', 'Dozen', 'Pack', 'Box', 'Carton', 'Bag', 'Bottle', 'Can', 'Roll', 'Sheet'] },
-  { group: 'Length',  items: ['Metre (m)', 'Centimetre (cm)'] },
-  { group: 'Other',   items: ['Portion', 'Serving', 'Tray', 'Batch', 'Pair', 'Set'] },
+  { group: 'Volume', items: ['Litre (L)', 'Millilitre (ml)', 'Gallon', 'Fluid oz'] },
+  { group: 'Weight', items: ['Kilogram (kg)', 'Gram (g)', 'Pound (lb)', 'Ounce (oz)'] },
+  { group: 'Count', items: ['Piece (Pcs)', 'Dozen', 'Pack', 'Box', 'Carton', 'Bag', 'Bottle', 'Can', 'Roll', 'Sheet'] },
+  { group: 'Length', items: ['Metre (m)', 'Centimetre (cm)'] },
+  { group: 'Other', items: ['Portion', 'Serving', 'Tray', 'Batch', 'Pair', 'Set'] },
 ];
 
 // Common categories for hospitality / kitchen / store
@@ -56,10 +56,10 @@ const RawMaterials = () => {
   useEffect(() => { load(); }, [search]);
 
   /* ── selection ── */
-  const allIds     = materials.map(m => m._id);
+  const allIds = materials.map(m => m._id);
   const allChecked = allIds.length > 0 && allIds.every(id => selected.has(id));
   const someChecked = allIds.some(id => selected.has(id));
-  const toggleAll  = () => allChecked
+  const toggleAll = () => allChecked
     ? setSelected(new Set())
     : setSelected(new Set(allIds));
   const toggleOne = id => setSelected(prev => {
@@ -205,7 +205,7 @@ const RawMaterials = () => {
 
   const pdfColumns = [
     { header: 'Code', accessor: 'Code' },
-    { header: 'Material Name', accessor: 'Material Name' },
+    { header: 'Item Name', accessor: 'Material Name' },
     { header: 'Category', accessor: 'Category' },
     { header: 'In Stock', accessor: 'In Stock', align: 'right' },
     { header: 'Reorder Level', accessor: 'Reorder Level', align: 'right' },
@@ -221,7 +221,7 @@ const RawMaterials = () => {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search materials…"
+            placeholder="Search items…"
             className="w-full rounded-lg border border-ink-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-brass-400"
           />
         </div>
@@ -229,8 +229,8 @@ const RawMaterials = () => {
           {/* Export & Import (Excel, PDF, CSV, Print) */}
           <ExportDropdown
             data={exportData}
-            fileName="raw_materials"
-            pdfTitle="Raw Materials Inventory List"
+            fileName="items_inventory"
+            pdfTitle="Items Inventory List"
             pdfColumns={pdfColumns}
             showImport={canEdit}
             onImport={() => importRef.current?.click()}
@@ -240,7 +240,7 @@ const RawMaterials = () => {
 
           {canEdit && (
             <Button variant="brass" onClick={openCreate}>
-              <Plus size={16} /> Add material
+              <Plus size={16} /> Add Item
             </Button>
           )}
         </div>
@@ -274,12 +274,12 @@ const RawMaterials = () => {
       <DataTable
         columns={columns}
         data={materials}
-        emptyMessage="No raw materials yet. Add your first item."
-        title="Raw Materials Inventory"
+        emptyMessage="No Items yet. Add your first item."
+        title="Items Inventory"
         icon={<Boxes size={15} />}
       />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit material' : 'Add raw material'}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Item' : 'Add Item'}>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>

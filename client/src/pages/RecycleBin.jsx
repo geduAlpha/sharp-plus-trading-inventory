@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 
 /* ── type config ─────────────────────────────────────────────────── */
 const TYPE_META = {
-  material:    { label: 'Raw Material',  icon: Boxes,           color: 'bg-amber-50 text-amber-700 border-amber-200'  },
+  material:    { label: 'Item',         icon: Boxes,           color: 'bg-amber-50 text-amber-700 border-amber-200'  },
   supplier:    { label: 'Supplier',      icon: Truck,           color: 'bg-sky-50 text-sky-700 border-sky-200'         },
   product:     { label: 'Product',       icon: UtensilsCrossed, color: 'bg-violet-50 text-violet-700 border-violet-200'},
   transaction: { label: 'Transaction',   icon: ArrowLeftRight,  color: 'bg-rose-50 text-rose-700 border-rose-200'      },
