@@ -272,17 +272,9 @@ const requestOtp = asyncHandler(async (req, res) => {
     };
   }
 
-  if (!matchedSub) {
-    if (isAuthorizedPhone) {
-      matchedSub = {
-        chatId: process.env.TELEGRAM_CHAT_ID || null,
-        phone: normalized,
-        name: 'Gedamu Walelgn',
-      };
-    } else {
-      res.status(403);
-      throw new Error('This phone number is not registered or not authorized. Please tap /start or send your phone number to @SharpPlusBot in Telegram first.');
-    }
+  if (!matchedSub || !matchedSub.chatId) {
+    res.status(403);
+    throw new Error('Please open Telegram, go to @SharpPlusBot and send your phone number (0912627366) or /start so the bot can deliver your code.');
   }
 
   // ── Find the system user whose phone matches (optional) ─────────
@@ -327,15 +319,12 @@ const requestOtp = asyncHandler(async (req, res) => {
   await user.save();
 
   // ── Send OTP to the subscriber's exact Telegram chat ────────────
-  if (matchedSub.chatId) {
-    sendTelegramDirect(matchedSub.chatId,
-      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n🔐 <b>Login OTP Code</b>\n\nYour one-time password is:\n\n<b>🔢 ${otp}</b>\n\n⏱ Valid for <b>5 minutes</b>.\nDo not share this code with anyone.\n━━━━━━━━━━━━━━━━━━━━`
-    );
-  }
+  sendTelegramDirect(matchedSub.chatId,
+    `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n🔐 <b>Login OTP Code</b>\n\nYour one-time password is:\n\n<b>🔢 ${otp}</b>\n\n⏱ Valid for <b>5 minutes</b>.\nDo not share this code with anyone.\n━━━━━━━━━━━━━━━━━━━━`
+  );
 
   res.json({
-    message: matchedSub.chatId ? 'OTP sent to your Telegram.' : `OTP Code: ${otp}`,
-    devOtp: otp,
+    message: 'OTP sent to your Telegram.',
     maskedName: matchedSub.name
       ? matchedSub.name.split(' ')[0] + ' ' + (matchedSub.name.split(' ')[1]?.[0] || '') + '.'
       : 'User',
