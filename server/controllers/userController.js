@@ -20,6 +20,10 @@ const updateUser = asyncHandler(async (req, res) => {
   user.phone         = req.body.phone         ?? user.phone;
   user.telegramChatId = req.body.telegramChatId ?? user.telegramChatId;
   if (req.body.password) user.password = req.body.password;
+  if (req.body.customPermissions !== undefined) {
+    user.customPermissions = req.body.customPermissions;
+    user.markModified('customPermissions');
+  }
 
   const updated = await user.save();
 
@@ -58,6 +62,7 @@ const updateUser = asyncHandler(async (req, res) => {
     isActive:       updated.isActive,
     phone:          updated.phone || '',
     telegramChatId: updated.telegramChatId || '',
+    customPermissions: updated.customPermissions || null,
   });
 });
 

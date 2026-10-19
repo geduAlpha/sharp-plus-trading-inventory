@@ -28,6 +28,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSessionTimeout, TIMEOUT_OPTIONS } from '../context/SessionTimeoutContext';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import RolePrivilegesManager from '../components/admin/RolePrivilegesManager';
 
 const CAPABILITIES = [
   { key: 'recordGoods', label: 'Record Goods Receiving (Cash/Credit GRV)' },
@@ -1339,77 +1340,28 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── Tab 4: Role Privileges ── */}
+      {/* ── Tab 4: Role Privileges & Employee CRUD Controls ── */}
       {currentTab === 'permissions' && (
-        <Card className="max-w-3xl">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="rounded-lg bg-blue-50 p-1.5 text-blue-600">
-              <Shield size={16} />
-            </span>
-            <h3 className="font-display text-base font-bold text-ink-900">
-              System Roles &amp; Permissions Matrix
-            </h3>
-          </div>
-          <p className="text-xs text-ink-400 mb-5">
-            Your current assigned role is <strong className="capitalize text-ink-800">{user?.role}</strong>.
-            {hasRole('admin') ? ' You can modify the system permissions below.' : ' You do not have permission to modify these settings.'}
-          </p>
+        <div className="space-y-6 max-w-4xl">
+          <RolePrivilegesManager
+            systemForm={systemForm}
+            setSystemForm={setSystemForm}
+            handleSystemSubmit={handleSystemSubmit}
+            systemSaving={systemSaving}
+          />
 
-          <form onSubmit={handleSystemSubmit}>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs text-left">
-                <thead>
-                  <tr className="border-b border-ink-100 bg-ink-50/70 text-ink-600 font-semibold">
-                    <th className="py-2.5 px-3">System Capability</th>
-                    <th className="py-2.5 px-3 text-center">Storekeeper</th>
-                    <th className="py-2.5 px-3 text-center">Manager</th>
-                    <th className="py-2.5 px-3 text-center">Admin</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ink-50 text-ink-700">
-                  {CAPABILITIES.map((cap) => (
-                    <tr key={cap.key}>
-                      <td className="py-2.5 px-3 font-medium">{cap.label}</td>
-                      {['storekeeper', 'manager', 'admin'].map((r) => (
-                        <td key={r} className="py-2.5 px-3 text-center">
-                          <input
-                            type="checkbox"
-                            disabled={!hasRole('admin')}
-                            checked={systemForm.rolePermissions?.[cap.key]?.[r] || false}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setSystemForm(prev => ({
-                                ...prev,
-                                rolePermissions: {
-                                  ...prev.rolePermissions,
-                                  [cap.key]: {
-                                    ...prev.rolePermissions?.[cap.key],
-                                    [r]: checked
-                                  }
-                                }
-                              }));
-                            }}
-                            className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* ── Sidebar Navigation Visibility Matrix ── */}
+          <Card className="max-w-4xl">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
+                <Layers size={15} />
+              </span>
+              <h4 className="text-sm font-bold text-ink-900">Sidebar Navigation Visibility</h4>
             </div>
-
-            {/* ── Sidebar Navigation Visibility Matrix ── */}
-            <div className="mt-8 pt-6 border-t border-ink-100">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
-                  <Layers size={15} />
-                </span>
-                <h4 className="text-sm font-bold text-ink-900">Sidebar Navigation Visibility</h4>
-              </div>
-              <p className="text-xs text-ink-400 mb-4">
-                Control which sidebar menu items each role can see. Unchecking a section hides it completely for that role.
-              </p>
+            <p className="text-xs text-ink-400 mb-4">
+              Control which sidebar menu items each role can see. Unchecking a section hides it completely for that role.
+            </p>
+            <form onSubmit={handleSystemSubmit}>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs text-left">
                   <thead>
@@ -1432,7 +1384,7 @@ export default function Settings() {
                               checked={systemForm.navVisibility?.[nav.key]?.[r] ?? true}
                               onChange={(e) => {
                                 const checked = e.target.checked;
-                                setSystemForm(prev => ({
+                                setSystemForm((prev) => ({
                                   ...prev,
                                   navVisibility: {
                                     ...prev.navVisibility,
@@ -1452,30 +1404,30 @@ export default function Settings() {
                   </tbody>
                 </table>
               </div>
+
+              {hasRole('admin') && (
+                <div className="pt-4 flex justify-end">
+                  <Button type="submit" disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Save size={15} /> {systemSaving ? 'Saving Visibility…' : 'Save Sidebar Visibility'}
+                  </Button>
+                </div>
+              )}
+            </form>
+          </Card>
+
+          {systemSuccess && currentTab === 'permissions' && (
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
+              <CheckCircle2 size={16} className="flex-shrink-0" />
+              <span>{systemSuccess}</span>
             </div>
-
-            {hasRole('admin') && (
-              <div className="pt-5 flex justify-end">
-                <Button type="submit" disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  <Save size={15} /> {systemSaving ? 'Saving Permissions…' : 'Save Role Permissions'}
-                </Button>
-              </div>
-            )}
-
-            {systemSuccess && currentTab === 'permissions' && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
-                <CheckCircle2 size={16} className="flex-shrink-0" />
-                <span>{systemSuccess}</span>
-              </div>
-            )}
-            {systemError && currentTab === 'permissions' && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
-                <AlertCircle size={16} className="flex-shrink-0" />
-                <span>{systemError}</span>
-              </div>
-            )}
-          </form>
-        </Card>
+          )}
+          {systemError && currentTab === 'permissions' && (
+            <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
+              <AlertCircle size={16} className="flex-shrink-0" />
+              <span>{systemError}</span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Tab 5: Telegram Subscribers (Admin only) ── */}

@@ -15,6 +15,8 @@ const userSchema = new mongoose.Schema(
     telegramChatId: { type: String, trim: true, default: '' },
     avatar: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
+    // Granular CRUD and capability permission overrides for this individual employee
+    customPermissions: { type: Object, default: null },
     // OTP fields for 2-step login
     otpHash:   { type: String, default: null },
     otpExpiry: { type: Date,   default: null },

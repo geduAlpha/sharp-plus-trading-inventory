@@ -3,7 +3,8 @@ import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
-const DEFAULT_PERMISSIONS = {
+export const DEFAULT_PERMISSIONS = {
+  // Workflow capabilities
   recordGoods: { storekeeper: true, manager: true, admin: true },
   checkReview: { storekeeper: false, manager: true, admin: true },
   approveGoods: { storekeeper: false, manager: false, admin: true },
@@ -11,8 +12,90 @@ const DEFAULT_PERMISSIONS = {
   voidTransactions: { storekeeper: false, manager: false, admin: true },
   viewReports: { storekeeper: false, manager: true, admin: true },
   manageAccounts: { storekeeper: false, manager: false, admin: true },
+
+  // Granular CRUD permissions per module
+  items: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: true, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  products: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: true, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  cashSales: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  creditSales: {
+    create: { storekeeper: false, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  customers: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  suppliers: {
+    create: { storekeeper: false, manager: true, admin: true },
+    read: { storekeeper: false, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  purchases: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  stockMovements: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  stockRequests: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  consumption: {
+    create: { storekeeper: true, manager: true, admin: true },
+    read: { storekeeper: true, manager: true, admin: true },
+    update: { storekeeper: false, manager: true, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  reports: {
+    read: { storekeeper: false, manager: true, admin: true },
+    export: { storekeeper: false, manager: true, admin: true },
+  },
+  staffAccounts: {
+    create: { storekeeper: false, manager: false, admin: true },
+    read: { storekeeper: false, manager: false, admin: true },
+    update: { storekeeper: false, manager: false, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
+  settings: {
+    read: { storekeeper: false, manager: false, admin: true },
+    update: { storekeeper: false, manager: false, admin: true },
+  },
+  recycleBin: {
+    read: { storekeeper: false, manager: true, admin: true },
+    restore: { storekeeper: false, manager: false, admin: true },
+    delete: { storekeeper: false, manager: false, admin: true },
+  },
 };
-const DEFAULT_NAV_VISIBILITY = {
+
+export const DEFAULT_NAV_VISIBILITY = {
   dashboard: { storekeeper: true, manager: true, admin: true },
   Items: { storekeeper: true, manager: true, admin: true },
   products: { storekeeper: true, manager: true, admin: true },
@@ -52,70 +135,48 @@ export const AuthProvider = ({ children }) => {
       }
       return res.data;
     } catch (err) {
-      // Network failure: fall back to localStorage cache if available, else hardcoded defaults
-      try {
-        const cachedRP = localStorage.getItem('companyStockPermissions');
-        const cachedNV = localStorage.getItem('companyStockNavVisibility');
-        if (cachedRP) setRolePermissions(JSON.parse(cachedRP));
-        if (cachedNV) setNavVisibility(JSON.parse(cachedNV));
-      } catch { /* ignore parse errors */ }
-      console.warn('Could not fetch settings from server, using cache/defaults', err);
+      // Fall back to localStorage caches or defaults
+      const cachedRP = localStorage.getItem('companyStockPermissions');
+      const cachedNV = localStorage.getItem('companyStockNavVisibility');
+      if (cachedRP) setRolePermissions(JSON.parse(cachedRP));
+      if (cachedNV) setNavVisibility(JSON.parse(cachedNV));
+      return null;
     }
-    return null;
   }, []);
 
-  // On mount: restore user from localStorage, then AWAIT fetchPermissions before
-  // clearing the loading flag. Includes failsafe timeout to prevent infinite white screen loading.
   useEffect(() => {
-    let active = true;
-    const safetyTimer = setTimeout(() => {
-      if (active) setLoading(false);
-    }, 3500);
+    const initAuth = async () => {
+      try {
+        const stored =
+          localStorage.getItem('companyStockAuth') ||
+          localStorage.getItem('hotelStockAuth');
 
-    const init = async () => {
-      const stored = localStorage.getItem('companyStockAuth') || localStorage.getItem('hotelStockAuth');
-      if (stored) {
-        try {
+        if (stored) {
           const parsed = JSON.parse(stored);
-          if (active) setUser(parsed);
-          // If stored under legacy key, migrate to new key
-          if (!localStorage.getItem('companyStockAuth')) {
-            localStorage.setItem('companyStockAuth', stored);
+          if (parsed?.token) {
+            setUser(parsed);
           }
-          // Fetch server settings BEFORE showing the app
-          await fetchPermissions();
-        } catch {
-          localStorage.removeItem('companyStockAuth');
-          localStorage.removeItem('hotelStockAuth');
         }
-      }
-      if (active) {
+      } catch (err) {
+        console.error('Failed to parse auth token:', err);
+      } finally {
+        await fetchPermissions();
         setLoading(false);
-        clearTimeout(safetyTimer);
       }
     };
-    init();
-
-    return () => {
-      active = false;
-      clearTimeout(safetyTimer);
-    };
+    initAuth();
   }, [fetchPermissions]);
 
-  const login = async (email, password, otpToken) => {
-    const { data } = await api.post('/auth/login', { email, password }, {
-      headers: { 'x-otp-token': otpToken || '' },
-    });
-    localStorage.setItem('companyStockAuth', JSON.stringify(data));
-    setUser(data);
-    // Fetch authoritative settings right after login — no stale cache possible
+  const login = async (userData) => {
+    localStorage.setItem('companyStockAuth', JSON.stringify(userData));
+    localStorage.removeItem('hotelStockAuth');
+    setUser(userData);
     await fetchPermissions();
-    return data;
   };
 
   const logout = () => {
     localStorage.removeItem('companyStockAuth');
-    // Clear ALL cached settings so the next login always reads fresh server data
+    localStorage.removeItem('hotelStockAuth');
     clearSettingsCache();
     setUser(null);
     setRolePermissions(DEFAULT_PERMISSIONS);
@@ -130,13 +191,41 @@ export const AuthProvider = ({ children }) => {
 
   const hasRole = (...roles) => user && roles.includes(user.role);
 
-  /** Check a workflow/action capability (e.g. 'recordGoods') */
-  const can = (capability) => {
+  /**
+   * Check a workflow or CRUD capability
+   * Usage examples:
+   *   can('recordGoods')
+   *   can('items', 'create')
+   *   can('cashSales', 'delete')
+   */
+  const can = (capability, action) => {
     if (!user) return false;
-    if (user.role === 'admin') {
-      const adminVal = rolePermissions?.[capability]?.admin;
-      return adminVal !== false;
+
+    // 1. Check user custom permissions override (if assigned to this employee)
+    if (user.customPermissions) {
+      if (action && user.customPermissions[capability] && typeof user.customPermissions[capability] === 'object') {
+        if (typeof user.customPermissions[capability][action] === 'boolean') {
+          return user.customPermissions[capability][action];
+        }
+      }
+      if (typeof user.customPermissions[capability] === 'boolean') {
+        return user.customPermissions[capability];
+      }
     }
+
+    // 2. Admin role default
+    if (user.role === 'admin') {
+      if (action && rolePermissions?.[capability]?.[action]?.admin === false) return false;
+      if (rolePermissions?.[capability]?.admin === false) return false;
+      return true;
+    }
+
+    // 3. Granular CRUD action check
+    if (action && rolePermissions?.[capability]?.[action]) {
+      return Boolean(rolePermissions[capability][action][user.role]);
+    }
+
+    // 4. Capability / workflow check
     return Boolean(rolePermissions?.[capability]?.[user.role]);
   };
 
@@ -145,7 +234,7 @@ export const AuthProvider = ({ children }) => {
     if (!user) return false;
     const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
     const entry = nav[navKey];
-    if (!entry) return true; // unknown key — show by default
+    if (!entry) return true;
     return Boolean(entry[user.role]);
   };
 
@@ -165,6 +254,7 @@ export const AuthProvider = ({ children }) => {
     }
     return await fetchPermissions();
   };
+
   return (
     <AuthContext.Provider
       value={{

@@ -97,6 +97,7 @@ const loginUser = asyncHandler(async (req, res) => {
     role: user.role,
     phone: user.phone || '',
     avatar: user.avatar || '',
+    customPermissions: user.customPermissions || null,
     token: generateToken(user._id),
   });
 });
