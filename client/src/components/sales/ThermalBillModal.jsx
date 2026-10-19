@@ -279,9 +279,16 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   "'Consolas', 'Courier New', 'Lucida Console', Monaco, monospace",
               }}
             >
+              {/* Company Logo Mark */}
+              <div className="flex justify-center mb-2.5">
+                <div className="h-12 w-12 rounded-xl bg-white p-1.5 shadow-md border border-slate-200/40 flex items-center justify-center">
+                  <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
+                </div>
+              </div>
+
               {/* TIN Header */}
               <div className="font-bold tracking-wider">
-                TIN: {config.tinNumber || '0000000001'}
+                TIN: {config.tinNumber || '0089234125'}
               </div>
 
               <div

@@ -1205,11 +1205,16 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
             >
               {/* Header */}
               <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="font-black text-lg text-ink-950 uppercase tracking-tight">
-                    Sharp Plus Trading PLC
-                  </h3>
-                  <p className="text-xs text-slate-500">Official Sales Voucher</p>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-white p-1 border border-slate-200 shadow-sm flex items-center justify-center shrink-0">
+                    <img src="/logo.png" alt="Sharp Plus Logo" className="h-full w-full object-contain" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-ink-950 uppercase tracking-tight">
+                      Sharp Plus Trading PLC
+                    </h3>
+                    <p className="text-xs text-slate-500">Official Sales Voucher</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <span className="font-mono font-bold text-blue-700 text-base">
