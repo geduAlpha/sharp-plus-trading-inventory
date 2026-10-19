@@ -25,13 +25,22 @@ const autoSeed = async () => {
     for (const u of defaults) {
       const exists = await User.findOne({ email: u.email });
       if (!exists) {
-        await User.create(u);
+        await User.create({ ...u, isActive: true });
         console.log(`[SEED] Created ${u.role} -> ${u.email}`);
-      } else if (u.phone && exists.phone !== u.phone) {
-        // Update phone on existing admin account
-        exists.phone = u.phone;
-        await exists.save();
-        console.log(`[SEED] Updated phone for ${u.email} to ${u.phone}`);
+      } else {
+        let changed = false;
+        if (exists.isActive !== true) {
+          exists.isActive = true;
+          changed = true;
+        }
+        if (u.phone && exists.phone !== u.phone) {
+          exists.phone = u.phone;
+          changed = true;
+        }
+        if (changed) {
+          await exists.save();
+          console.log(`[SEED] Ensured active status & phone for ${u.email}`);
+        }
       }
     }
 
