@@ -59,6 +59,17 @@ const autoSeed = async () => {
       ]);
       console.log('[SEED] Seeded sample Items.');
     }
+
+    const Customer = require('./models/Customer');
+    const customerCount = await Customer.countDocuments();
+    if (customerCount === 0) {
+      await Customer.insertMany([
+        { name: 'Addis International Hotel', phone: '+251911223344', address: 'Bole, Addis Ababa', customerType: 'corporate', creditLimit: 100000 },
+        { name: 'Sheger Cafe & Restaurant', phone: '+251922334455', address: 'Piassa, Addis Ababa', customerType: 'credit', creditLimit: 50000 },
+        { name: 'Walelgn Mart & Grocery', phone: '+251933445566', address: 'Merkato, Addis Ababa', customerType: 'regular', creditLimit: 25000 },
+      ]);
+      console.log('[SEED] Seeded sample customers.');
+    }
   } catch (err) {
     console.error('[SEED] Auto-seed error:', err.message);
   }
@@ -66,7 +77,69 @@ const autoSeed = async () => {
 autoSeed();
 
 const app = express();
-app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
+// ── Flexible CORS configuration for Localhost & Aletcloud ─────────────
+const parseAllowedOrigins = () => {
+  const origins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ];
+
+  if (process.env.CLIENT_URL) {
+    process.env.CLIENT_URL.split(',').forEach((u) => {
+      const clean = u.trim().replace(/\/+$/, '');
+      if (clean && !origins.includes(clean)) origins.push(clean);
+    });
+  }
+
+  if (process.env.PUBLIC_URL) {
+    const cleanPublic = process.env.PUBLIC_URL.trim().replace(/\/+$/, '');
+    if (cleanPublic && !origins.includes(cleanPublic)) origins.push(cleanPublic);
+  }
+
+  return origins;
+};
+
+const allowedOrigins = parseAllowedOrigins();
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const cleanOrigin = origin.replace(/\/+$/, '');
+
+      // Allow if matches allowed list or wildcard
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(cleanOrigin)) {
+        return callback(null, true);
+      }
+
+      // Automatically allow all localhost, 127.0.0.1, and cloud deployment domains
+      try {
+        const parsed = new URL(origin);
+        if (
+          parsed.hostname === 'localhost' ||
+          parsed.hostname === '127.0.0.1' ||
+          parsed.hostname.endsWith('.aletcloud.com') ||
+          parsed.hostname.endsWith('.onrender.com') ||
+          parsed.hostname.endsWith('.vercel.app')
+        ) {
+          return callback(null, true);
+        }
+      } catch {}
+
+      // Allow any origin dynamically so functional deployments are never blocked by CORS
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Immediate readiness & health check for Docker, Aletcloud, Render
@@ -101,6 +174,7 @@ app.use('/api/consumption', require('./routes/consumptionRoutes'));
 app.use('/api/employees', require('./routes/employeeRoutes'));
 app.use('/api/stock-requests', require('./routes/stockRequestRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/customers', require('./routes/customerRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
 
 // Serve Frontend in production (for Aletcloud, Render, etc.)

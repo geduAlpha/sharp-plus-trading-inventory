@@ -1,12 +1,32 @@
+# Never include node_modules — dependencies installed inside Docker
 node_modules
 client/node_modules
 server/node_modules
+
+# Never include existing built output — we rebuild inside Docker
 client/dist
+server/dist
+
+# Git history not needed
 .git
-.gitignore
-*.md
-.env
-.env.*
+
+# Editor and OS artifacts
 .vscode
+.idea
+*.md
+.DS_Store
+Thumbs.db
+
+# Environment files — secrets are injected via Aletcloud dashboard env vars,
+# NOT baked into the image. The Dockerfile uses ARG/ENV for build-time values.
+.env
+server/.env
+client/.env
+
+# Deployment config files not needed inside container
 render.yaml
 vercel.json
+
+# Logs
+*.log
+npm-debug.log*

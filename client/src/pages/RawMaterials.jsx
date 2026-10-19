@@ -445,4 +445,6 @@ const Items = () => {
   );
 };
 
-export default RawMaterials;
+const RawMaterials = Items;
+export default Items;
+export { Items, RawMaterials };

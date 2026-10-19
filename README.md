@@ -1,91 +1,128 @@
-# Sharp PlusPlc Stock — company Stock Management System
+# Sharp Plus Trading & Inventory Management System
 
-A full-stack stock/inventory management system for a company, built with **React (Vite + Tailwind)** on the frontend and **Node.js/Express + MongoDB** on the backend.
+A full-stack inventory management system for Sharp Plus Trading PLC built with React, Express.js, and MongoDB.
 
-## Features
+---
 
-- **Role-based login** — Admin, Manager, Store Keeper (JWT authentication)
-- **Suppliers** — add, edit, and search supplier records
-- **Items** — track every item in the store with unit, reorder level, and cost
-- **Purchases** — record purchases from suppliers; receiving a purchase automatically increases stock
-- **Stock movements** — record stock in/out (branch use, housekeeping use, damage, returns, adjustments) with automatic stock level updates
-- **Dashboard** — attractive overview with stat cards, a 7-day stock movement chart, low-stock alerts, and recent activity
-- **Reports** — daily report, current stock levels, and purchase history (with print support)
-- **Staff accounts** — admins can create and disable staff logins
+## 🚀 Deploying to Aletcloud (Docker)
 
-## Project structure
-
-```
-company-stock-system/
-├── server/      Node.js + Express + MongoDB API
-└── client/      React (Vite) + Tailwind frontend
+### Step 1: Push your code to GitHub
+```bash
+git add .
+git commit -m "Deploy to Aletcloud"
+git push origin main
 ```
 
-## 1. Backend setup
+### Step 2: Create App on Aletcloud
+1. Log into [Aletcloud](https://aletcloud.com) → **New App** → **From GitHub**
+2. Select your repository
+3. Aletcloud auto-detects the `Dockerfile` and builds the image
 
+### Step 3: Set Environment Variables in Aletcloud Dashboard
+Go to your app → **Environment** tab and add these variables:
+
+| Variable | Value |
+|----------|-------|
+| `NODE_ENV` | `production` |
+| `PORT` | `5000` |
+| `MONGO_URI` | `mongodb+srv://sharpplus:SharpPlus2026!@cluster0.dihvcpk.mongodb.net/sharp_plus_db?retryWrites=true&w=majority` |
+| `JWT_SECRET` | `hotel_stock_jwt_secret_key_super_secure_2026` |
+| `JWT_EXPIRES_IN` | `7d` |
+| `PUBLIC_URL` | `https://YOUR-APP-NAME.aletcloud.com` |
+| `CLIENT_URL` | `https://YOUR-APP-NAME.aletcloud.com` |
+
+> **⚠️ Important:** Replace `YOUR-APP-NAME` with your actual Aletcloud app subdomain.
+
+### Step 4: Deploy
+Click **Deploy** — Aletcloud will:
+1. Clone your repository
+2. Build the Docker image (React app compiles to static files with `/api` as API URL)
+3. Start the container — Express serves both the React frontend AND the `/api` backend
+
+### Step 5: Access Your App
+- **Frontend:** `https://YOUR-APP-NAME.aletcloud.com`
+- **API Health:** `https://YOUR-APP-NAME.aletcloud.com/api/health`
+- **Login:** `admin@company.com` / `admin123`
+
+---
+
+## 💻 Running Locally
+
+### Prerequisites
+- Node.js 18+
+- npm 8+
+- Internet access (uses MongoDB Atlas cloud database)
+
+### Start Backend
 ```bash
 cd server
 npm install
-cp .env.example .env
-```
-
-Edit `.env`:
-```
-PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/company_stock_db
-JWT_SECRET=change_this_to_a_long_random_secret
-JWT_EXPIRES_IN=7d
-CLIENT_URL=http://localhost:5173
-```
-
-Make sure MongoDB is running locally, or use a MongoDB Atlas connection string for `MONGO_URI`.
-
-Seed a default admin account and a few sample records:
-```bash
-npm run seed
-```
-This creates: **admin@company.com / admin123** — change this password after first login.
-
-Start the API:
-```bash
 npm run dev
+# Server runs on http://localhost:5000
 ```
-The API runs at `http://localhost:5000/api`.
 
-## 2. Frontend setup
-
+### Start Frontend (new terminal)
 ```bash
 cd client
 npm install
-cp .env.example .env
-```
-
-`.env`:
-```
-VITE_API_URL=http://localhost:5000/api
-```
-
-Start the app:
-```bash
 npm run dev
+# App runs on http://localhost:5173
 ```
-Open `http://localhost:5173` and log in with the seeded admin account.
 
-## Roles & permissions
+Open [http://localhost:5173](http://localhost:5173)
 
-| Action                          | Admin | Manager | Store Keeper |
-|----------------------------------|:---:|:---:|:---:|
-| View dashboard & stock levels    | ✅ | ✅ | ✅ |
-| Record stock in / out            | ✅ | ✅ | ✅ |
-| Manage Items             | ✅ | ✅ | view only |
-| Manage suppliers                 | ✅ | ✅ | — |
-| Record purchases                 | ✅ | ✅ | — |
-| View reports                     | ✅ | ✅ | — |
-| Manage staff accounts            | ✅ | — | — |
-| Delete records                   | ✅ | — | — |
+---
 
-## Notes
+## 🔑 Default Login Credentials
 
-- Stock levels update automatically: receiving a purchase adds stock; recording a "stock out" transaction subtracts it, and blocks the action if there isn't enough stock available.
-- The dashboard's 7-day trend, low-stock alerts, and stock value are all computed live from your data — no demo data is hardcoded into the UI.
-- For production, deploy the API (e.g. Render, Railway) and the frontend (e.g. Vercel, Netlify) separately, and set `VITE_API_URL` / `CLIENT_URL` to the deployed URLs.
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@company.com` | `admin123` |
+| Manager | `manager@company.com` | `admin123` |
+| Storekeeper | `storekeeper@company.com` | `admin123` |
+
+---
+
+## 🏗️ Architecture
+
+```
+Aletcloud Container (port 5000)
+├── /api/*          → Express.js API routes (MongoDB Atlas)
+├── /api/health     → Health check endpoint
+└── /*              → React.js frontend (compiled static files)
+```
+
+The frontend and backend run together in a **single Docker container**. All API calls use relative `/api` paths — no CORS issues, no separate frontend hosting needed.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend:** React 18, Vite, Tailwind CSS (via custom CSS), Lucide Icons
+- **Backend:** Express.js, Node.js 20
+- **Database:** MongoDB Atlas (cloud)
+- **Authentication:** JWT tokens
+- **Deployment:** Docker → Aletcloud
+
+---
+
+## 📁 Project Structure
+
+```
+/
+├── Dockerfile           # Multi-stage Docker build for Aletcloud
+├── aletcloud.yaml       # Aletcloud deployment configuration
+├── client/              # React frontend (Vite)
+│   ├── src/
+│   │   ├── api/axios.js # Smart API URL detection
+│   │   ├── pages/       # Page components
+│   │   ├── components/  # UI components
+│   │   └── context/     # Auth context
+│   └── .env             # Local dev settings (not deployed)
+└── server/              # Express backend
+    ├── server.js        # Main server + CORS + static file serving
+    ├── routes/          # API route handlers
+    ├── controllers/     # Business logic
+    ├── models/          # Mongoose schemas
+    └── .env.example     # Environment variable reference
+```

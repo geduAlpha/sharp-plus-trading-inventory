@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Plus, Search, Pencil, Trash2, ChefHat, X, Upload, Download, Zap } from 'lucide-react';
-import api from '../api/axios';
+import api, { getApiBaseUrl } from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -220,7 +220,7 @@ const Products = () => {
     // Get the auth token from localStorage
     const stored = localStorage.getItem('companyStockAuth');
     const token = stored ? JSON.parse(stored).token : '';
-    const baseURL = import.meta.env.VITE_API_URL || '/api';
+    const baseURL = getApiBaseUrl();
     try {
       const response = await fetch(`${baseURL}/products/import/excel`, {
         method: 'POST',
@@ -279,7 +279,7 @@ const Products = () => {
     try {
       const stored = localStorage.getItem('companyStockAuth');
       const token = stored ? JSON.parse(stored).token : '';
-      const baseURL = import.meta.env.VITE_API_URL || '/api';
+      const baseURL = getApiBaseUrl();
       const res = await fetch(`${baseURL}/products/export/recipe-template`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -308,7 +308,7 @@ const Products = () => {
 
     const stored = localStorage.getItem('companyStockAuth');
     const token = stored ? JSON.parse(stored).token : '';
-    const baseURL = import.meta.env.VITE_API_URL || '/api';
+    const baseURL = getApiBaseUrl();
 
     try {
       const response = await fetch(`${baseURL}/products/import/recipes`, {

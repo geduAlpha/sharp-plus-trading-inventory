@@ -1,0 +1,59 @@
+# ════════════════════════════════════════════════════════════════════
+# Aletcloud Deployment Configuration
+# Sharp Plus Trading & Inventory Management System
+# ════════════════════════════════════════════════════════════════════
+#
+# HOW TO DEPLOY ON ALETCLOUD:
+# 1. Push your code to GitHub (git push origin main)
+# 2. Log into Aletcloud → Create New App → "From GitHub"
+# 3. Select your repository and this file will be used automatically
+# 4. Set the required Environment Variables in the Aletcloud dashboard:
+#       MONGO_URI      = mongodb+srv://sharpplus:SharpPlus2026!@cluster0...
+#       JWT_SECRET     = hotel_stock_jwt_secret_key_super_secure_2026
+#       JWT_EXPIRES_IN = 7d
+#       NODE_ENV       = production
+#       PUBLIC_URL     = https://<your-app-name>.aletcloud.com
+# 5. Click Deploy — the Docker build runs automatically
+# 6. Access your app at: https://<your-app-name>.aletcloud.com
+#
+# ARCHITECTURE ON ALETCLOUD:
+# - Single Docker container serves BOTH frontend (React) AND backend (API)
+# - Frontend: https://<your-app>.aletcloud.com/         (static files)
+# - API:      https://<your-app>.aletcloud.com/api/...  (Express routes)
+# - No separate frontend deployment needed — everything in one container
+# ════════════════════════════════════════════════════════════════════
+
+version: "1"
+
+services:
+  app:
+    # Build from the Dockerfile in the repository root
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Force /api as the API base URL so the React build
+        # always calls /api on the same Aletcloud host
+        VITE_API_URL: /api
+
+    # The Express server listens on port 5000
+    port: 5000
+
+    # Runtime environment variables
+    # These MUST also be set in the Aletcloud dashboard!
+    env:
+      NODE_ENV: production
+      PORT: "5000"
+      # The following are SECRET — set them ONLY in the Aletcloud dashboard
+      # MONGO_URI: <set in dashboard>
+      # JWT_SECRET: <set in dashboard>
+      # JWT_EXPIRES_IN: 7d
+      # PUBLIC_URL: https://<your-app-name>.aletcloud.com
+
+    # Health check endpoint — Aletcloud uses this to know when the app is ready
+    healthcheck:
+      path: /api/health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

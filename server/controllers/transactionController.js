@@ -29,9 +29,12 @@ const generateVoucherNo = async (voucherType) => {
     sales_import:   'SALE',
     cash_sale:      'CSALE',
     credit_sale:    'CRSALE',
+    cash_sales:     'CSALE',
+    credit_sales:   'CRSALE',
   };
-  const prefix = prefixes[voucherType] ?? 'TXN';
-  const count = await StockTransaction.countDocuments({ voucherType });
+  const effectiveType = (voucherType === 'cash_sales') ? 'cash_sale' : ((voucherType === 'credit_sales') ? 'credit_sale' : voucherType);
+  const prefix = prefixes[voucherType] ?? prefixes[effectiveType] ?? 'TXN';
+  const count = await StockTransaction.countDocuments({ voucherType: { $in: [voucherType, effectiveType] } });
   return `${prefix}-${String(count + 1).padStart(5, '0')}`;
 };
 
@@ -140,10 +143,12 @@ const createTransaction = asyncHandler(async (req, res) => {
   const totalRevenue = resolvedItems.reduce((s, i) => s + (i.totalRevenue || 0), 0);
   const grossProfit  = totalRevenue - totalAmount;
 
-  const isSale = (voucherType === 'cash_sale' || voucherType === 'credit_sale');
-  const assignedPaymentType = paymentType || (voucherType === 'credit_sale' ? 'credit' : 'cash');
-  const initialAmountPaid = isSale ? (voucherType === 'credit_sale' ? Number(amountPaid) || 0 : totalRevenue) : 0;
-  const assignedPaymentStatus = paymentStatus || (voucherType === 'credit_sale'
+  const isSale = (voucherType === 'cash_sale' || voucherType === 'credit_sale' || voucherType === 'cash_sales' || voucherType === 'credit_sales');
+  const isCredit = (voucherType === 'credit_sale' || voucherType === 'credit_sales');
+  const canonicalVoucherType = isSale ? (isCredit ? 'credit_sale' : 'cash_sale') : voucherType;
+  const assignedPaymentType = paymentType || (isCredit ? 'credit' : 'cash');
+  const initialAmountPaid = isSale ? (isCredit ? Number(amountPaid) || 0 : totalRevenue) : 0;
+  const assignedPaymentStatus = paymentStatus || (isCredit
     ? (initialAmountPaid >= totalRevenue && totalRevenue > 0 ? 'paid' : (initialAmountPaid > 0 ? 'partial' : 'unpaid'))
     : 'paid');
 
@@ -159,8 +164,8 @@ const createTransaction = asyncHandler(async (req, res) => {
 
   const firstItem = resolvedItems[0];
   const txnData = {
-    voucherType,
-    voucherNo: voucherNo || (await generateVoucherNo(voucherType)),
+    voucherType: canonicalVoucherType,
+    voucherNo: voucherNo || (await generateVoucherNo(canonicalVoucherType)),
     supplier:  supplier || undefined,
     type:      direction,
     material:  firstItem.material,
