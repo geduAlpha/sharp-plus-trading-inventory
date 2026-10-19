@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Modal from '../ui/Modal';
+import ThermalBillModal from './ThermalBillModal';
 import {
   ShoppingBag,
   CreditCard,
@@ -89,6 +90,15 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successVoucher, setSuccessVoucher] = useState(null);
+
+  // Fiscal Bill Modal state
+  const [thermalBillOpen, setThermalBillOpen] = useState(false);
+  const [currentBillSale, setCurrentBillSale] = useState(null);
+
+  const handleOpenFiscalBill = (sale) => {
+    setCurrentBillSale(sale);
+    setThermalBillOpen(true);
+  };
 
   // Recent transactions list
   const [recentSales, setRecentSales] = useState([]);
@@ -358,6 +368,7 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
     try {
       const res = await api.post('/transactions', payload);
       setSuccessVoucher(res.data);
+      setCurrentBillSale(res.data);
       // Reset form
       setItems([
         {
@@ -1192,7 +1203,7 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setSuccessVoucher(null)}
@@ -1203,10 +1214,20 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white flex items-center gap-1.5 shadow"
+                className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 shadow-sm"
               >
                 <Printer size={15} />
                 Print Voucher
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenFiscalBill(successVoucher);
+                }}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-xs font-bold text-white flex items-center gap-1.5 shadow"
+              >
+                <Printer size={15} />
+                Fiscal Bill &amp; Multi-Export
               </button>
             </div>
           </div>
@@ -1286,13 +1307,25 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
                       {sale.performedBy?.name || 'Staff'}
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setSuccessVoucher(sale)}
-                        className="text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center justify-center gap-1 mx-auto text-[11px]"
-                      >
-                        <FileText size={13} /> View Voucher
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFiscalBill(sale)}
+                          className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center gap-1 transition border border-blue-200"
+                          title="Print Fiscal Thermal Bill or Export (.txt, .xlsx, .csv, .json, PDF)"
+                        >
+                          <Printer size={12} />
+                          Fiscal Bill
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSuccessVoucher(sale)}
+                          className="p-1 rounded text-slate-400 hover:text-slate-700 text-[11px] hover:bg-slate-100 transition"
+                          title="View Standard Voucher Card"
+                        >
+                          <FileText size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1307,6 +1340,13 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
           </div>
         )}
       </div>
+
+      {/* ── Fiscal Thermal Bill Modal (POS Print & Multi-format Export) ── */}
+      <ThermalBillModal
+        open={thermalBillOpen}
+        onClose={() => setThermalBillOpen(false)}
+        sale={currentBillSale}
+      />
     </div>
   );
 }
