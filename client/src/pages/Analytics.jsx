@@ -257,7 +257,7 @@ export default function Analytics() {
                 P&amp;L &amp; Stock Analytics
               </h1>
               <p className="text-xs text-ink-500 font-medium">
-                International company &amp; Restaurant Standard · POS Sales, Recipe COGS, Food Cost % &amp; Par Predictions
+                International company &amp; Business Standard · POS Sales, Recipe COGS, Food Cost % &amp; Par Predictions
               </p>
             </div>
           </div>

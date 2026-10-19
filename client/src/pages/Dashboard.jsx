@@ -772,7 +772,7 @@ export default function Dashboard() {
             {/* Insight note */}
             <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-[11px] text-emerald-700 flex items-start gap-2">
               <ShieldCheck size={13} className="flex-shrink-0 mt-0.5 text-emerald-500" />
-              <span>Maintain safety thresholds to avoid interruptions in restaurant and housekeeping services.</span>
+              <span>Maintain safety thresholds to avoid interruptions in Business and housekeeping services.</span>
             </div>
           </div>
 

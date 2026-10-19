@@ -214,7 +214,9 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
         notes: '',
       });
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save customer');
+      // Show error inline instead of alert for better UX
+      setError(err.response?.data?.message || 'Failed to save customer');
+      console.error('Error creating customer:', err);
     } finally {
       setSavingCustomer(false);
     }
@@ -360,13 +362,12 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
       return;
     }
 
-    // Check for stock availability
+    // Allow sales even if stock becomes negative; log a warning instead of blocking
     for (const it of validItems) {
       if (Number(it.quantity) > Number(it.currentStock)) {
-        setError(
-          `Insufficient stock for "${it.description}". Available: ${it.currentStock} ${it.uom}, requested: ${it.quantity}.`
+        console.warn(
+          `Stock for "${it.description}" will become negative (${Number(it.currentStock) - Number(it.quantity)}).`
         );
-        return;
       }
     }
 

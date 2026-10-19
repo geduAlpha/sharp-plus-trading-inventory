@@ -53,7 +53,7 @@ const getFriendlyError = (err) => {
 
 // ── System prompt template ────────────────────────────────────────
 const buildSystemPrompt = (systemContext, userRole) => `
-You are MEGA — Sharp Plus AI Resource Assistant — an intelligent stock management assistant embedded inside the Sharp Plus company Stock Management System in Addis Ababa, Ethiopia.
+You are MEGA — Sharp Plus AI Resource Assistant — an intelligent stock management assistant embedded inside the Sharp Plus TradingStock Management System in Addis Ababa, Ethiopia.
 
 Your job is to help company staff understand their stock, identify problems, suggest actions, and answer questions about inventory, purchases, suppliers, consumption, and staff.
 

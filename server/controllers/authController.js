@@ -239,9 +239,16 @@ const requestOtp = asyncHandler(async (req, res) => {
   const { loadSubscribersFromFile, saveSubscribersToFile } = require('./telegramController');
   const fileSubscribers = loadSubscribersFromFile ? loadSubscribersFromFile() : [];
 
+  // Merge DB and file subscribers — file always wins for phone-linked entries
   let subscribers = settings?.telegramSubscribers || [];
-  if (subscribers.length === 0 && fileSubscribers.length > 0) {
-    subscribers = fileSubscribers;
+  const mergedMap = new Map();
+  for (const s of [...subscribers, ...fileSubscribers]) {
+    if (s.chatId) mergedMap.set(String(s.chatId), s);
+  }
+  subscribers = Array.from(mergedMap.values());
+
+  // Sync merged list back to DB if it has more entries
+  if (subscribers.length > (settings?.telegramSubscribers?.length || 0)) {
     settings.telegramSubscribers = subscribers;
     settings.markModified('telegramSubscribers');
     await settings.save();

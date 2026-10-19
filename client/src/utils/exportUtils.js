@@ -148,7 +148,7 @@ export function exportToPDF({
           <tbody>${tbodyHtml}</tbody>
         </table>
         <div class="footer">
-          <span>Sharp Plus company Inventory & Stock Management System</span>
+          <span>Sharp Plus TradingInventory & Stock Management System</span>
           <span>Confidential Internal Document</span>
         </div>
         <script>

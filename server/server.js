@@ -74,7 +74,7 @@ const autoSeed = async () => {
     if (customerCount === 0) {
       await Customer.insertMany([
         { name: 'Addis International Hotel', phone: '+251911223344', address: 'Bole, Addis Ababa', customerType: 'corporate', creditLimit: 100000 },
-        { name: 'Sheger Cafe & Restaurant', phone: '+251922334455', address: 'Piassa, Addis Ababa', customerType: 'credit', creditLimit: 50000 },
+        { name: 'Sheger Cafe & Business', phone: '+251922334455', address: 'Piassa, Addis Ababa', customerType: 'credit', creditLimit: 50000 },
         { name: 'Walelgn Mart & Grocery', phone: '+251933445566', address: 'Merkato, Addis Ababa', customerType: 'regular', creditLimit: 25000 },
       ]);
       console.log('[SEED] Seeded sample customers.');
@@ -139,7 +139,7 @@ app.use(
         ) {
           return callback(null, true);
         }
-      } catch {}
+      } catch { }
 
       // Allow any origin dynamically so functional deployments are never blocked by CORS
       return callback(null, true);

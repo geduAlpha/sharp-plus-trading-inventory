@@ -63,9 +63,10 @@ const DashboardLayout = () => {
             <Outlet />
           </div>
           <footer className="mt-12 pt-6 border-t border-ink-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-400 pb-2">
-            <p>© 2026 Sharp Plus Trading PLC System · All rights reserved.</p>
+            <p>© 2026  Sharp Plus Trading PLC !!! </p>
+            <p><i>All rights reserved.</i> </p>
             <div className="flex flex-wrap items-center gap-3 text-xs">
-              <span>Developed &amp; Powered by <strong className="text-ink-700 font-semibold">Mequannent Gashaw</strong></span>
+              <span>Developed &amp; Powered by <strong className="text-ink-700 font-semibold">M*GH 1 Batch</strong></span>
               <div className="flex items-center gap-1.5">
                 <a
                   href="https://t.me/+251918592028"
@@ -89,8 +90,8 @@ const DashboardLayout = () => {
                   </svg>
                   WhatsApp
                 </a>
-                <a href="tel:0912627366" className="font-mono text-ink-600 font-semibold hover:text-blue-600 pl-0.5">
-                  0912627366
+                <a href="tel:0911111000" className="font-mono text-ink-600 font-semibold hover:text-blue-600 pl-0.5">
+                  0911111000
                 </a>
               </div>
             </div>

@@ -19,7 +19,7 @@ const DEPARTMENTS = [
   'branch',
   'Bar',
   'Housekeeping',
-  'Restaurant',
+  'Business',
   'Laundry',
   'Management',
   'Maintenance',

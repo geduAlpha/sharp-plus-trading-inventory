@@ -8,6 +8,7 @@ import api from '../api/axios';
 const ROLES = [
   { label: 'Admin', email: 'admin@company.com' },
   { label: 'Manager', email: 'manager@company.com' },
+  { label: 'Cashier', email: 'cashier@company.com' },
   { label: 'Store Keeper', email: 'storekeeper@company.com' },
 ];
 
@@ -318,8 +319,8 @@ export default function Login() {
           letter-spacing: -0.025em;
           line-height: 1;
         }
-        .login-wordmark__five { color: #0f172a; }
-        .login-wordmark__stop { color: #2563eb; }
+        .login-wordmark__sharp { color: #0f172a; }
+        .login-wordmark__plus  { color: #2563eb; }
 
         .login-status {
           display: flex;
@@ -775,7 +776,7 @@ export default function Login() {
 
           {/* left footer */}
           <footer className="login-hero__footer">
-            © 2026 Sharp Plus company &amp; Resort Management SC. All rights reserved.
+            © 2026 Sharp Plus Trading&amp; KD Foam Provider. All rights reserved.
           </footer>
         </section>
 
@@ -785,8 +786,8 @@ export default function Login() {
           {/* top bar */}
           <div className="login-topbar">
             <span className="login-wordmark" aria-label="Sharp Plus">
-              <span className="login-wordmark__five">Five</span>
-              <span className="login-wordmark__stop">Stop</span>
+              <span className="login-wordmark__sharp">Sharp&nbsp;</span>
+              <span className="login-wordmark__plus">+</span>
             </span>
             <div className="login-status" aria-live="polite">
               <span className="login-status__dot" aria-hidden="true" />
@@ -1006,7 +1007,7 @@ export default function Login() {
           {/* right panel footer */}
           <footer className="login-footer">
             <div className="login-footer__top">
-              <span>Developed &amp; powered by <span className="login-footer__name">Mequannent Gashaw</span></span>
+              <span>Developed &amp; powered by <span className="login-footer__name">M*GH 1 Batch</span></span>
               <div className="login-footer__pills">
                 <a
                   href="https://t.me/+251918592028"

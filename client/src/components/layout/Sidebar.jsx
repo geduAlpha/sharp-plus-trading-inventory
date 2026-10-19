@@ -8,7 +8,7 @@ import {
   BarChart2, Calendar, PackageOpen, Settings as SettingsIcon, UploadCloud,
   Scale, ClipboardList, Trash2, Coffee, UserCog, Sparkles,
   SendToBack, X, Rocket, ClipboardCheck, ArrowRightLeft, History,
-  BadgeDollarSign, Banknote,
+  BadgeDollarSign, Banknote, FolderOpen, Package,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -45,8 +45,8 @@ const REPORT_ITEMS = [
 const SubLink = ({ to, label, icon: Icon, end = false, onClick }) => (
   <NavLink to={to} end={end} onClick={onClick}
     className={({ isActive }) =>
-      `group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 ${isActive
-        ? 'bg-white/15 text-white font-semibold'
+      `group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 ${isActive
+        ? 'bg-white/15 text-white font-bold'
         : 'text-blue-300/80 hover:bg-white/8 hover:text-white'
       }`
     }
@@ -69,20 +69,20 @@ const SectionLabel = ({ children, collapsed }) =>
 const CollapsibleNav = ({ label, icon: Icon, isActive, open, onToggle, children, collapsed }) => (
   <div>
     <button onClick={onToggle} title={collapsed ? label : undefined}
-      className={`group w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
-        } ${isActive
+      className={`group w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-all duration-200 ${collapsed ? 'justify-center' : ''
+        } ${isActive || open
           ? 'bg-white/15 text-white shadow-sm ring-1 ring-white/10'
           : 'text-blue-100/80 hover:bg-white/8 hover:text-white'
         }`}
     >
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive || open ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
         }`}>
         <Icon size={15} strokeWidth={2} />
       </span>
       {!collapsed && (
         <>
-          <span className="flex-1 text-left text-[13px]">{label}</span>
-          <span className={`transition-transform duration-200 opacity-50 ${open ? 'rotate-180' : ''}`}>
+          <span className="flex-1 text-left text-[13px] font-bold tracking-wide">{label}</span>
+          <span className={`transition-transform duration-200 opacity-60 ${open ? 'rotate-180' : ''}`}>
             <ChevronDown size={13} />
           </span>
         </>
@@ -210,223 +210,283 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
   const onTransactions = location.pathname.startsWith('/transactions');
   const onReports = location.pathname.startsWith('/reports');
   const onSales = location.pathname.startsWith('/sales');
+  const onAll ID's = [
+  '/materials', '/products', '/employees', '/suppliers'
+  ].some(p => location.pathname.startsWith(p));
+const onStoreOps = [
+  '/transactions', '/consumption', '/stock-requests'
+].some(p => location.pathname.startsWith(p));
 
-  const [stockOpen, setStockOpen] = useState(onTransactions);
-  const [reportOpen, setReportOpen] = useState(onReports);
-  const [salesOpen, setSalesOpen] = useState(onSales);
+// Accordion: only one menu open at a time
+const initialOpen =
+  onAll ID's ? 'All ID's' :
+onStoreOps ? 'storeOps' :
+  onSales ? 'sales' :
+    onReports ? 'reports' : null;
 
-  React.useEffect(() => {
-    if (onSales) setSalesOpen(true);
-  }, [onSales]);
+const [openMenu, setOpenMenu] = useState(initialOpen);
 
-  const linkCls = (isActive) =>
-    `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
-    } ${isActive
-      ? 'bg-white/15 text-white shadow-sm ring-1 ring-white/10'
-      : 'text-blue-100/80 hover:bg-white/8 hover:text-white'
-    }`;
+// Auto-open the matching section when route changes
+React.useEffect(() => {
+  if (onAll ID's)     setOpenMenu('All ID's');
+    else if (onStoreOps) setOpenMenu('storeOps');
+else if (onSales) setOpenMenu('sales');
+else if (onReports) setOpenMenu('reports');
+  }, [onAll ID's, onStoreOps, onSales, onReports]);
 
-  const iconSpan = (isActive) =>
-    `flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
-    }`;
+  const toggleMenu = (key) => setOpenMenu(prev => (prev === key ? null : key));
 
-  const fullLink = (to, Icon, label, end = false) => (
-    <NavLink to={to} end={end} onClick={onClose}
-      className={({ isActive }) => linkCls(isActive)}>
-      {({ isActive }) => (
-        <>
-          <span className={iconSpan(isActive)}><Icon size={15} strokeWidth={2} /></span>
-          {!collapsed && <span className="text-[13px]">{label}</span>}
-          {isActive && !collapsed && (
-            <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white/60" />
-          )}
-        </>
-      )}
-    </NavLink>
-  );
+const linkCls = (isActive) =>
+  `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
+  } ${isActive
+    ? 'bg-white/15 text-white shadow-sm ring-1 ring-white/10'
+    : 'text-blue-100/80 hover:bg-white/8 hover:text-white'
+  }`;
 
-  const iconLink = (to, Icon, label, end = false) => (
-    <NavLink to={to} end={end} onClick={onClose} title={label}
-      className={({ isActive }) => linkCls(isActive)}>
-      {({ isActive }) => (
+const iconSpan = (isActive) =>
+  `flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
+  }`;
+
+const fullLink = (to, Icon, label, end = false) => (
+  <NavLink to={to} end={end} onClick={onClose}
+    className={({ isActive }) => linkCls(isActive)}>
+    {({ isActive }) => (
+      <>
         <span className={iconSpan(isActive)}><Icon size={15} strokeWidth={2} /></span>
-      )}
-    </NavLink>
-  );
+        {!collapsed && <span className="text-[13px] font-bold tracking-wide">{label}</span>}
+        {isActive && !collapsed && (
+          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white/60" />
+        )}
+      </>
+    )}
+  </NavLink>
+);
 
-  const navLink = (to, Icon, label, end = false) =>
-    collapsed ? iconLink(to, Icon, label, end) : fullLink(to, Icon, label, end);
+const iconLink = (to, Icon, label, end = false) => (
+  <NavLink to={to} end={end} onClick={onClose} title={label}
+    className={({ isActive }) => linkCls(isActive)}>
+    {({ isActive }) => (
+      <span className={iconSpan(isActive)}><Icon size={15} strokeWidth={2} /></span>
+    )}
+  </NavLink>
+);
 
-  const roleColors = {
-    admin: 'from-amber-400 to-orange-500',
-    manager: 'from-emerald-400 to-teal-500',
-    storekeeper: 'from-blue-400 to-indigo-500',
-  };
+const navLink = (to, Icon, label, end = false) =>
+  collapsed ? iconLink(to, Icon, label, end) : fullLink(to, Icon, label, end);
 
-  return (
-    <>
-      {open && <div className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden" onClick={onClose} />}
+const roleColors = {
+  admin: 'from-amber-400 to-orange-500',
+  manager: 'from-emerald-400 to-teal-500',
+  storekeeper: 'from-blue-400 to-indigo-500',
+};
 
-      <aside
-        className={`
+return (
+  <>
+    {open && <div className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden" onClick={onClose} />}
+
+    <aside
+      className={`
           fixed z-40 flex h-full flex-col
           transition-all duration-300 ease-in-out
           lg:static lg:translate-x-0
           ${open ? 'translate-x-0' : '-translate-x-full'}
           ${collapsed ? 'w-[68px]' : 'w-64'}
         `}
-        style={{
-          background: 'linear-gradient(160deg, #060d2b 0%, #0a1a52 40%, #0d2680 70%, #1238a8 100%)',
-          borderRight: '1px solid rgba(99,130,255,0.15)',
-          boxShadow: '4px 0 24px rgba(0,0,50,0.4)',
-        }}
-      >
-        {/* ── Decorative glow orbs ── */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 -left-20 h-60 w-60 rounded-full opacity-[0.07]"
-            style={{ background: 'radial-gradient(circle, #4f8ef7 0%, transparent 70%)' }} />
-          <div className="absolute bottom-20 -right-16 h-48 w-48 rounded-full opacity-[0.05]"
-            style={{ background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)' }} />
+      style={{
+        background: 'linear-gradient(160deg, #060d2b 0%, #0a1a52 40%, #0d2680 70%, #1238a8 100%)',
+        borderRight: '1px solid rgba(99,130,255,0.15)',
+        boxShadow: '4px 0 24px rgba(0,0,50,0.4)',
+      }}
+    >
+      {/* ── Decorative glow orbs ── */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-20 -left-20 h-60 w-60 rounded-full opacity-[0.07]"
+          style={{ background: 'radial-gradient(circle, #4f8ef7 0%, transparent 70%)' }} />
+        <div className="absolute bottom-20 -right-16 h-48 w-48 rounded-full opacity-[0.05]"
+          style={{ background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)' }} />
+      </div>
+
+      {/* ── Logo ── */}
+      <NavLink to="/" onClick={onClose}
+        className={`relative flex items-center gap-3 py-5 hover:opacity-90 transition-opacity ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
+        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden shadow-md bg-white p-1 ring-1 ring-white/20">
+          <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
         </div>
-
-        {/* ── Logo ── */}
-        <NavLink to="/" onClick={onClose}
-          className={`relative flex items-center gap-3 py-5 hover:opacity-90 transition-opacity ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
-          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden shadow-md bg-white p-1 ring-1 ring-white/20">
-            <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
+        {!collapsed && (
+          <div>
+            <p className="text-[15px] font-extrabold leading-none text-white tracking-tight">Sharp Plus</p>
+            <p className="text-[10px] text-blue-300/70 mt-0.5 tracking-wide font-medium">Trading PLC</p>
           </div>
-          {!collapsed && (
-            <div>
-              <p className="text-[15px] font-extrabold leading-none text-white tracking-tight">Sharp Plus</p>
-              <p className="text-[10px] text-blue-300/70 mt-0.5 tracking-wide font-medium">Trading PLC</p>
-            </div>
-          )}
-        </NavLink>
+        )}
+      </NavLink>
 
-        {/* ── Nav ── */}
-        <nav className="relative flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 pb-4
+      {/* ── Nav ── */}
+      <nav className="relative flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 pb-4
           scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
 
-          <SectionLabel collapsed={collapsed}>Main</SectionLabel>
-          {canSeeNav('dashboard') && navLink('/', LayoutDashboard, 'Dashboard', true)}
-          {canSeeNav('Items') && navLink('/materials', Boxes, 'Items')}
-          {canSeeNav('products') && navLink('/products', UtensilsCrossed, 'Products')}
-          {canSeeNav('analytics') && navLink('/analytics', TrendingUp, 'Analytics & P&L')}
+        <SectionLabel collapsed={collapsed}>Main</SectionLabel>
+        {canSeeNav('dashboard') && navLink('/', LayoutDashboard, 'Dashboard', true)}
 
-          <SectionLabel collapsed={collapsed}>Operations</SectionLabel>
-
-          {/* Stock Movements */}
-          {canSeeNav('stockMovements') && (
-            collapsed ? (
-              <NavLink to="/transactions" onClick={onClose} title="Stock Movements"
-                className={({ isActive }) => linkCls(isActive || onTransactions)}>
+        {/* ── All ID's folder: Items, Products, Employees, Suppliers ── */}
+        {(canSeeNav('Items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('staffAccounts')) && (
+          collapsed ? (
+            <NavLink to="/materials" onClick={onClose} title="All ID's"
+              className={({ isActive }) => linkCls(isActive || onAll ID's)}>
                 {({ isActive }) => (
-                  <span className={iconSpan(isActive || onTransactions)}>
-                    <ArrowLeftRight size={15} strokeWidth={2} />
+        <span className={iconSpan(isActive || onAll ID's)}>
+          < FolderOpen size = { 15} strokeWidth = { 2} />
                   </span>
                 )}
-              </NavLink>
-            ) : (
-              <CollapsibleNav label="Stock Movements" icon={ArrowLeftRight}
-                isActive={onTransactions} open={stockOpen}
-                onToggle={() => setStockOpen(o => !o)} collapsed={collapsed}>
-                {STOCK_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
-              </CollapsibleNav>
+    </NavLink>
+    ) : (
+    <CollapsibleNav
+      label="All ID's"
+      icon={FolderOpen}
+      isActive={onAll ID's}
+    open={openMenu === 'All ID's'}
+    onToggle={() => toggleMenu('All ID's')}
+                collapsed = { collapsed }
+      >
+      { canSeeNav('Items') && <SubLink to="/materials" label="Items" icon={Boxes} onClick={onClose} />}
+    {canSeeNav('products') && <SubLink to="/products" label="Products" icon={UtensilsCrossed} onClick={onClose} />}
+    {canSeeNav('staffAccounts') && <SubLink to="/employees" label="Employees" icon={UserCog} onClick={onClose} />}
+    {canSeeNav('suppliers') && <SubLink to="/suppliers" label="Suppliers" icon={Truck} onClick={onClose} />}
+  </CollapsibleNav >
             )
           )}
 
-          {/* Sales and Marketing MS */}
-          {canSeeNav('salesMarketing') && (
-            collapsed ? (
-              <NavLink to="/sales" onClick={onClose} title="Sales and Marketing MS"
-                className={({ isActive }) => linkCls(isActive || onSales)}>
-                {({ isActive }) => (
-                  <span className={iconSpan(isActive || onSales)}>
-                    <BadgeDollarSign size={15} strokeWidth={2} />
-                  </span>
-                )}
-              </NavLink>
-            ) : (
-              <CollapsibleNav label="Sales and Marketing MS" icon={BadgeDollarSign}
-                isActive={onSales} open={salesOpen}
-                onToggle={() => setSalesOpen(o => !o)} collapsed={collapsed}>
-                {SALES_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
-              </CollapsibleNav>
-            )
-          )}
+{ canSeeNav('analytics') && navLink('/analytics', TrendingUp, 'Analytics & P&L') }
 
-          {canSeeNav('suppliers') && navLink('/suppliers', Truck, 'Suppliers')}
-          {canSeeNav('consumption') && navLink('/consumption', Coffee, 'Consumption')}
+<SectionLabel collapsed={collapsed}>Operations</SectionLabel>
 
-          {/* Stock Issue & Request */}
-          {navLink('/stock-requests', SendToBack, 'Stock Issue & Request')}
+{/* ── Store Operations folder ── */ }
+{
+  collapsed ? (
+    <NavLink to="/transactions" onClick={onClose} title="Store Operations"
+      className={({ isActive }) => linkCls(isActive || onStoreOps)}>
+      {({ isActive }) => (
+        <span className={iconSpan(isActive || onStoreOps)}>
+          <PackageOpen size={15} strokeWidth={2} />
+        </span>
+      )}
+    </NavLink>
+  ) : (
+    <CollapsibleNav
+      label="Store Operations"
+      icon={PackageOpen}
+      isActive={onStoreOps}
+      open={openMenu === 'storeOps'}
+      onToggle={() => toggleMenu('storeOps')}
+      collapsed={collapsed}
+    >
+      {/* Stock Movements sub-items */}
+      {canSeeNav('stockMovements') && (
+        <>
+          {STOCK_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
+        </>
+      )}
+      {/* Consumption */}
+      {canSeeNav('consumption') && (
+        <SubLink to="/consumption" label="Consumption" icon={Coffee} onClick={onClose} />
+      )}
+      {/* Stock Issue & Request */}
+      <SubLink to="/stock-requests" label="Stock Issue & Request" icon={SendToBack} onClick={onClose} />
+    </CollapsibleNav>
+  )
+}
 
-          {/* Reports */}
-          {canSeeNav('reports') && (
-            collapsed ? (
-              <NavLink to="/reports" onClick={onClose} title="Reports"
-                className={({ isActive }) => linkCls(isActive || onReports)}>
-                {({ isActive }) => (
-                  <span className={iconSpan(isActive || onReports)}>
-                    <FileBarChart size={15} strokeWidth={2} />
-                  </span>
-                )}
-              </NavLink>
-            ) : (
-              <CollapsibleNav label="Reports" icon={FileBarChart}
-                isActive={onReports} open={reportOpen}
-                onToggle={() => setReportOpen(o => !o)} collapsed={collapsed}>
-                {REPORT_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
-              </CollapsibleNav>
-            )
-          )}
+{/* Sales and Marketing MS */ }
+{
+  canSeeNav('salesMarketing') && (
+    collapsed ? (
+      <NavLink to="/sales" onClick={onClose} title="Sales and Marketing MS"
+        className={({ isActive }) => linkCls(isActive || onSales)}>
+        {({ isActive }) => (
+          <span className={iconSpan(isActive || onSales)}>
+            <BadgeDollarSign size={15} strokeWidth={2} />
+          </span>
+        )}
+      </NavLink>
+    ) : (
+      <CollapsibleNav label="Sales and Marketing MS" icon={BadgeDollarSign}
+        isActive={onSales} open={openMenu === 'sales'}
+        onToggle={() => toggleMenu('sales')} collapsed={collapsed}>
+        {SALES_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
+      </CollapsibleNav>
+    )
+  )
+}
 
-          <SectionLabel collapsed={collapsed}>Admin</SectionLabel>
-          {canSeeNav('staffAccounts') && navLink('/users', Users, 'Staff Accounts')}
-          {canSeeNav('staffAccounts') && navLink('/employees', UserCog, 'Employees')}
-          {navLink('/settings', SettingsIcon, 'Settings')}
+{/* Reports */ }
+{
+  canSeeNav('reports') && (
+    collapsed ? (
+      <NavLink to="/reports" onClick={onClose} title="Reports"
+        className={({ isActive }) => linkCls(isActive || onReports)}>
+        {({ isActive }) => (
+          <span className={iconSpan(isActive || onReports)}>
+            <FileBarChart size={15} strokeWidth={2} />
+          </span>
+        )}
+      </NavLink>
+    ) : (
+      <CollapsibleNav label="Reports" icon={FileBarChart}
+        isActive={onReports} open={openMenu === 'reports'}
+        onToggle={() => toggleMenu('reports')} collapsed={collapsed}>
+        {REPORT_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
+      </CollapsibleNav>
+    )
+  )
+}
 
-          {/* Recycle Bin */}
-          {(canSeeNav('staffAccounts') || user?.role === 'admin' || user?.role === 'manager') && (
-            <NavLink to="/recycle-bin" onClick={onClose} title="Recycle Bin"
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
-                } ${isActive
-                  ? 'bg-red-500/20 text-red-300 ring-1 ring-red-500/20'
-                  : 'text-red-400/60 hover:bg-red-500/10 hover:text-red-300'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-red-500/25' : 'bg-red-500/10 group-hover:bg-red-500/15'
-                    }`}>
-                    <Trash2 size={14} strokeWidth={2} />
-                  </span>
-                  {!collapsed && <span className="text-[13px]">Recycle Bin</span>}
-                </>
-              )}
-            </NavLink>
-          )}
-        </nav>
+<SectionLabel collapsed={collapsed}>Admin</SectionLabel>
+{ canSeeNav('staffAccounts') && navLink('/users', Users, 'Staff Accounts') }
+{ navLink('/settings', SettingsIcon, 'Settings') }
 
-        {/* ── User card ── */}
-        <div className={`relative mx-2 mb-4 overflow-hidden rounded-xl p-3
+{/* Recycle Bin */ }
+{
+  (canSeeNav('staffAccounts') || user?.role === 'admin' || user?.role === 'manager') && (
+    <NavLink to="/recycle-bin" onClick={onClose} title="Recycle Bin"
+      className={({ isActive }) =>
+        `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
+        } ${isActive
+          ? 'bg-red-500/20 text-red-300 ring-1 ring-red-500/20'
+          : 'text-red-400/60 hover:bg-red-500/10 hover:text-red-300'
+        }`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-red-500/25' : 'bg-red-500/10 group-hover:bg-red-500/15'
+            }`}>
+            <Trash2 size={14} strokeWidth={2} />
+          </span>
+          {!collapsed && <span className="text-[13px]">Recycle Bin</span>}
+        </>
+      )}
+    </NavLink>
+  )
+}
+        </nav >
+
+  {/* ── User card ── */ }
+  < div className = {`relative mx-2 mb-4 overflow-hidden rounded-xl p-3
           flex items-center gap-3 transition-all
           ${collapsed ? 'justify-center' : ''}
           `}
-          style={{
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            backdropFilter: 'blur(12px)',
+style = {{
+  background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.08)',
+      backdropFilter: 'blur(12px)',
           }}>
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user?.name}
-                className="h-9 w-9 rounded-xl object-cover ring-2 ring-white/20" />
-            ) : (
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl font-bold text-white text-sm
+  {/* Avatar */ }
+  < div className = "relative shrink-0" >
+  {
+    user?.avatar?(
+              <img src = { user.avatar } alt = { user?.name }
+                className = "h-9 w-9 rounded-xl object-cover ring-2 ring-white/20" />
+            ): (
+        <div className = {`flex h-9 w-9 items-center justify-center rounded-xl font-bold text-white text-sm
                 bg-gradient-to-br ${roleColors[user?.role] || 'from-blue-400 to-indigo-500'}`}
                 title={user?.name}>
                 {user?.name?.[0]?.toUpperCase()}
@@ -438,9 +498,9 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
             <div className="min-w-0 flex-1">
               <p className="truncate text-[12px] font-bold text-white leading-tight">{user?.name}</p>
               <p className="capitalize text-[10px] leading-tight mt-0.5">
-                <span className={`inline-block rounded-full px-1.5 py-0.5 font-semibold
-                  bg-gradient-to-r ${roleColors[user?.role] || 'from-blue-400 to-indigo-500'}
-                  text-white text-[9px]`}>
+                <span className={`inline - block rounded - full px - 1.5 py - 0.5 font - semibold
+bg - gradient - to - r ${ roleColors[user?.role] || 'from-blue-400 to-indigo-500' }
+text - white text - [9px]`}>
                   {user?.role}
                 </span>
               </p>

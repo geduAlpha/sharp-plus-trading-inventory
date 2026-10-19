@@ -159,11 +159,9 @@ const createTransaction = asyncHandler(async (req, res) => {
       res.status(404);
       throw new Error(`Material not found: ${item.material}`);
     }
+    // Allow sales even if stock becomes negative; log a warning instead of blocking
     if (direction === 'out' && mat.currentStock < item.quantity) {
-      res.status(400);
-      throw new Error(
-        `Insufficient stock for "${mat.name}". Available: ${mat.currentStock} ${mat.unit}, requested: ${item.quantity}.`
-      );
+      console.warn(`Stock for "${mat.name}" will become negative (${mat.currentStock - item.quantity}).`);
     }
     const unitCost     = Number(item.unitCost) || mat.unitCost || 0;
     const sellingPrice = Number(item.sellingPrice) || unitCost;
@@ -280,7 +278,7 @@ const createTransaction = asyncHandler(async (req, res) => {
   // If this is a direct sale, apply immediate stock deduction & create SalesRecord
   if (isSale) {
     for (const item of resolvedItems) {
-      item._doc.currentStock = Math.max(0, (item._doc.currentStock || 0) - item.quantity);
+      item._doc.currentStock = (item._doc.currentStock || 0) - item.quantity; // allow negative stock
       await item._doc.save();
     }
 

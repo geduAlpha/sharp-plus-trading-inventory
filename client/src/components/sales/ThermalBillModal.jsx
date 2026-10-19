@@ -42,23 +42,8 @@ const PRESETS = {
     machineNo: 'SPM00000189',
     poweredBy: 'Sharp Plus System',
   },
-  dire: {
-    name: 'Dire Multipurpose Farmers Coop',
-    tinNumber: '0000000001',
-    companyLines: [
-      '^D^I^R^E^',
-      '^M^U^L^T^I^P^U^R^P^O^S^E^',
-      '^F^A^R^M^E^R^S^',
-      '^C^O^O^P^E^R^A^T^I^V^E^',
-      '^S^O^.^U^N^I^O^N^',
-    ],
-    addressLine1: 'DIRE DAWA,K-03,H.NO-NEW',
-    addressLine2: 'KAZIRA TECKET OFFICE AREA',
-    phone: 'TEL-0251 11 11 76',
-    machineNo: 'MGM00000001',
-    poweredBy: 'Mega Cloud',
-  },
 };
+
 
 export default function ThermalBillModal({ open, onClose, sale }) {
   const { user } = useAuth();
@@ -418,17 +403,19 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                       <span>{toCaretTotal(totalRevenue)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>PAID</span>
+                      <span>ADVANCED PAYMENT</span>
                       <span>{toAsteriskAmount(sale?.amountPaid || 0, 2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>PAID QTY</span>
+                      <span>{processedItems.reduce((sum, it) => sum + Number(it.qty), 0)}</span>
                     </div>
                     <div className="flex justify-between font-bold text-amber-300">
                       <span>BALANCE DUE</span>
-                      <span>
-                        {toAsteriskAmount(
-                          Math.max(0, totalRevenue - (Number(sale?.amountPaid) || 0)),
-                          2
-                        )}
-                      </span>
+                      <span>{toAsteriskAmount(
+                        Math.max(0, totalRevenue - (Number(sale?.amountPaid) || 0)),
+                        2
+                      )}</span>
                     </div>
                     {sale?.dueDate && (
                       <div className="flex justify-between text-[10px]">
@@ -472,7 +459,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   Header &amp; Organization Preset:
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('sharpplus')}
@@ -484,19 +471,6 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   >
                     <div className="font-bold text-[11px]">Sharp Plus Trading</div>
                     <div className="text-[10px] text-slate-400 truncate">PLC Stock Control</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('dire')}
-                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition ${
-                      activePreset === 'dire'
-                        ? 'border-blue-500 bg-blue-500/10 text-blue-300 ring-1 ring-blue-500'
-                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-750'
-                    }`}
-                  >
-                    <div className="font-bold text-[11px]">Dire Multipurpose</div>
-                    <div className="text-[10px] text-slate-400 truncate">Farmers Coop Union</div>
                   </button>
                 </div>
               </div>

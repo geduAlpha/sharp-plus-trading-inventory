@@ -13,7 +13,7 @@ import Modal from '../components/ui/Modal';
 
 // ── Constants ────────────────────────────────────────────────────
 const DEPARTMENTS = [
-  'branch', 'Bar', 'Housekeeping', 'Restaurant',
+  'branch', 'Bar', 'Housekeeping', 'Business',
   'Laundry', 'Management', 'Maintenance', 'Other',
 ];
 
@@ -523,8 +523,8 @@ export default function StockIssueRequest() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border ${req.requestType === 'direct_issue'
-                          ? 'bg-violet-50 text-violet-700 border-violet-200'
-                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                        ? 'bg-violet-50 text-violet-700 border-violet-200'
+                        : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}>
                         {req.requestType === 'direct_issue' ? 'Direct Issue' : 'Request'}
                       </span>
@@ -815,9 +815,9 @@ export default function StockIssueRequest() {
           >
             {/* Header */}
             <div className={`px-6 py-5 border-b border-ink-100 ${actionType === 'approve' ? 'bg-blue-600'
-                : actionType === 'issue' ? 'bg-emerald-600'
-                  : actionType === 'reject' ? 'bg-rose-600'
-                    : 'bg-ink-800'
+              : actionType === 'issue' ? 'bg-emerald-600'
+                : actionType === 'reject' ? 'bg-rose-600'
+                  : 'bg-ink-800'
               }`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-black text-white">{ACTION_CONFIG[actionType]?.title}</h2>
@@ -848,10 +848,10 @@ export default function StockIssueRequest() {
                         <span className="font-bold text-ink-900">{item.material?.name || '—'}</span>
                         {actionType === 'issue' && (
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isInsufficient
-                              ? 'bg-rose-100 text-rose-700'
-                              : currentStock >= item.requestedQty
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-amber-100 text-amber-700'
+                            ? 'bg-rose-100 text-rose-700'
+                            : currentStock >= item.requestedQty
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
                             }`}>
                             {isInsufficient
                               ? `⚠ Only ${currentStock} ${item.material?.unit} available`
@@ -878,8 +878,8 @@ export default function StockIssueRequest() {
                                 [matId]: e.target.value,
                               }))}
                               className={`w-24 rounded-lg border px-2 py-1 text-xs text-center outline-none focus:ring-1 ${isInsufficient
-                                  ? 'border-rose-400 bg-rose-50 text-rose-700 focus:border-rose-500 focus:ring-rose-200'
-                                  : 'border-ink-200 bg-white focus:border-blue-500 focus:ring-blue-200'
+                                ? 'border-rose-400 bg-rose-50 text-rose-700 focus:border-rose-500 focus:ring-rose-200'
+                                : 'border-ink-200 bg-white focus:border-blue-500 focus:ring-blue-200'
                                 }`}
                             />
                             <span className="text-ink-400">/ {item.requestedQty} {item.material?.unit}</span>
