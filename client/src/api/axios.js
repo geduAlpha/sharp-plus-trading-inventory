@@ -45,6 +45,12 @@ const api = axios.create({
   timeout: 30000, // 30 second timeout for cloud cold starts
 });
 
+// ── Global login-in-progress guard ────────────────────────────────────────
+// Set this to true while the login() function is executing to suppress any
+// accidental 401 auto-logouts (e.g. from fetchPermissions during login).
+export let loginInProgress = false;
+export const setLoginInProgress = (val) => { loginInProgress = val; };
+
 // ── Request interceptor: attach auth token ─────────────────────────────────
 api.interceptors.request.use((config) => {
   const stored =
@@ -64,10 +70,39 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('companyStockAuth');
-      localStorage.removeItem('hotelStockAuth');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      // Never auto-logout if we're in the middle of the login flow
+      if (loginInProgress) {
+        return Promise.reject(error);
+      }
+
+      const reqUrl = error.config?.url || '';
+
+      // Endpoints that should NEVER trigger auto-logout:
+      // - Auth flow endpoints (login, OTP)
+      // - Settings (fails gracefully with cached defaults)
+      const isSafeEndpoint =
+        reqUrl.includes('/auth/login') ||
+        reqUrl.includes('/auth/request-otp') ||
+        reqUrl.includes('/auth/verify-otp') ||
+        reqUrl.includes('/settings');
+
+      if (!isSafeEndpoint) {
+        // Only auto-logout if there was actually an active session
+        const hadSession =
+          !!localStorage.getItem('companyStockAuth') ||
+          !!localStorage.getItem('hotelStockAuth');
+
+        if (hadSession) {
+          localStorage.removeItem('companyStockAuth');
+          localStorage.removeItem('hotelStockAuth');
+          localStorage.removeItem('companyStockLastActivity');
+
+          // Dispatch a custom event so React (AuthContext) can handle the redirect
+          // cleanly via React Router — no hard page reload
+          if (window.location.pathname !== '/login') {
+            window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+          }
+        }
       }
     }
     return Promise.reject(error);
@@ -75,3 +110,4 @@ api.interceptors.response.use(
 );
 
 export default api;
+

@@ -522,6 +522,7 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
             onClick={onMenuClick}
             className="rounded-md p-1.5 text-ink-500 hover:bg-ink-50 lg:hidden"
           >
+
             <Menu size={22} />
           </button>
           <button

@@ -29,6 +29,19 @@ import {
 import { useAuth } from '../../context/AuthContext';
 
 const PRESETS = {
+  sharpplus: {
+    name: 'Sharp Plus Trading PLC',
+    tinNumber: '0089234125',
+    companyLines: [
+      '^S^H^A^R^P^ ^P^L^U^S^',
+      '^T^R^A^D^I^N^G^ ^P^L^C^',
+    ],
+    addressLine1: 'ADDIS ABABA, BOLE MEDHANIALEM',
+    addressLine2: 'COMMERCIAL CENTER 4TH FLOOR',
+    phone: 'TEL-+251 91 100 0111',
+    machineNo: 'SPM00000189',
+    poweredBy: 'Sharp Plus System',
+  },
   dire: {
     name: 'Dire Multipurpose Farmers Coop',
     tinNumber: '0000000001',
@@ -45,46 +58,45 @@ const PRESETS = {
     machineNo: 'MGM00000001',
     poweredBy: 'Mega Cloud',
   },
-  sharpplus: {
-    name: 'Sharp Plus Trading PLC',
-    tinNumber: '0089234125',
-    companyLines: [
-      '^S^H^A^R^P^ ^P^L^U^S^',
-      '^T^R^A^D^I^N^G^ ^P^L^C^',
-      '^S^T^O^C^K^ ^&^ ^I^N^V^E^N^T^O^R^Y^',
-    ],
-    addressLine1: 'ADDIS ABABA, BOLE MEDHANIALEM',
-    addressLine2: 'COMMERCIAL CENTER 4TH FLOOR',
-    phone: 'TEL-+251 91 100 0111',
-    machineNo: 'SPM00000189',
-    poweredBy: 'Sharp Plus System',
-  },
 };
 
 export default function ThermalBillModal({ open, onClose, sale }) {
   const { user } = useAuth();
-  const [activePreset, setActivePreset] = useState('dire');
+  const [activePreset, setActivePreset] = useState('sharpplus');
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState('pos_blue'); // 'pos_blue' (like image) or 'paper_white'
   const [showConfig, setShowConfig] = useState(false);
 
-  // Custom configuration fields
+  // Custom configuration fields - default to Sharp Plus Trading PLC
   const [config, setConfig] = useState({
-    tinNumber: PRESETS.dire.tinNumber,
-    companyLines: PRESETS.dire.companyLines,
-    addressLine1: PRESETS.dire.addressLine1,
-    addressLine2: PRESETS.dire.addressLine2,
-    phone: PRESETS.dire.phone,
-    machineNo: PRESETS.dire.machineNo,
-    poweredBy: PRESETS.dire.poweredBy,
-    operator: user?.name || 'Samire',
-    taxRate: 0,
+    tinNumber: PRESETS.sharpplus.tinNumber,
+    companyLines: PRESETS.sharpplus.companyLines,
+    addressLine1: PRESETS.sharpplus.addressLine1,
+    addressLine2: PRESETS.sharpplus.addressLine2,
+    phone: PRESETS.sharpplus.phone,
+    machineNo: PRESETS.sharpplus.machineNo,
+    poweredBy: PRESETS.sharpplus.poweredBy,
+    operator: user?.name || 'Sharp Plus Admin',
+    taxRate: sale?.taxRate !== undefined ? Number(sale.taxRate) : 15,
     fsNo: '',
   });
 
+  // Sync with sale tax rate and fsNo when sale changes
+  React.useEffect(() => {
+    if (sale) {
+      const defaultTax = sale.taxRate !== undefined ? Number(sale.taxRate) : 15;
+      setConfig((prev) => ({
+        ...prev,
+        taxRate: defaultTax,
+        operator: user?.name || prev.operator || 'Sharp Plus Admin',
+        fsNo: sale.fsNo || prev.fsNo || '',
+      }));
+    }
+  }, [sale, user]);
+
   const handleApplyPreset = (key) => {
     setActivePreset(key);
-    const p = PRESETS[key] || PRESETS.dire;
+    const p = PRESETS[key] || PRESETS.sharpplus;
     setConfig((prev) => ({
       ...prev,
       tinNumber: p.tinNumber,
@@ -104,16 +116,17 @@ export default function ThermalBillModal({ open, onClose, sale }) {
   const customerName =
     sale?.customerName ||
     (typeof sale?.customer === 'object' ? sale?.customer?.name : sale?.customer) ||
-    'Mahamed Yusuf';
+    'Walk-in Customer';
 
   const invoiceNo =
     sale?.voucherNo ||
-    (isCredit ? 'CS-09854-26' : 'CS-09854-26');
+    (isCredit ? 'CRSALE-00001' : 'CSALE-00001');
 
   const fsNumber =
     config.fsNo ||
     sale?.fsNo ||
-    `FS No.${String(sale?.voucherNo || '00000272').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
+    (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') ||
+    `FS No.${String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
 
   const dateStr = formatFiscalDate(sale?.date);
 
@@ -131,7 +144,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     ];
   }, [rawItems]);
 
-  // Calculations
+  // Calculations in parallel with sales
   const { totalRevenue, taxable, taxAmount, processedItems } = useMemo(() => {
     let rev = 0;
     const list = items.map((it) => {
@@ -147,12 +160,17 @@ export default function ThermalBillModal({ open, onClose, sale }) {
       rev = Number(sale.totalRevenue);
     }
 
-    const tRate = Number(config.taxRate || 0);
+    const tRate = Number(config.taxRate !== undefined ? config.taxRate : 15);
     let taxb = rev;
     let taxVal = 0;
     if (tRate > 0) {
-      taxb = rev / (1 + tRate / 100);
-      taxVal = rev - taxb;
+      if (sale?.taxableAmount && sale?.vatAmount && Number(sale.taxRate) === tRate) {
+        taxb = Number(sale.taxableAmount);
+        taxVal = Number(sale.vatAmount);
+      } else {
+        taxb = rev / (1 + tRate / 100);
+        taxVal = rev - taxb;
+      }
     }
 
     return {
@@ -314,11 +332,12 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 }`}
               />
 
-              {/* Items Column Header */}
-              <div className="flex justify-between font-bold text-[11px] tracking-wider py-0.5">
-                <span>Description</span>
-                <span>Qty Price</span>
-                <span>AMOUNT</span>
+              {/* Items Column Header - Parallel with values */}
+              <div className="flex items-center font-bold text-[11px] tracking-wider py-0.5">
+                <span className="flex-1 text-left">Description</span>
+                <span className="w-10 text-center">Qty</span>
+                <span className="w-24 text-right">Price</span>
+                <span className="w-28 text-right">AMOUNT</span>
               </div>
 
               <div
@@ -327,21 +346,22 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 }`}
               />
 
-              {/* Line Items */}
-              <div className="space-y-2 my-1 text-[11px]">
+              {/* Line Items - strictly parallel with headers */}
+              <div className="space-y-1.5 my-1 text-[11px]">
                 {processedItems.map((it, idx) => (
-                  <div key={idx} className="space-y-0.5">
-                    <div className="flex justify-between items-start">
-                      <span className="font-semibold break-words max-w-[170px]">
-                        {it.desc}
-                      </span>
-                      <span className="text-right whitespace-nowrap">
-                        {it.qty} {formatNumber(it.price, 3)}
-                      </span>
-                    </div>
-                    <div className="text-right font-bold tracking-wide">
+                  <div key={idx} className="flex items-center py-0.5">
+                    <span className="flex-1 font-semibold break-words text-left pr-1" title={it.desc}>
+                      {it.desc}
+                    </span>
+                    <span className="w-10 text-center font-mono font-medium">
+                      {it.qty}
+                    </span>
+                    <span className="w-24 text-right font-mono">
+                      {formatNumber(it.price, 2)}
+                    </span>
+                    <span className="w-28 text-right font-mono font-bold tracking-wide">
                       {toAsteriskAmount(it.amount, 2)}
-                    </div>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -426,13 +446,13 @@ export default function ThermalBillModal({ open, onClose, sale }) {
 
               {/* Fiscal Machine Mark */}
               <div className="text-center mt-3 space-y-0.5 text-[11px] font-bold">
-                <div>{'{logo}'}</div>
-                <div>{'{logo}'} {config.machineNo || 'MGM00000001'}</div>
+                <div>{fsNumber}</div>
+                <div>MACHINE: {config.machineNo || 'SPM00000189'}</div>
               </div>
 
               {/* Footer */}
-              <div className="text-center mt-3 text-[10px] tracking-wide text-slate-400/80">
-                Powered By {config.poweredBy || 'Mega Cloud'}
+              <div className="text-center mt-2.5 text-[10px] tracking-wide text-slate-400/80">
+                Powered By {config.poweredBy || 'Sharp Plus System'}
               </div>
             </div>
           </div>
@@ -448,19 +468,6 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleApplyPreset('dire')}
-                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition ${
-                      activePreset === 'dire'
-                        ? 'border-blue-500 bg-blue-500/10 text-blue-300 ring-1 ring-blue-500'
-                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-750'
-                    }`}
-                  >
-                    <div className="font-bold text-[11px]">Dire Multipurpose</div>
-                    <div className="text-[10px] text-slate-400 truncate">Farmers Coop Union</div>
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => handleApplyPreset('sharpplus')}
                     className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition ${
                       activePreset === 'sharpplus'
@@ -470,6 +477,19 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   >
                     <div className="font-bold text-[11px]">Sharp Plus Trading</div>
                     <div className="text-[10px] text-slate-400 truncate">PLC Stock Control</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('dire')}
+                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition ${
+                      activePreset === 'dire'
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-300 ring-1 ring-blue-500'
+                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-750'
+                    }`}
+                  >
+                    <div className="font-bold text-[11px]">Dire Multipurpose</div>
+                    <div className="text-[10px] text-slate-400 truncate">Farmers Coop Union</div>
                   </button>
                 </div>
               </div>
@@ -539,8 +559,8 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                         onChange={(e) => setConfig({ ...config, taxRate: Number(e.target.value) })}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-blue-500"
                       >
+                        <option value={15}>15% Standard VAT (Default)</option>
                         <option value={0}>0% Tax Exempt</option>
-                        <option value={15}>15% Standard VAT</option>
                       </select>
                     </div>
                     <div>

@@ -164,8 +164,10 @@ function notifyTransaction(txn, user) {
     ? `👤 <b>Customer:</b>   ${txn.customerName || 'Walk-in Customer'}`
     : `🏪 <b>Supplier:</b>   ${txn.supplier?.name || '—'}`;
 
+  const taxableVal = txn.taxableAmount || (txn.totalRevenue ? Number((txn.totalRevenue / 1.15).toFixed(2)) : 0);
+  const vatVal = txn.vatAmount || txn.taxAmount || (txn.totalRevenue ? Number((txn.totalRevenue - taxableVal).toFixed(2)) : 0);
   const valueLine = isSale
-    ? `💰 <b>Sale Total:</b>  ${etb(txn.totalRevenue || txn.totalAmount)}\n📦 <b>Stock Cost:</b>  ${etb(txn.totalAmount)}`
+    ? `💰 <b>Sale Total:</b>  ${etb(txn.totalRevenue || txn.totalAmount)}\n🧾 <b>Taxable Base:</b> ${etb(taxableVal)}\n📊 <b>VAT (15%):</b>    ${etb(vatVal)}\n📦 <b>Stock Cost:</b>   ${etb(txn.totalAmount)}`
     : `💰 <b>Total:</b>       ${etb(txn.totalAmount)}`;
 
   sendTelegram(

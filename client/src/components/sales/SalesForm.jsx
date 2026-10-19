@@ -85,6 +85,8 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
   const [amountPaid, setAmountPaid] = useState(0);
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [taxRate, setTaxRate] = useState(15);
+  const [isVatInclusive, setIsVatInclusive] = useState(true);
 
   // Submission & Confirmation state
   const [submitting, setSubmitting] = useState(false);
@@ -290,14 +292,45 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // ── Financial Calculations ──────────────────────────────────────────────
-  const totalRevenue = useMemo(() => {
+  // ── Financial & Parallel VAT Calculations ─────────────────────────────────
+  const rawSubtotal = useMemo(() => {
     return items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
   }, [items]);
 
   const totalQuantity = useMemo(() => {
     return items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   }, [items]);
+
+  const { taxableAmount, vatAmount, totalRevenue } = useMemo(() => {
+    const rate = Number(taxRate) || 0;
+    if (rate <= 0) {
+      return {
+        taxableAmount: rawSubtotal,
+        vatAmount: 0,
+        totalRevenue: rawSubtotal,
+      };
+    }
+
+    if (isVatInclusive) {
+      // Standard Retail/Wholesale POS: Selling price includes 15% VAT
+      const taxable = rawSubtotal / (1 + rate / 100);
+      const vat = rawSubtotal - taxable;
+      return {
+        taxableAmount: Number(taxable.toFixed(2)),
+        vatAmount: Number(vat.toFixed(2)),
+        totalRevenue: rawSubtotal,
+      };
+    } else {
+      // Net + 15% VAT added on top
+      const taxable = rawSubtotal;
+      const vat = taxable * (rate / 100);
+      return {
+        taxableAmount: taxable,
+        vatAmount: Number(vat.toFixed(2)),
+        totalRevenue: Number((taxable + vat).toFixed(2)),
+      };
+    }
+  }, [rawSubtotal, taxRate, isVatInclusive]);
 
   const creditBalance = useMemo(() => {
     if (!isCredit) return 0;
@@ -357,6 +390,12 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
       dueDate: isCredit ? dueDate : null,
       reference: reference.trim(),
       notes: notes.trim(),
+      taxRate: Number(taxRate) || 0,
+      taxableAmount,
+      vatAmount,
+      taxAmount: vatAmount,
+      isVatInclusive,
+      totalRevenue,
       items: validItems.map((it) => ({
         material: it.material,
         quantity: Number(it.quantity),
@@ -875,8 +914,11 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
 
           {/* Checkout & Summary Panel */}
           <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white shadow-md space-y-4">
-            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider text-[11px]">
-              Sale Voucher Summary
+            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider text-[11px] flex items-center justify-between">
+              <span>Sale Voucher Summary</span>
+              <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded font-mono font-normal">
+                Parallel VAT 15%
+              </span>
             </h4>
 
             <div className="space-y-2 text-xs border-b border-slate-700/60 pb-3">
@@ -888,9 +930,64 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
                 <span>Total Quantity</span>
                 <span className="font-semibold text-white">{totalQuantity.toFixed(2)} units</span>
               </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Subtotal</span>
-                <span className="font-semibold text-white">{formatETB(totalRevenue)}</span>
+            </div>
+
+            {/* Parallel VAT 15% Calculation Box */}
+            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-700/80 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
+                  Fiscal Tax / VAT Rate
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTaxRate(15)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                      taxRate === 15
+                        ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    15% Standard VAT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaxRate(0)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                      taxRate === 0
+                        ? 'bg-slate-700 text-white shadow-sm ring-1 ring-slate-500'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    0% Exempt
+                  </button>
+                </div>
+              </div>
+
+              {/* Price Calculation Mode Toggle */}
+              {taxRate > 0 && (
+                <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
+                  <span>Price Calculation Mode:</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsVatInclusive(!isVatInclusive)}
+                    className="text-[11px] font-semibold text-blue-300 hover:text-white underline underline-offset-2"
+                  >
+                    {isVatInclusive ? 'VAT Inclusive (Standard POS)' : 'VAT Exclusive (+15% on Top)'}
+                  </button>
+                </div>
+              )}
+
+              {/* Parallel Calculation Breakdown */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/80 font-mono text-xs">
+                <div className="flex justify-between text-slate-300">
+                  <span className="text-slate-400 font-sans">Taxable Base (TXBL1)</span>
+                  <span>{formatETB(taxableAmount)}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span className="text-slate-400 font-sans">VAT 15% (TAX1 15%)</span>
+                  <span className="text-emerald-400 font-semibold">+{formatETB(vatAmount)}</span>
+                </div>
               </div>
             </div>
 
@@ -918,7 +1015,7 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
 
             {/* Grand Total */}
             <div className="flex items-center justify-between pt-1">
-              <span className="text-sm font-semibold text-slate-200">Total Due</span>
+              <span className="text-sm font-semibold text-slate-200">Total Due (with VAT)</span>
               <span className="text-xl font-bold font-mono text-emerald-400">
                 {formatETB(totalRevenue)}
               </span>
@@ -1193,9 +1290,31 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
                 </tbody>
               </table>
 
+              {/* Parallel Tax Calculation Breakdown */}
+              <div className="border-t border-slate-200 pt-2.5 space-y-1 text-xs">
+                <div className="flex justify-between text-slate-500">
+                  <span>Taxable Base (TXBL1)</span>
+                  <span className="font-mono">
+                    {formatETB(
+                      successVoucher.taxableAmount ||
+                        (successVoucher.totalRevenue ? Number((successVoucher.totalRevenue / 1.15).toFixed(2)) : 0)
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-500">
+                  <span>VAT ({successVoucher.taxRate !== undefined ? successVoucher.taxRate : 15}%)</span>
+                  <span className="font-mono font-medium text-emerald-700">
+                    +{formatETB(
+                      successVoucher.vatAmount ||
+                        (successVoucher.totalRevenue ? Number((successVoucher.totalRevenue - (successVoucher.totalRevenue / 1.15)).toFixed(2)) : 0)
+                    )}
+                  </span>
+                </div>
+              </div>
+
               {/* Total Summary */}
-              <div className="border-t border-slate-200 pt-3 flex justify-between items-center text-sm font-bold text-slate-900">
-                <span>Grand Total</span>
+              <div className="border-t border-slate-200 pt-2.5 flex justify-between items-center text-sm font-bold text-slate-900">
+                <span>Grand Total (with VAT)</span>
                 <span className="font-mono text-base text-blue-700">
                   {formatETB(successVoucher.totalRevenue)}
                 </span>
@@ -1243,7 +1362,7 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
               Recent {isCredit ? 'Credit' : 'Cash'} Sales Records
             </h3>
             <p className="text-xs text-slate-500">
-              Latest transactions posted to the inventory and sales journal.
+              Latest transactions posted to the inventory and sales journal with parallel VAT 15% breakdown.
             </p>
           </div>
           <button
@@ -1266,7 +1385,7 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
                   <th className="py-2.5 px-3">Date</th>
                   <th className="py-2.5 px-3">Customer</th>
                   <th className="py-2.5 px-3 text-center">Items</th>
-                  <th className="py-2.5 px-3 text-right">Total Amount</th>
+                  <th className="py-2.5 px-3 text-right">Total Amount (VAT 15%)</th>
                   <th className="py-2.5 px-3 text-center">Status</th>
                   <th className="py-2.5 px-3">Recorded By</th>
                   <th className="py-2.5 px-3 text-center">Action</th>
@@ -1287,8 +1406,13 @@ export default function SalesForm({ voucherType = 'cash_sale' }) {
                     <td className="py-2.5 px-3 text-center font-mono">
                       {sale.items?.length || 1}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-900">
-                      {formatETB(sale.totalRevenue || sale.totalAmount)}
+                    <td className="py-2.5 px-3 text-right font-mono">
+                      <div className="font-bold text-ink-900">
+                        {formatETB(sale.totalRevenue || sale.totalAmount)}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        VAT 15%: {formatETB(sale.vatAmount || (sale.totalRevenue ? Number((sale.totalRevenue - (sale.totalRevenue / 1.15)).toFixed(2)) : 0))}
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       <Badge

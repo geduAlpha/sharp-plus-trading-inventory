@@ -38,6 +38,47 @@ const generateVoucherNo = async (voucherType) => {
   return `${prefix}-${String(count + 1).padStart(5, '0')}`;
 };
 
+// ── Auto Fiscal Serial (FS) Number for Sales ──────────────────────────────
+const generateFsNo = async () => {
+  const highest = await StockTransaction.findOne({ fsNumber: { $gt: 0 } })
+    .sort({ fsNumber: -1 })
+    .select('fsNumber')
+    .lean();
+
+  let nextFs = 1;
+  if (highest && highest.fsNumber) {
+    nextFs = highest.fsNumber + 1;
+  } else {
+    const existing = await StockTransaction.find({
+      fsNo: { $exists: true, $ne: '' },
+    })
+      .select('fsNo')
+      .lean();
+
+    let maxNum = 0;
+    for (const doc of existing) {
+      const match = String(doc.fsNo).match(/(\d+)/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (val > maxNum) maxNum = val;
+      }
+    }
+    if (maxNum > 0) {
+      nextFs = maxNum + 1;
+    } else {
+      const count = await StockTransaction.countDocuments({
+        voucherType: { $in: ['cash_sale', 'credit_sale', 'sales_import'] },
+      });
+      nextFs = count + 1;
+    }
+  }
+
+  return {
+    fsNo: `FS No.${String(nextFs).padStart(8, '0')}`,
+    fsNumber: nextFs,
+  };
+};
+
 // ── GET /api/transactions ─────────────────────────────────────────────
 const getTransactions = asyncHandler(async (req, res) => {
   const { voucherType, material, from, to, paymentStatus, paymentType, search } = req.query;
@@ -152,6 +193,22 @@ const createTransaction = asyncHandler(async (req, res) => {
     ? (initialAmountPaid >= totalRevenue && totalRevenue > 0 ? 'paid' : (initialAmountPaid > 0 ? 'partial' : 'unpaid'))
     : 'paid');
 
+  // VAT & Fiscal Tax Calculation
+  const assignedTaxRate = typeof req.body.taxRate === 'number' ? Number(req.body.taxRate) : 15;
+  const isTaxInclusive = req.body.isVatInclusive !== false;
+  let computedTaxable = req.body.taxableAmount !== undefined ? Number(req.body.taxableAmount) : 0;
+  let computedVat = req.body.vatAmount !== undefined ? Number(req.body.vatAmount) : (req.body.taxAmount !== undefined ? Number(req.body.taxAmount) : 0);
+
+  if (isSale && (!computedTaxable || !computedVat)) {
+    if (isTaxInclusive) {
+      computedTaxable = assignedTaxRate > 0 ? Number((totalRevenue / (1 + assignedTaxRate / 100)).toFixed(2)) : totalRevenue;
+      computedVat = Number((totalRevenue - computedTaxable).toFixed(2));
+    } else {
+      computedTaxable = totalRevenue;
+      computedVat = assignedTaxRate > 0 ? Number((computedTaxable * (assignedTaxRate / 100)).toFixed(2)) : 0;
+    }
+  }
+
   const formattedAttachments = Array.isArray(attachments) && attachments.length > 0
     ? attachments.map(a => ({
         url: a.url || a,
@@ -162,10 +219,20 @@ const createTransaction = asyncHandler(async (req, res) => {
       }))
     : (attachment ? [{ url: attachment, name: 'Receipt', mimeType: 'image/jpeg', size: 0, uploadedAt: new Date() }] : []);
 
+  let assignedFsNo = req.body.fsNo || '';
+  let assignedFsNumber = req.body.fsNumber || 0;
+  if (isSale && !assignedFsNo) {
+    const fsData = await generateFsNo();
+    assignedFsNo = fsData.fsNo;
+    assignedFsNumber = fsData.fsNumber;
+  }
+
   const firstItem = resolvedItems[0];
   const txnData = {
     voucherType: canonicalVoucherType,
     voucherNo: voucherNo || (await generateVoucherNo(canonicalVoucherType)),
+    fsNo: assignedFsNo,
+    fsNumber: assignedFsNumber,
     supplier:  supplier || undefined,
     type:      direction,
     material:  firstItem.material,
@@ -184,6 +251,11 @@ const createTransaction = asyncHandler(async (req, res) => {
     totalAmount,
     totalRevenue: isSale ? totalRevenue : 0,
     grossProfit:  isSale ? grossProfit : 0,
+    taxRate: assignedTaxRate,
+    taxableAmount: computedTaxable,
+    vatAmount: computedVat,
+    taxAmount: computedVat,
+    isVatInclusive: isTaxInclusive,
     customerName: customerName || (voucherType === 'cash_sale' ? 'Walk-in Customer' : ''),
     customerPhone: customerPhone || '',
     customerAddress: customerAddress || '',

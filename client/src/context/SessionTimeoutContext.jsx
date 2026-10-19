@@ -23,18 +23,19 @@ export const SessionTimeoutProvider = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Default is 2 minutes as requested by the user
+  // Default is 30 minutes — a sensible security policy that doesn't kick out
+  // users who just completed the multi-step OTP login flow
   const [timeoutMinutes, setTimeoutMinutesState] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TIMEOUT);
       if (saved !== null) {
         const val = parseInt(saved, 10);
-        return isNaN(val) ? 2 : val;
+        return isNaN(val) ? 30 : val;
       }
     } catch (e) {
       console.warn('Could not read session timeout preference', e);
     }
-    return 2;
+    return 30;
   });
 
   const [remainingSeconds, setRemainingSeconds] = useState(timeoutMinutes * 60);
@@ -86,14 +87,14 @@ export const SessionTimeoutProvider = ({ children }) => {
   // Immediate manual logout
   const manualLogout = useCallback(() => {
     setShowWarning(false);
-    logout();
+    logout(); // clears auth state
     navigate('/login', { replace: true });
   }, [logout, navigate]);
 
   // Handle auto logout when timer expires
   const triggerAutoLogout = useCallback(() => {
     setShowWarning(false);
-    logout();
+    logout(); // clears auth state
     navigate('/login', {
       replace: true,
       state: {
@@ -103,6 +104,18 @@ export const SessionTimeoutProvider = ({ children }) => {
       },
     });
   }, [logout, navigate, timeoutMinutes]);
+
+  // Reset activity whenever a new user session begins (cross-tab safe)
+  useEffect(() => {
+    if (user) {
+      const now = Date.now();
+      lastRecordedRef.current = now;
+      try {
+        localStorage.setItem(STORAGE_KEY_LAST_ACTIVITY, String(now));
+      } catch { }
+      setShowWarning(false);
+    }
+  }, [user?.id ?? user?.email]); // only re-run when the user identity changes
 
   // Listen to user interaction events across the entire window
   useEffect(() => {

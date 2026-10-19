@@ -66,36 +66,36 @@ export const generateThermalReceiptText = (sale, config = {}) => {
     sale?.paymentType === 'credit' ||
     sale?.voucherType === 'credit_sale';
 
-  const tin = config.tinNumber || sale?.customer?.tinNumber || '0000000001';
+  const tin = config.tinNumber || sale?.customer?.tinNumber || '0089234125';
   const companyLines = config.companyLines || [
-    '^D^I^R^E^',
-    '^M^U^L^T^I^P^U^R^P^O^S^E^',
-    '^F^A^R^M^E^R^S^',
-    '^C^O^O^P^E^R^A^T^I^V^E^',
-    '^S^O^.^U^N^I^O^N^',
+    '^S^H^A^R^P^ ^P^L^U^S^',
+    '^T^R^A^D^I^N^G^ ^P^L^C^',
   ];
-  const addressLine1 = config.addressLine1 || 'DIRE DAWA,K-03,H.NO-NEW';
-  const addressLine2 = config.addressLine2 || 'KAZIRA TECKET OFFICE AREA';
-  const phone = config.phone || 'TEL-0251 11 11 76';
+  const addressLine1 = config.addressLine1 || 'ADDIS ABABA, BOLE MEDHANIALEM';
+  const addressLine2 = config.addressLine2 || 'COMMERCIAL CENTER 4TH FLOOR';
+  const phone = config.phone || 'TEL-+251 91 100 0111';
   const fsNo =
     config.fsNo ||
     sale?.fsNo ||
-    `FS No.${String(sale?.voucherNo || '00000272').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
+    (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') ||
+    `FS No.${String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
   const dateStr = formatFiscalDate(sale?.date);
 
   const customerName =
     sale?.customerName ||
     (typeof sale?.customer === 'object' ? sale?.customer?.name : sale?.customer) ||
-    'Mahamed Yusuf';
+    'Walk-in Customer';
   const invoiceNo =
     sale?.voucherNo ||
-    (isCredit ? 'CR-09854-26' : 'CS-09854-26');
+    (isCredit ? 'CRSALE-00001' : 'CSALE-00001');
   const operator =
     config.operator ||
     sale?.performedBy?.name ||
-    'Samire';
+    'Sharp Plus Admin';
 
-  const taxRate = typeof config.taxRate === 'number' ? config.taxRate : 0; // 0% or 15%
+  const taxRate = typeof config.taxRate === 'number'
+    ? config.taxRate
+    : (sale?.taxRate !== undefined ? Number(sale.taxRate) : 15); // Default 15% Standard VAT
 
   const rawItems = sale?.items || [];
   const items = rawItems.length > 0 ? rawItems : [
@@ -122,12 +122,17 @@ export const generateThermalReceiptText = (sale, config = {}) => {
     totalRevenue = Number(sale.totalRevenue);
   }
 
-  // Tax calculation
+  // Tax calculation in parallel with sales
   let taxable = totalRevenue;
   let taxAmount = 0;
   if (taxRate > 0) {
-    taxable = totalRevenue / (1 + taxRate / 100);
-    taxAmount = totalRevenue - taxable;
+    if (sale?.taxableAmount && sale?.vatAmount && Number(sale.taxRate) === taxRate) {
+      taxable = Number(sale.taxableAmount);
+      taxAmount = Number(sale.vatAmount);
+    } else {
+      taxable = totalRevenue / (1 + taxRate / 100);
+      taxAmount = totalRevenue - taxable;
+    }
   }
 
   const invoiceHeader = isCredit
@@ -155,40 +160,46 @@ export const generateThermalReceiptText = (sale, config = {}) => {
   txt += `Invoice: ${invoiceNo}\n`;
   txt += `Operator: ${operator}\n`;
   txt += `${divider}\n`;
-  txt += `Description    Qty Price   AMOUNT\n`;
+  txt += `Description          Qty       Price        AMOUNT\n`;
   txt += `${divider}\n`;
 
   processedItems.forEach((it) => {
-    // Line 1: Description Qty Price
-    const line1 = `${it.desc}    ${it.qty} ${formatNumber(it.price, 3)}`;
-    const line2 = `${toAsteriskAmount(it.amount, 2)}`.padStart(30, ' ');
-    txt += `${line1}\n${line2}\n`;
+    const qtyStr = String(it.qty).padStart(4, ' ');
+    const priceStr = formatNumber(it.price, 2).padStart(12, ' ');
+    const amtStr = toAsteriskAmount(it.amount, 2).padStart(14, ' ');
+
+    if (it.desc.length <= 18) {
+      txt += `${it.desc.padEnd(18, ' ')}${qtyStr}${priceStr}${amtStr}\n`;
+    } else {
+      txt += `${it.desc}\n${''.padEnd(18, ' ')}${qtyStr}${priceStr}${amtStr}\n`;
+    }
   });
 
   txt += `${divider}\n`;
-  txt += `TXBL1             ${toAsteriskAmount(taxable, 2).padStart(15, ' ')}\n`;
-  txt += `TAX1 ${taxRate}%           ${toAsteriskAmount(taxAmount, 2).padStart(15, ' ')}\n`;
+  txt += `TXBL1                       ${toAsteriskAmount(taxable, 2).padStart(18, ' ')}\n`;
+  txt += `TAX1 ${taxRate}%                     ${toAsteriskAmount(taxAmount, 2).padStart(18, ' ')}\n`;
   txt += `${divider}\n`;
-  txt += `^T^O^T^A^L        ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
+  txt += `^T^O^T^A^L                  ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
   txt += `${divider}\n`;
 
   if (isCredit) {
     const paid = Number(sale?.amountPaid || 0);
     const balance = Math.max(0, totalRevenue - paid);
-    txt += `^C^R^E^D^I^T      ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
-    txt += `PAID              ${toAsteriskAmount(paid, 2).padStart(18, ' ')}\n`;
-    txt += `BALANCE DUE       ${toAsteriskAmount(balance, 2).padStart(18, ' ')}\n`;
+    txt += `^C^R^E^D^I^T                ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
+    txt += `PAID                        ${toAsteriskAmount(paid, 2).padStart(18, ' ')}\n`;
+    txt += `BALANCE DUE                 ${toAsteriskAmount(balance, 2).padStart(18, ' ')}\n`;
     if (sale?.dueDate) {
-      txt += `DUE DATE:         ${new Date(sale.dueDate).toLocaleDateString('en-GB')}\n`;
+      txt += `DUE DATE:                   ${new Date(sale.dueDate).toLocaleDateString('en-GB')}\n`;
     }
   } else {
-    txt += `^C^A^S^H          ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
+    txt += `^C^A^S^H                    ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
   }
 
-  txt += `ITEM#                     ${processedItems.length}\n`;
-  txt += `          {logo}\n`;
-  txt += `   {logo} ${config.machineNo || 'MGM00000001'}\n\n`;
-  txt += `   Powered By ${config.poweredBy || 'Mega Cloud'}\n`;
+  txt += `ITEM#                               ${String(processedItems.length).padStart(4, ' ')}\n`;
+  txt += `${divider}\n`;
+  txt += `${fsNo}\n`;
+  txt += `MACHINE: ${config.machineNo || 'SPM00000189'}\n`;
+  txt += `Powered By ${config.poweredBy || 'Sharp Plus System'}\n`;
 
   return txt;
 };
@@ -255,18 +266,25 @@ export const exportBillToCSV = (sale, config = {}) => {
     rows.push([idx + 1, desc, qty, price, amount]);
   });
 
-  const taxRate = typeof config.taxRate === 'number' ? config.taxRate : 0;
+  const taxRate = typeof config.taxRate === 'number'
+    ? config.taxRate
+    : (sale?.taxRate !== undefined ? Number(sale.taxRate) : 15);
   let taxable = subtotal;
   let taxAmount = 0;
   if (taxRate > 0) {
-    taxable = subtotal / (1 + taxRate / 100);
-    taxAmount = subtotal - taxable;
+    if (sale?.taxableAmount && sale?.vatAmount && Number(sale.taxRate) === taxRate) {
+      taxable = Number(sale.taxableAmount);
+      taxAmount = Number(sale.vatAmount);
+    } else {
+      taxable = subtotal / (1 + taxRate / 100);
+      taxAmount = subtotal - taxable;
+    }
   }
 
   rows.push([]);
-  rows.push(['', '', '', 'Taxable Amount', taxable]);
-  rows.push(['', '', '', `Tax (${taxRate}%)`, taxAmount]);
-  rows.push(['', '', '', 'Total Amount', subtotal]);
+  rows.push(['', '', '', 'Taxable Amount (TXBL1)', taxable]);
+  rows.push(['', '', '', `VAT (TAX1 ${taxRate}%)`, taxAmount]);
+  rows.push(['', '', '', 'Total Amount (ETB)', subtotal]);
 
   if (isCredit) {
     const paid = Number(sale?.amountPaid || 0);
@@ -351,18 +369,25 @@ export const exportBillToExcel = (sale, config = {}) => {
     });
   });
 
-  const taxRate = typeof config.taxRate === 'number' ? config.taxRate : 0;
+  const taxRate = typeof config.taxRate === 'number'
+    ? config.taxRate
+    : (sale?.taxRate !== undefined ? Number(sale.taxRate) : 15);
   let taxable = subtotal;
   let taxAmount = 0;
   if (taxRate > 0) {
-    taxable = subtotal / (1 + taxRate / 100);
-    taxAmount = subtotal - taxable;
+    if (sale?.taxableAmount && sale?.vatAmount && Number(sale.taxRate) === taxRate) {
+      taxable = Number(sale.taxableAmount);
+      taxAmount = Number(sale.vatAmount);
+    } else {
+      taxable = subtotal / (1 + taxRate / 100);
+      taxAmount = subtotal - taxable;
+    }
   }
 
   rows.push({});
-  rows.push({ C: 'Taxable Amount (TXBL1)', E: taxable });
-  rows.push({ C: `Tax Rate (${taxRate}%)`, E: taxAmount });
-  rows.push({ C: 'TOTAL (ETB)', E: subtotal });
+  rows.push({ C: 'Taxable Base Amount (TXBL1)', E: taxable });
+  rows.push({ C: `VAT Rate (TAX1 ${taxRate}%)`, E: taxAmount });
+  rows.push({ C: 'TOTAL AMOUNT (ETB)', E: subtotal });
 
   if (isCredit) {
     const paid = Number(sale?.amountPaid || 0);
@@ -390,38 +415,56 @@ export const exportBillToJSON = (sale, config = {}) => {
     sale?.paymentType === 'credit' ||
     sale?.voucherType === 'credit_sale';
 
+  const taxRate = typeof config.taxRate === 'number'
+    ? config.taxRate
+    : (sale?.taxRate !== undefined ? Number(sale.taxRate) : 15);
+  const totalRev = Number(sale?.totalRevenue || 0);
+  let taxable = totalRev;
+  let taxAmount = 0;
+  if (taxRate > 0) {
+    if (sale?.taxableAmount && sale?.vatAmount && Number(sale.taxRate) === taxRate) {
+      taxable = Number(sale.taxableAmount);
+      taxAmount = Number(sale.vatAmount);
+    } else {
+      taxable = totalRev / (1 + taxRate / 100);
+      taxAmount = totalRev - taxable;
+    }
+  }
+
   const invoiceData = {
     fiscalData: {
-      tin: config.tinNumber || '0000000001',
-      organization: (config.companyLines || []).join(' ') || 'Dire Multipurpose Farmers Cooperative Union',
-      address: `${config.addressLine1 || 'DIRE DAWA, K-03'}, ${config.addressLine2 || 'KAZIRA'}`,
-      telephone: config.phone || '0251 11 11 76',
-      fsNo: config.fsNo || sale?.voucherNo || 'FS No.00000272',
+      tin: config.tinNumber || '0089234125',
+      organization: (config.companyLines || []).join(' ') || 'Sharp Plus Trading PLC',
+      address: `${config.addressLine1 || 'ADDIS ABABA, BOLE MEDHANIALEM'}, ${config.addressLine2 || 'COMMERCIAL CENTER 4TH FLOOR'}`,
+      telephone: config.phone || 'TEL-+251 91 100 0111',
+      fsNo: config.fsNo || sale?.fsNo || (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') || 'FS No.00000001',
       date: formatFiscalDate(sale?.date),
-      machineNo: config.machineNo || 'MGM00000001',
+      machineNo: config.machineNo || 'SPM00000189',
     },
     invoice: {
-      invoiceNo: sale?.voucherNo || 'CS-09854-26',
+      invoiceNo: sale?.voucherNo || (isCredit ? 'CRSALE-00001' : 'CSALE-00001'),
       type: isCredit ? 'credit_invoice' : 'cash_invoice',
-      customer: sale?.customerName || 'Mahamed Yusuf',
-      operator: config.operator || sale?.performedBy?.name || 'Samire',
+      customer: sale?.customerName || 'Walk-in Customer',
+      operator: config.operator || sale?.performedBy?.name || 'Sharp Plus Admin',
       items: (sale?.items || []).map((it) => ({
         description: it.description || it.material?.name || it.name,
         quantity: Number(it.quantity || 1),
         unitPrice: Number(it.sellingPrice || it.unitCost || 0),
         amount: Number(it.totalRevenue || it.total || 0),
       })),
-      taxable: sale?.totalRevenue || 0,
-      taxRate: config.taxRate || 0,
-      totalAmount: sale?.totalRevenue || 0,
+      taxable: taxable,
+      taxRate: taxRate,
+      taxAmount: taxAmount,
+      vatAmount: taxAmount,
+      totalAmount: totalRev,
       paymentMethod: isCredit ? 'CREDIT' : 'CASH',
-      amountPaid: isCredit ? Number(sale?.amountPaid || 0) : Number(sale?.totalRevenue || 0),
-      balanceDue: isCredit ? Math.max(0, (sale?.totalRevenue || 0) - (sale?.amountPaid || 0)) : 0,
+      amountPaid: isCredit ? Number(sale?.amountPaid || 0) : totalRev,
+      balanceDue: isCredit ? Math.max(0, totalRev - (sale?.amountPaid || 0)) : 0,
       dueDate: sale?.dueDate || null,
     },
     meta: {
       generatedAt: new Date().toISOString(),
-      system: 'Mega Cloud / Sharp Plus Trading Inventory',
+      system: 'Sharp Plus System / Fiscal POS',
     },
   };
 
@@ -473,10 +516,10 @@ export const openThermalPrintWindow = (sale, config = {}) => {
             print-color-adjust: exact;
           }
           .receipt {
-            max-width: 300px;
+            max-width: 360px;
             margin: 0 auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+            white-space: pre;
+            overflow-x: visible;
           }
           @media print {
             body { padding: 4px; }

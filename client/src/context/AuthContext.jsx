@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import api from '../api/axios';
+import api, { setLoginInProgress } from '../api/axios';
 
 const AuthContext = createContext(null);
 
@@ -159,6 +159,8 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (err) {
         console.error('Failed to parse auth token:', err);
+        localStorage.removeItem('companyStockAuth');
+        localStorage.removeItem('hotelStockAuth');
       } finally {
         await fetchPermissions();
         setLoading(false);
@@ -167,20 +169,76 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, [fetchPermissions]);
 
-  const login = async (userData) => {
-    localStorage.setItem('companyStockAuth', JSON.stringify(userData));
-    localStorage.removeItem('hotelStockAuth');
-    setUser(userData);
-    await fetchPermissions();
+  // Listen for the custom 401 event dispatched by the axios interceptor
+  // This lets React Router handle the redirect cleanly (no hard page reload)
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setRolePermissions(DEFAULT_PERMISSIONS);
+      setNavVisibility(DEFAULT_NAV_VISIBILITY);
+      clearSettingsCache();
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
+  /**
+   * Login can be called two ways:
+   *   1. login(email, password, otpToken)  — from Login.jsx, makes API call
+   *   2. login(userDataObject)             — legacy, stores data directly
+   */
+  const login = async (emailOrData, password, otpToken) => {
+    // If first arg is an object (legacy usage), store directly
+    if (emailOrData && typeof emailOrData === 'object') {
+      const userData = emailOrData;
+      localStorage.setItem('companyStockAuth', JSON.stringify(userData));
+      localStorage.removeItem('hotelStockAuth');
+      setUser(userData);
+      await fetchPermissions();
+      return userData;
+    }
+
+    // Standard login: set guard so 401 responses during login don't log out the user
+    setLoginInProgress(true);
+    try {
+      // POST credentials to the API
+      const email = emailOrData;
+      const res = await api.post('/auth/login', { email, password, otpToken });
+      const userData = res.data;
+
+      // Ensure we have a token
+      if (!userData?.token) {
+        throw new Error('No token received from server.');
+      }
+
+      // Persist and activate session
+      localStorage.setItem('companyStockAuth', JSON.stringify(userData));
+      localStorage.removeItem('hotelStockAuth');
+      // Reset session activity timestamp so the timeout clock starts fresh
+      localStorage.setItem('companyStockLastActivity', String(Date.now()));
+      setUser(userData);
+
+      // Fetch permissions (failure is safe — falls back to defaults/cache)
+      await fetchPermissions();
+      return userData;
+    } finally {
+      // Always release the guard, even if login fails
+      setLoginInProgress(false);
+    }
   };
 
-  const logout = () => {
+  const logout = (navigate) => {
     localStorage.removeItem('companyStockAuth');
     localStorage.removeItem('hotelStockAuth');
+    localStorage.removeItem('companyStockLastActivity');
     clearSettingsCache();
     setUser(null);
     setRolePermissions(DEFAULT_PERMISSIONS);
     setNavVisibility(DEFAULT_NAV_VISIBILITY);
+    // If a navigate function is provided, use it; otherwise fall back gracefully
+    if (typeof navigate === 'function') {
+      navigate('/login', { replace: true });
+    }
   };
 
   const updateUser = (updatedData) => {

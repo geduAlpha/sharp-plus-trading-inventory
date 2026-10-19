@@ -138,6 +138,14 @@ const stockTransactionSchema = new mongoose.Schema(
     dueDate:         { type: Date, default: null },
     totalRevenue:    { type: Number, default: 0 },
     grossProfit:     { type: Number, default: 0 },
+    // VAT & Fiscal Tax calculation fields
+    taxRate:         { type: Number, default: 15 },
+    taxableAmount:   { type: Number, default: 0 },
+    vatAmount:       { type: Number, default: 0 },
+    taxAmount:       { type: Number, default: 0 },
+    isVatInclusive:  { type: Boolean, default: true },
+    fsNo:            { type: String, trim: true, default: '' },
+    fsNumber:        { type: Number, default: 0 },
     // Recycle bin fields
     deletedAt:   { type: Date, default: null },
     deletedBy:   { type: String, default: null },
