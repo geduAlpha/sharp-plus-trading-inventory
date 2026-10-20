@@ -6,6 +6,7 @@ import {
   ArrowLeftRight, ShoppingCart, BarChart2, Users,
   ChevronRight, Search, Lightbulb, CheckCircle2, PlayCircle,
   Bell, BellRing, Trash2, Maximize, MessageSquare, CheckSquare, Calendar, Settings as SettingsGear,
+  Sun, Moon,
 } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -519,6 +520,35 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
     }
   };
 
+  const [isDim, setIsDim] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sharp_plus_dim_mode');
+      if (saved !== null) {
+        const active = saved === 'true';
+        if (active) document.documentElement.classList.add('dim-mode', 'dark');
+        return active;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleDimMode = () => {
+    setIsDim((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sharp_plus_dim_mode', String(next));
+        if (next) {
+          document.documentElement.classList.add('dim-mode', 'dark');
+        } else {
+          document.documentElement.classList.remove('dim-mode', 'dark');
+        }
+      } catch {}
+      return next;
+    });
+  };
+
   const roleBadgeStyle = {
     admin: 'bg-amber-50 text-amber-800 border-amber-200',
     manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -621,6 +651,20 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
               {timeoutMinutes === 0 ? 'Timeout: Off' : `${timeoutMinutes}m`}
             </span>
           </div>
+
+          {/* Dim / Dark Mode Toggle button */}
+          <button
+            onClick={toggleDimMode}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+              isDim
+                ? 'bg-amber-400/20 text-amber-300 hover:bg-amber-400/30 ring-1 ring-amber-400/40'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+            }`}
+            title={isDim ? 'Switch to Bright Mode' : 'Switch to Dim Mode'}
+            aria-label="Toggle Dim Mode"
+          >
+            {isDim ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
 
           {/* Notification Bell */}
           <NotificationBell />

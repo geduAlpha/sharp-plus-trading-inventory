@@ -54,6 +54,103 @@
   outline-offset: 2px;
 }
 
+/* ── Dim / Deem Mode Styles (Crisp, High-Contrast Eye Comfort) ── */
+html.dim-mode,
+html.dark {
+  color-scheme: dark;
+}
+
+html.dim-mode body,
+html.dark body {
+  background-color: #0b1120 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dim-mode header,
+html.dark header {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+html.dim-mode aside,
+html.dark aside {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+html.dim-mode .aone-card,
+html.dark .aone-card,
+html.dim-mode .crisp-card,
+html.dark .crisp-card {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+html.dim-mode .bg-white,
+html.dark .bg-white {
+  background-color: #111827 !important;
+}
+
+html.dim-mode .bg-slate-50,
+html.dark .bg-slate-50 {
+  background-color: #0b1120 !important;
+}
+
+html.dim-mode .bg-slate-100,
+html.dark .bg-slate-100 {
+  background-color: #1f2937 !important;
+}
+
+html.dim-mode .text-slate-900,
+html.dark .text-slate-900,
+html.dim-mode .text-slate-800,
+html.dark .text-slate-800 {
+  color: #f9fafb !important;
+}
+
+html.dim-mode .text-slate-700,
+html.dark .text-slate-700,
+html.dim-mode .text-slate-600,
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dim-mode .text-slate-500,
+html.dark .text-slate-500,
+html.dim-mode .text-slate-400,
+html.dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+html.dim-mode .border-slate-200,
+html.dark .border-slate-200,
+html.dim-mode .border-slate-100,
+html.dark .border-slate-100 {
+  border-color: #1f2937 !important;
+}
+
+html.dim-mode input,
+html.dark input,
+html.dim-mode select,
+html.dark select,
+html.dim-mode textarea,
+html.dark textarea {
+  background-color: #0b1120 !important;
+  border-color: #374151 !important;
+  color: #f9fafb !important;
+}
+
+html.dim-mode ::-webkit-scrollbar-thumb,
+html.dark ::-webkit-scrollbar-thumb {
+  background: #374151;
+}
+
+html.dim-mode ::-webkit-scrollbar-thumb:hover,
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
 /* ── Print Styles ──────────────────────────────────────────────────── */
 @media print {
   /* Hide EVERYTHING by default */
