@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Menu, LogOut, ChevronDown, User, Shield, Building,
-  Layers, Clock, HelpCircle, X, BookOpen, Package,
+  Menu, LogOut, ChevronDown, Clock, HelpCircle, X, BookOpen, Package,
   ArrowLeftRight, ShoppingCart, BarChart2, Users,
   ChevronRight, Search, Lightbulb, CheckCircle2, PlayCircle,
-  Bell, BellRing, Trash2, Maximize, MessageSquare, CheckSquare, Calendar, Settings as SettingsGear,
+  Bell, BellRing, Trash2, Maximize, MessageSquare, CheckSquare, Calendar,
   Sun, Moon,
 } from 'lucide-react';
 import api from '../../api/axios';
@@ -669,15 +668,6 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
           {/* Notification Bell */}
           <NotificationBell />
 
-          {/* Settings shortcut button */}
-          <button
-            onClick={() => navigate('/settings')}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
-            title="System Settings"
-          >
-            <SettingsGear size={17} />
-          </button>
-
           {/* User menu */}
           <div className="relative" ref={menuRef}>
             <button
@@ -723,38 +713,8 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
                   </div>
                 </div>
 
-                {/* Nav items */}
+                {/* Quick actions */}
                 <div className="space-y-0.5 pt-1">
-                  <button
-                    onClick={() => handleNav('/settings?tab=profile')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-ink-700 hover:bg-ink-50 transition"
-                  >
-                    <User size={15} className="text-ink-400" />
-                    My Profile
-                  </button>
-                  <button
-                    onClick={() => handleNav('/settings?tab=security')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-ink-700 hover:bg-ink-50 transition"
-                  >
-                    <Shield size={15} className="text-ink-400" />
-                    Security &amp; Password
-                  </button>
-                  {hasRole('admin') && (
-                    <button
-                      onClick={() => handleNav('/settings?tab=system')}
-                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-ink-700 hover:bg-ink-50 transition"
-                    >
-                      <Building size={15} className="text-ink-400" />
-                      company Settings
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleNav('/settings?tab=permissions')}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-ink-700 hover:bg-ink-50 transition"
-                  >
-                    <Layers size={15} className="text-ink-400" />
-                    Role Privileges
-                  </button>
                   {/* Help & Documentation */}
                   <button
                     onClick={() => { setMenuOpen(false); setHelpOpen(true); }}
