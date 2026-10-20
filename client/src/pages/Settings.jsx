@@ -63,6 +63,16 @@ export default function Settings() {
     setSearchParams({ tab });
   };
 
+  // Redirect non-admin and non-manager away from restricted tabs
+  useEffect(() => {
+    if (currentTab === 'permissions' && !hasRole('admin') && !hasRole('manager')) {
+      setTab('profile');
+    }
+    if ((currentTab === 'system' || currentTab === 'telegram') && !hasRole('admin')) {
+      setTab('profile');
+    }
+  }, [currentTab, user]);
+
   // Profile state
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
@@ -474,15 +484,17 @@ export default function Settings() {
           </button>
         )}
 
-        <button
-          onClick={() => setTab('permissions')}
-          className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'permissions'
-            ? 'border-blue-600 text-blue-600'
-            : 'border-transparent text-ink-400 hover:text-ink-700'
-            }`}
-        >
-          <Layers size={16} /> Role Privileges
-        </button>
+        {(hasRole('admin') || hasRole('manager')) && (
+          <button
+            onClick={() => setTab('permissions')}
+            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'permissions'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-ink-400 hover:text-ink-700'
+              }`}
+          >
+            <Layers size={16} /> Role Privileges
+          </button>
+        )}
 
         {hasRole('admin') && (
           <button
@@ -1341,7 +1353,7 @@ export default function Settings() {
       )}
 
       {/* ── Tab 4: Role Privileges & Employee CRUD Controls ── */}
-      {currentTab === 'permissions' && (
+      {currentTab === 'permissions' && (hasRole('admin') || hasRole('manager')) && (
         <div className="space-y-6 max-w-4xl">
           <RolePrivilegesManager
             systemForm={systemForm}

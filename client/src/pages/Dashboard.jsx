@@ -933,7 +933,7 @@ export default function Dashboard() {
                       className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${isIn ? 'bg-emerald-50 text-emerald-600' : 'bg-ink-100 text-ink-700'
                         }`}
                     >
-                      {isIn ? <ArrowDownCircle size={16} /> : <ArrowUpCircle size={16} />}
+                      {isIn ? <ArrowUpCircle size={16} /> : <ArrowDownCircle size={16} />}
                     </span>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-ink-900 truncate" title={matSummary}>
