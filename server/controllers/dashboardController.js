@@ -46,16 +46,46 @@ const getSummary = asyncHandler(async (req, res) => {
     Purchase.find({ purchaseDate: { $gte: startOfMonth } }).select('totalAmount').lean(),
     StockTransaction.find({ date: { $gte: sevenDaysAgo } }).select('date type quantity items').lean(),
     StockTransaction.find({})
-      .select('voucherType voucherNo type quantity totalAmount date createdAt material items supplier performedBy')
+      .select('voucherType voucherNo type quantity totalAmount date createdAt material items supplier customerName performedBy')
       .populate('material', 'name unit')
       .populate('items.material', 'name unit')
       .populate('supplier', 'name')
       .populate('performedBy', 'name')
       .sort({ createdAt: -1 })
-      .limit(7)
+      .limit(8)
       .lean(),
+    StockTransaction.find({
+      voucherType: { $in: ['cash_sale', 'cash_sales', 'credit_sale', 'credit_sales', 'sales_import'] }
+    }).select('voucherType totalAmount date customerName items').lean(),
   ]);
 
+  // Compute Cash and Credit Sales metrics
+  let totalCashSales = 0;
+  let totalCreditSales = 0;
+  let cashSalesCount = 0;
+  let creditSalesCount = 0;
+  let todayCashSales = 0;
+  let todayCreditSales = 0;
+
+  for (const s of (salesTransactions || [])) {
+    const isCash = s.voucherType === 'cash_sale' || s.voucherType === 'cash_sales';
+    const isCredit = s.voucherType === 'credit_sale' || s.voucherType === 'credit_sales';
+    const amt = Number(s.totalAmount) || 0;
+    const isToday = s.date && new Date(s.date) >= startOfToday;
+
+    if (isCash) {
+      totalCashSales += amt;
+      cashSalesCount += 1;
+      if (isToday) todayCashSales += amt;
+    } else if (isCredit) {
+      totalCreditSales += amt;
+      creditSalesCount += 1;
+      if (isToday) todayCreditSales += amt;
+    }
+  }
+
+  const totalSales = totalCashSales + totalCreditSales;
+  const totalSalesCount = cashSalesCount + creditSalesCount;
 
   const totalMaterials = materials.length;
   const lowStockCount = materials.filter((m) => m.currentStock > 0 && m.currentStock <= m.reorderLevel).length;
@@ -159,6 +189,14 @@ const getSummary = asyncHandler(async (req, res) => {
     topValuableItems,
     lowStockItems,
     recentTransactions,
+    totalCashSales,
+    totalCreditSales,
+    totalSales,
+    cashSalesCount,
+    creditSalesCount,
+    totalSalesCount,
+    todayCashSales,
+    todayCreditSales,
   };
 
   // Cache in server memory

@@ -40,6 +40,10 @@ import {
   ShoppingCart,
   UtensilsCrossed,
   Package,
+  Eye,
+  Banknote,
+  ArrowLeftRight,
+  BadgeDollarSign,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
@@ -83,6 +87,11 @@ const VOUCHER_LABELS = {
   pos_adjustment: { label: '+ve Adjustment', color: 'bg-violet-50 text-violet-700 border-violet-200' },
   disposal: { label: 'Disposal', color: 'bg-orange-50 text-orange-700 border-orange-200' },
   neg_adjustment: { label: '-ve Adjustment', color: 'bg-rose-50 text-rose-700 border-rose-200' },
+  cash_sale: { label: 'Cash Sale', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  cash_sales: { label: 'Cash Sale', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  credit_sale: { label: 'Credit Sale', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  credit_sales: { label: 'Credit Sale', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  sales_import: { label: 'Sales Import', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
 };
 
 // Custom Chart Tooltips
@@ -296,6 +305,25 @@ export default function Dashboard() {
         {/* Quick Action Buttons */}
         <div className="flex items-center flex-wrap gap-2">
           <button
+            onClick={() => navigate('/transactions')}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition"
+            title="View All Transactions"
+          >
+            <ArrowLeftRight size={14} className="text-indigo-600" /> Transactions
+          </button>
+          <button
+            onClick={() => navigate('/sales/cash')}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+          >
+            <ShoppingBag size={14} /> New Cash Sale
+          </button>
+          <button
+            onClick={() => navigate('/sales/credit')}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
+          >
+            <CreditCard size={14} /> New Credit Sale
+          </button>
+          <button
             onClick={() => navigate('/transactions/cash-grv')}
             className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
           >
@@ -327,6 +355,108 @@ export default function Dashboard() {
           >
             <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
           </button>
+        </div>
+      </div>
+
+      {/* ── Commercial Sales Performance Row (Cash & Credit Sales with View Icons) ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Total Cash Sales Card */}
+        <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/50 p-5 shadow-[0_2px_12px_rgba(16,185,129,0.06)] hover:shadow-md transition relative flex flex-col justify-between group">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/90 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                <Banknote size={13} className="text-emerald-700" /> Cash Sales
+              </span>
+              <p className="mt-2.5 text-2xl font-black text-slate-900 tracking-tight tabular-nums">
+                {formatETB(data.totalCashSales || 0)}
+              </p>
+            </div>
+            {/* Direct View Transactions Icon Button */}
+            <button
+              onClick={() => navigate('/transactions?voucherType=cash_sale')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 transition hover:scale-105 active:scale-95"
+              title="View Cash Sales Transactions"
+            >
+              <Eye size={18} />
+            </button>
+          </div>
+          <div className="mt-4 flex items-center justify-between border-t border-emerald-100/80 pt-3 text-xs">
+            <span className="font-semibold text-slate-500">
+              {data.cashSalesCount || 0} completed transactions
+            </span>
+            <button
+              onClick={() => navigate('/transactions?voucherType=cash_sale')}
+              className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-900 transition"
+            >
+              View Transactions <ArrowRight size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* Total Credit Sales Card */}
+        <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-white to-indigo-50/50 p-5 shadow-[0_2px_12px_rgba(99,102,241,0.06)] hover:shadow-md transition relative flex flex-col justify-between group">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100/90 px-2.5 py-0.5 text-[11px] font-bold text-indigo-800 border border-indigo-200">
+                <CreditCard size={13} className="text-indigo-700" /> Credit Sales
+              </span>
+              <p className="mt-2.5 text-2xl font-black text-slate-900 tracking-tight tabular-nums">
+                {formatETB(data.totalCreditSales || 0)}
+              </p>
+            </div>
+            {/* Direct View Transactions Icon Button */}
+            <button
+              onClick={() => navigate('/transactions?voucherType=credit_sale')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs hover:bg-indigo-700 transition hover:scale-105 active:scale-95"
+              title="View Credit Sales Transactions"
+            >
+              <Eye size={18} />
+            </button>
+          </div>
+          <div className="mt-4 flex items-center justify-between border-t border-indigo-100/80 pt-3 text-xs">
+            <span className="font-semibold text-slate-500">
+              {data.creditSalesCount || 0} credit records
+            </span>
+            <button
+              onClick={() => navigate('/transactions?voucherType=credit_sale')}
+              className="inline-flex items-center gap-1 font-bold text-indigo-700 hover:text-indigo-900 transition"
+            >
+              View Transactions <ArrowRight size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* Total Gross Sales Revenue Card */}
+        <div className="rounded-2xl border border-blue-200/80 bg-gradient-to-br from-white to-blue-50/50 p-5 shadow-[0_2px_12px_rgba(37,99,235,0.06)] hover:shadow-md transition relative flex flex-col justify-between group sm:col-span-2 lg:col-span-1">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100/90 px-2.5 py-0.5 text-[11px] font-bold text-blue-800 border border-blue-200">
+                <BadgeDollarSign size={13} className="text-blue-700" /> Total Sales (Cash + Credit)
+              </span>
+              <p className="mt-2.5 text-2xl font-black text-slate-900 tracking-tight tabular-nums">
+                {formatETB(data.totalSales || 0)}
+              </p>
+            </div>
+            {/* Direct View All Sales Transactions Icon Button */}
+            <button
+              onClick={() => navigate('/transactions?voucherType=sales')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs hover:bg-blue-700 transition hover:scale-105 active:scale-95"
+              title="View All Sales Transactions"
+            >
+              <Eye size={18} />
+            </button>
+          </div>
+          <div className="mt-4 flex items-center justify-between border-t border-blue-100/80 pt-3 text-xs">
+            <span className="font-semibold text-slate-500">
+              {data.totalSalesCount || 0} total sales vouchers
+            </span>
+            <button
+              onClick={() => navigate('/transactions?voucherType=sales')}
+              className="inline-flex items-center gap-1 font-bold text-blue-700 hover:text-blue-900 transition"
+            >
+              View All Sales <ArrowRight size={12} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -815,17 +945,34 @@ export default function Dashboard() {
                         </span>
                         <span>by {t.performedBy?.name || 'System'}</span>
                         {t.supplier?.name && <span>• {t.supplier.name}</span>}
+                        {t.customerName && <span>• {t.customerName}</span>}
                       </div>
                     </div>
                   </div>
 
-                  <div className="text-right flex-shrink-0 text-[11px] text-ink-400 whitespace-nowrap">
-                    {new Date(t.date || t.createdAt).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                  <div className="text-right flex-shrink-0 flex items-center gap-2.5">
+                    <div>
+                      {t.totalAmount > 0 && (
+                        <p className="text-xs font-bold text-slate-800 tabular-nums">
+                          {formatCompactETB(t.totalAmount)}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-slate-400">
+                        {new Date(t.date || t.createdAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate(t.voucherType?.includes('sale') ? `/transactions?voucherType=${t.voucherType}` : '/transactions')}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                      title="View in Transactions"
+                    >
+                      <Eye size={14} />
+                    </button>
                   </div>
                 </div>
               );

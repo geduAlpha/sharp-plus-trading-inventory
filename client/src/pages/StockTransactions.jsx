@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Plus, Trash2, Search, CircleArrowDown, CircleArrowUp,
   ShoppingBag, CreditCard, Flame, TrendingDown, TrendingUp, Leaf, X, Eye, Paperclip, Pencil,
@@ -23,6 +24,11 @@ const VOUCHERS = [
 ];
 const LEGACY_VOUCHERS = {
   fresh_bazaar: { key: 'fresh_bazaar', label: 'Fresh Bazaar', fullLabel: 'Fresh Bazaar Receiving Voucher', icon: Leaf, badgeCls: 'bg-lime-100 text-lime-700', activeCls: 'bg-lime-600', direction: 'in', needsSupplier: false, needsCost: true, description: 'Fresh market / direct purchase receiving' },
+  cash_sale: { key: 'cash_sale', label: 'Cash Sale', fullLabel: 'Cash Sale Voucher', icon: ShoppingBag, badgeCls: 'bg-emerald-100 text-emerald-800', activeCls: 'bg-emerald-600', direction: 'out', needsSupplier: false, needsCost: false, description: 'Goods sold and paid in cash' },
+  credit_sale: { key: 'credit_sale', label: 'Credit Sale', fullLabel: 'Credit Sale Voucher', icon: CreditCard, badgeCls: 'bg-indigo-100 text-indigo-800', activeCls: 'bg-indigo-600', direction: 'out', needsSupplier: false, needsCost: false, description: 'Goods sold on credit to customer' },
+  cash_sales: { key: 'cash_sales', label: 'Cash Sale', fullLabel: 'Cash Sale Voucher', icon: ShoppingBag, badgeCls: 'bg-emerald-100 text-emerald-800', activeCls: 'bg-emerald-600', direction: 'out', needsSupplier: false, needsCost: false, description: 'Goods sold and paid in cash' },
+  credit_sales: { key: 'credit_sales', label: 'Credit Sale', fullLabel: 'Credit Sale Voucher', icon: CreditCard, badgeCls: 'bg-indigo-100 text-indigo-800', activeCls: 'bg-indigo-600', direction: 'out', needsSupplier: false, needsCost: false, description: 'Goods sold on credit to customer' },
+  sales: { key: 'sales', label: 'Sales (All)', fullLabel: 'All Sales Transactions', icon: ShoppingBag, badgeCls: 'bg-blue-100 text-blue-800', activeCls: 'bg-blue-600', direction: 'out', needsSupplier: false, needsCost: false, description: 'All cash and credit sales' },
 };
 const voucherByKey = { ...LEGACY_VOUCHERS, ...Object.fromEntries(VOUCHERS.map(v => [v.key, v])) };
 const emptyItem = () => ({ material: '', quantity: '', unitCost: '' });
@@ -35,8 +41,9 @@ export default function StockTransactions({ defaultVoucher } = {}) {
   const canDelete = can('voidTransactions');
   const isAdmin   = hasRole('admin');
 
-  // filterType comes from sidebar navigation (defaultVoucher) or stays null (All)
-  const filterType = defaultVoucher ?? null;
+  const [searchParams] = useSearchParams();
+  // filterType comes from sidebar navigation (defaultVoucher), URL search query, or stays null (All)
+  const filterType = defaultVoucher ?? searchParams.get('voucherType') ?? null;
 
   const [transactions, setTransactions] = useState([]);
   const [selected,     setSelected]     = useState(new Set());
@@ -421,7 +428,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-ink-700 max-w-[180px] truncate" title={matSummary}>{matSummary}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-xs text-ink-500">{t.supplier?.name || '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs text-ink-500">{t.supplier?.name || t.customerName || (t.voucherType?.includes('sale') ? 'Customer' : '—')}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-right tabular font-medium text-ink-800">
                     {t.totalAmount ? `ETB ${t.totalAmount.toFixed(2)}` : '—'}
                   </td>
