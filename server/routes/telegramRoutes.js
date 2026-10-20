@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { handleWebhook, getSubscribers, addSubscriber, updateSubscriberPhone, removeSubscriber } = require('../controllers/telegramController');
+const { handleWebhook, setWebhook, getSubscribers, addSubscriber, updateSubscriberPhone, removeSubscriber } = require('../controllers/telegramController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
 // Telegram calls this — no auth needed
@@ -11,5 +11,6 @@ router.get('/subscribers',                   protect, authorize('admin'), getSub
 router.post('/subscribers',                  protect, authorize('admin'), addSubscriber);
 router.put('/subscribers/:chatId/phone',     protect, authorize('admin'), updateSubscriberPhone);
 router.delete('/subscribers/:chatId',        protect, authorize('admin'), removeSubscriber);
+router.post('/set-webhook',                  protect, authorize('admin'), setWebhook);
 
 module.exports = router;

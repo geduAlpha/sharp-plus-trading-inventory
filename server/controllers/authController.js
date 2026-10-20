@@ -256,18 +256,19 @@ const requestOtp = asyncHandler(async (req, res) => {
 
   let matchedSub = subscribers.find(s => s.phone && normalize(s.phone) === normalize(normalized));
 
-  // If no subscriber has this exact phone yet, auto-link it to the active Telegram subscriber
-  // (e.g. Gedamu Walelgn who just subscribed via /start)
-  if (!matchedSub && subscribers.length > 0) {
-    const targetSub = subscribers.find(s => !s.phone) || subscribers[subscribers.length - 1];
-    if (targetSub && targetSub.chatId) {
-      targetSub.phone = normalized;
-      matchedSub = targetSub;
+  // If no subscriber has this exact phone yet:
+  // Only auto-link if there is exactly ONE subscriber (single-admin setup).
+  // For multi-user setups, require an explicit phone match to avoid OTP cross-contamination.
+  if (!matchedSub && subscribers.length === 1) {
+    const onlySub = subscribers[0];
+    if (onlySub && onlySub.chatId) {
+      onlySub.phone = normalized;
+      matchedSub = onlySub;
       settings.telegramSubscribers = subscribers;
       settings.markModified('telegramSubscribers');
       await settings.save();
       if (saveSubscribersToFile) saveSubscribersToFile(subscribers);
-      console.log(`[OTP] Successfully linked phone ${normalized} to Telegram subscriber ${targetSub.name} (Chat ID: ${targetSub.chatId})`);
+      console.log(`[OTP] Auto-linked phone ${normalized} to single subscriber ${onlySub.name} (Chat ID: ${onlySub.chatId})`);
     }
   }
 
@@ -282,7 +283,14 @@ const requestOtp = asyncHandler(async (req, res) => {
 
   if (!matchedSub || !matchedSub.chatId) {
     res.status(403);
-    throw new Error('Please open Telegram, go to @SharpPlusBot and send your phone number (0912627366) or /start so the bot can deliver your code.');
+    throw new Error(
+      'Phone number not linked to any Telegram account.\n\n' +
+      'Steps to fix:\n' +
+      '1. Open Telegram and search for @SharpPlusBot\n' +
+      '2. Send /start to the bot\n' +
+      '3. Reply with your phone number (e.g. 0912627366)\n' +
+      '4. Then try OTP again from the login page.'
+    );
   }
 
   // ── Find the system user whose phone matches (optional) ─────────

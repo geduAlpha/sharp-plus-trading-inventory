@@ -65,16 +65,17 @@ async function handleMessage(message) {
   if (text === '/start' || text.startsWith('/subscribe')) {
     let sub = subscribers.find(s => String(s.chatId) === String(chatId));
     if (!sub) {
+      // Register subscriber WITHOUT a phone — they must send their own
       sub = {
         chatId: String(chatId),
         name,
         username,
-        phone: '0912627366',
+        phone: null,          // ← no phone pre-assigned; user must send it
         subscribedAt: new Date(),
       };
       subscribers.push(sub);
     } else {
-      if (!sub.phone) sub.phone = '0912627366';
+      // Update name/username but never overwrite an existing phone
       sub.name = name;
       sub.username = username;
     }
@@ -84,10 +85,14 @@ async function handleMessage(message) {
     await settings.save();
     saveSubscribersToFile(subscribers);
 
+    const phoneStatus = sub.phone
+      ? `📱 Linked Phone: <b>${sub.phone}</b>\n\nYou can request login OTPs using this number.`
+      : `📱 <b>Phone not linked yet.</b>\n\nTo receive OTP codes, please reply with your Ethiopian phone number (e.g. <b>09XXXXXXXX</b> or <b>+2519XXXXXXXX</b>).`;
+
     await reply(chatId,
-      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n✅ <b>Subscribed successfully!</b>\n\nWelcome, <b>${name}</b>!\n📱 Linked Phone: <b>${sub.phone}</b>\n\nYou can now request login OTPs using <b>${sub.phone}</b>.\n━━━━━━━━━━━━━━━━━━━━`
+      `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n✅ <b>Subscribed!</b>\n\nWelcome, <b>${name}</b>!\n\n${phoneStatus}\n━━━━━━━━━━━━━━━━━━━━`
     );
-    console.log(`[Telegram] Subscribed/updated: ${name} (Chat ID: ${chatId}, Phone: ${sub.phone})`);
+    console.log(`[Telegram] Subscribed/updated: ${name} (Chat ID: ${chatId}, Phone: ${sub.phone || 'not linked'})`);
     return;
   }
 
@@ -193,8 +198,39 @@ function startPolling() {
   poll();
 }
 
-if (BOT_TOKEN) {
+// ── Auto-start polling only in DEV (no PUBLIC_URL) ─────────────────
+// In production (Aletcloud), Telegram pushes updates via webhook instead.
+// Polling and webhook CANNOT run simultaneously.
+if (BOT_TOKEN && !process.env.PUBLIC_URL) {
   startPolling();
+} else if (BOT_TOKEN && process.env.PUBLIC_URL) {
+  // Register webhook with Telegram so production receives messages reliably
+  const webhookUrl = `${process.env.PUBLIC_URL.replace(/\/+$/, '')}/api/telegram/webhook`;
+  const https = require('https');
+  const body = JSON.stringify({ url: webhookUrl, drop_pending_updates: true });
+  const options = {
+    hostname: 'api.telegram.org',
+    path: `/bot${BOT_TOKEN}/setWebhook`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  };
+  const req = https.request(options, res => {
+    let raw = '';
+    res.on('data', d => { raw += d; });
+    res.on('end', () => {
+      try {
+        const data = JSON.parse(raw);
+        if (data.ok) {
+          console.log(`[Telegram] Webhook registered: ${webhookUrl}`);
+        } else {
+          console.warn('[Telegram] Webhook registration failed:', data.description);
+        }
+      } catch { }
+    });
+  });
+  req.on('error', e => console.warn('[Telegram] Webhook setup error:', e.message));
+  req.write(body);
+  req.end();
 }
 
 // ── POST /api/telegram/subscribers (admin only) ──────────────────
@@ -287,8 +323,49 @@ const removeSubscriber = asyncHandler(async (req, res) => {
   res.json({ message: 'Subscriber removed.' });
 });
 
+// ── POST /api/telegram/set-webhook (admin only) ─────────────────
+// Manually re-register the Telegram webhook (useful after redeployment).
+const setWebhook = asyncHandler(async (req, res) => {
+  const publicUrl = process.env.PUBLIC_URL;
+  if (!publicUrl) {
+    res.status(400);
+    throw new Error('PUBLIC_URL is not set. Set it in your Aletcloud environment variables.');
+  }
+  const webhookUrl = `${publicUrl.replace(/\/+$/, '')}/api/telegram/webhook`;
+  const https = require('https');
+  const body = JSON.stringify({ url: webhookUrl, drop_pending_updates: true });
+  const options = {
+    hostname: 'api.telegram.org',
+    path: `/bot${BOT_TOKEN}/setWebhook`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  };
+  await new Promise((resolve, reject) => {
+    const request = https.request(options, (r) => {
+      let raw = '';
+      r.on('data', d => { raw += d; });
+      r.on('end', () => {
+        try {
+          const data = JSON.parse(raw);
+          if (data.ok) {
+            console.log(`[Telegram] Webhook set to: ${webhookUrl}`);
+            res.json({ message: 'Webhook registered.', url: webhookUrl });
+          } else {
+            res.status(500).json({ message: 'Telegram rejected webhook', detail: data.description });
+          }
+        } catch (e) { reject(e); }
+        resolve();
+      });
+    });
+    request.on('error', reject);
+    request.write(body);
+    request.end();
+  });
+});
+
 module.exports = {
   handleWebhook,
+  setWebhook,
   getSubscribers,
   addSubscriber,
   updateSubscriberPhone,

@@ -210,8 +210,8 @@ const Sidebar = ({ open, onClose, collapsed = false }) => {
   const onTransactions = location.pathname.startsWith('/transactions');
   const onReports = location.pathname.startsWith('/reports');
   const onSales = location.pathname.startsWith('/sales');
-  const onAll ID's = [
-  '/materials', '/products', '/employees', '/suppliers'
+  const onAllItems = [
+    '/materials', '/products', '/employees', '/suppliers'
   ].some(p => location.pathname.startsWith(p));
 const onStoreOps = [
   '/transactions', '/consumption', '/stock-requests'
@@ -219,20 +219,20 @@ const onStoreOps = [
 
 // Accordion: only one menu open at a time
 const initialOpen =
-  onAll ID's ? 'All ID's' :
-onStoreOps ? 'storeOps' :
+  onAllItems ? 'allItems' :
+  onStoreOps ? 'storeOps' :
   onSales ? 'sales' :
-    onReports ? 'reports' : null;
+  onReports ? 'reports' : null;
 
 const [openMenu, setOpenMenu] = useState(initialOpen);
 
 // Auto-open the matching section when route changes
 React.useEffect(() => {
-  if (onAll ID's)     setOpenMenu('All ID's');
-    else if (onStoreOps) setOpenMenu('storeOps');
-else if (onSales) setOpenMenu('sales');
-else if (onReports) setOpenMenu('reports');
-  }, [onAll ID's, onStoreOps, onSales, onReports]);
+  if (onAllItems)       setOpenMenu('allItems');
+  else if (onStoreOps)  setOpenMenu('storeOps');
+  else if (onSales)     setOpenMenu('sales');
+  else if (onReports)   setOpenMenu('reports');
+}, [onAllItems, onStoreOps, onSales, onReports]);
 
   const toggleMenu = (key) => setOpenMenu(prev => (prev === key ? null : key));
 
@@ -331,20 +331,20 @@ return (
         {(canSeeNav('Items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('staffAccounts')) && (
           collapsed ? (
             <NavLink to="/materials" onClick={onClose} title="All ID's"
-              className={({ isActive }) => linkCls(isActive || onAll ID's)}>
-                {({ isActive }) => (
-        <span className={iconSpan(isActive || onAll ID's)}>
-          < FolderOpen size = { 15} strokeWidth = { 2} />
-                  </span>
-                )}
+      className={({ isActive }) => linkCls(isActive || onAllItems)}>
+      {({ isActive }) => (
+        <span className={iconSpan(isActive || onAllItems)}>
+          <FolderOpen size={15} strokeWidth={2} />
+        </span>
+      )}
     </NavLink>
     ) : (
     <CollapsibleNav
       label="All ID's"
       icon={FolderOpen}
-      isActive={onAll ID's}
-    open={openMenu === 'All ID's'}
-    onToggle={() => toggleMenu('All ID's')}
+      isActive={onAllItems}
+      open={openMenu === 'allItems'}
+      onToggle={() => toggleMenu('allItems')}
                 collapsed = { collapsed }
       >
       { canSeeNav('Items') && <SubLink to="/materials" label="Items" icon={Boxes} onClick={onClose} />}

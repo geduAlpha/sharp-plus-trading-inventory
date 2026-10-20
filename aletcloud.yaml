@@ -44,11 +44,22 @@ services:
     env:
       NODE_ENV: production
       PORT: "5000"
-      # The following are SECRET — set them ONLY in the Aletcloud dashboard
-      # MONGO_URI: <set in dashboard>
-      # JWT_SECRET: <set in dashboard>
+      # ── REQUIRED: Set these in the Aletcloud dashboard ──────────
+      # MONGO_URI: <your MongoDB Atlas connection string>
+      # JWT_SECRET: <your long random secret>
       # JWT_EXPIRES_IN: 7d
-      # PUBLIC_URL: https://<your-app-name>.aletcloud.com
+      #
+      # ── CRITICAL for OTP to work on Aletcloud ───────────────────
+      # Set PUBLIC_URL to your exact Aletcloud app URL.
+      # This enables:
+      #   1. Telegram bot switches from polling → webhook (OTP delivery)
+      #   2. Keep-alive self-pings every 10 min (no cold starts)
+      #   3. CORS auto-allowlist for your domain
+      # PUBLIC_URL: https://your-app-name.aletcloud.com
+      #
+      # ── Telegram Bot (for OTP login codes) ──────────────────────
+      # TELEGRAM_BOT_TOKEN: <your bot token from @BotFather>
+      # TELEGRAM_CHAT_ID: <your personal Telegram chat ID>
 
     # Health check endpoint — Aletcloud uses this to know when the app is ready
     healthcheck:
