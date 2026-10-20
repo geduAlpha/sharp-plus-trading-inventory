@@ -6,6 +6,14 @@ console.log('[STARTUP] NODE_ENV:', process.env.NODE_ENV);
 console.log('[STARTUP] PORT:', process.env.PORT);
 console.log('[STARTUP] MONGO_URI set:', !!process.env.MONGO_URI);
 console.log('[STARTUP] JWT_SECRET set:', !!process.env.JWT_SECRET);
+
+// ── Process-level error protection for Node v26 ────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT EXCEPTION]:', err?.message || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[UNHANDLED REJECTION]:', reason?.message || reason);
+});
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -205,7 +213,7 @@ const PORT = process.env.PORT || 5000;
 
 // Listen on port unless we are in Vercel's serverless environment
 if (!process.env.VERCEL) {
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT} (0.0.0.0)`);
 
     // ── Keep-alive ping every 10 minutes ──────────────────────────
@@ -234,6 +242,16 @@ if (!process.env.VERCEL) {
       }, INTERVAL);
 
       console.log(`[KEEP-ALIVE] Server ping active every 10 min → ${publicUrl}/api/health`);
+    }
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n[PORT CONFLICT] Port ${PORT} is already in use by another instance.`);
+      console.error(`Please stop any other running server before starting.\n`);
+      process.exit(1);
+    } else {
+      console.error('[SERVER ERROR]:', err.message);
     }
   });
 }
