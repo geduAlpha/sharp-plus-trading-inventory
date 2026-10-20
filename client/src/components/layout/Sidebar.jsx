@@ -310,29 +310,6 @@ return (
         </NavLink>
       </div>
 
-      {/* ── User Profile Card (like Aone Admin "Welcome Joan Wilkins") ── */}
-      {!collapsed && (
-        <div className="mx-3 mt-3.5 mb-2 rounded-xl bg-slate-50 border border-slate-200/70 p-3 flex items-center gap-3">
-          <div className="relative shrink-0">
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user?.name} className="h-10 w-10 rounded-full object-cover ring-2 ring-white shadow-xs" />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 font-bold text-white text-sm shadow-xs">
-                {user?.name?.[0]?.toUpperCase()}
-              </div>
-            )}
-            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium text-slate-400 leading-tight">Welcome</p>
-            <p className="truncate text-xs font-bold text-slate-800 leading-tight">{user?.name}</p>
-            <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold border capitalize ${roleBadges[user?.role] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-              {user?.role}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* ── Nav ── */}
       <nav className="relative flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2.5 py-2
           scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200">
