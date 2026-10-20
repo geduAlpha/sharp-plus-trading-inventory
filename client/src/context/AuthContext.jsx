@@ -98,6 +98,7 @@ export const DEFAULT_PERMISSIONS = {
 export const DEFAULT_NAV_VISIBILITY = {
   dashboard: { storekeeper: true, manager: true, admin: true },
   Items: { storekeeper: true, manager: true, admin: true },
+  items: { storekeeper: true, manager: true, admin: true },
   products: { storekeeper: true, manager: true, admin: true },
   stockMovements: { storekeeper: true, manager: true, admin: true },
   salesMarketing: { storekeeper: true, manager: true, admin: true },
@@ -291,9 +292,16 @@ export const AuthProvider = ({ children }) => {
   const canSeeNav = (navKey) => {
     if (!user) return false;
     const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
-    const entry = nav[navKey];
+    const entry =
+      nav[navKey] ||
+      nav[navKey.toLowerCase()] ||
+      (navKey.toLowerCase() === 'items' ? (nav['Items'] || nav['items'] || nav['rawMaterials']) : undefined);
     if (!entry) return true;
-    return Boolean(entry[user.role]);
+    if (entry[user.role] !== undefined) return Boolean(entry[user.role]);
+    if (user.role === 'admin') return true;
+    const def = DEFAULT_NAV_VISIBILITY[navKey] || DEFAULT_NAV_VISIBILITY[navKey.toLowerCase()];
+    if (def && def[user.role] !== undefined) return Boolean(def[user.role]);
+    return true;
   };
 
   const refreshPermissions = async (newSettings) => {

@@ -318,32 +318,30 @@ return (
         {canSeeNav('dashboard') && navLink('/', LayoutDashboard, 'Dashboard', true)}
 
         {/* ── All ID's folder: Items, Products, Employees, Suppliers ── */}
-        {(canSeeNav('Items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('staffAccounts')) && (
-          collapsed ? (
-            <NavLink to="/materials" onClick={onClose} title="All ID's"
-      className={({ isActive }) => linkCls(isActive || onAllItems)}>
-      {({ isActive }) => (
-        <span className={iconSpan(isActive || onAllItems)}>
-          <FolderOpen size={15} strokeWidth={2} />
-        </span>
-      )}
-    </NavLink>
-    ) : (
-    <CollapsibleNav
-      label="All ID's"
-      icon={FolderOpen}
-      isActive={onAllItems}
-      open={openMenu === 'allItems'}
-      onToggle={() => toggleMenu('allItems')}
-                collapsed = { collapsed }
-      >
-      { canSeeNav('Items') && <SubLink to="/materials" label="Items" icon={Boxes} onClick={onClose} />}
-    {canSeeNav('products') && <SubLink to="/products" label="Products" icon={UtensilsCrossed} onClick={onClose} />}
-    {canSeeNav('staffAccounts') && <SubLink to="/employees" label="Employees" icon={UserCog} onClick={onClose} />}
-    {canSeeNav('suppliers') && <SubLink to="/suppliers" label="Suppliers" icon={Truck} onClick={onClose} />}
-  </CollapsibleNav >
-            )
-          )}
+        {collapsed ? (
+          <NavLink to="/materials" onClick={onClose} title="All ID's"
+            className={({ isActive }) => linkCls(isActive || onAllItems)}>
+            {({ isActive }) => (
+              <span className={iconSpan(isActive || onAllItems)}>
+                <FolderOpen size={15} strokeWidth={2} />
+              </span>
+            )}
+          </NavLink>
+        ) : (
+          <CollapsibleNav
+            label="All ID's"
+            icon={FolderOpen}
+            isActive={onAllItems}
+            open={openMenu === 'allItems'}
+            onToggle={() => toggleMenu('allItems')}
+            collapsed={collapsed}
+          >
+            <SubLink to="/materials" label="Items" icon={Boxes} onClick={onClose} />
+            {canSeeNav('products') && <SubLink to="/products" label="Products" icon={UtensilsCrossed} onClick={onClose} />}
+            {canSeeNav('staffAccounts') && <SubLink to="/employees" label="Employees" icon={UserCog} onClick={onClose} />}
+            {canSeeNav('suppliers') && <SubLink to="/suppliers" label="Suppliers" icon={Truck} onClick={onClose} />}
+          </CollapsibleNav>
+        )}
 
 { canSeeNav('analytics') && navLink('/analytics', TrendingUp, 'Analytics & P&L') }
 
