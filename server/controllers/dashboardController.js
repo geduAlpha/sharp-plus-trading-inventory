@@ -37,6 +37,7 @@ const getSummary = asyncHandler(async (req, res) => {
     monthPurchases,
     weekTransactions,
     recentTransactions,
+    salesTransactions,
   ] = await Promise.all([
     RawMaterial.find({ isActive: true })
       .select('name category unit currentStock reorderLevel unitCost')
