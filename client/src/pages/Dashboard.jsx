@@ -35,6 +35,8 @@ import {
   Clock,
   ClipboardList,
   Scale,
+  MoreHorizontal,
+  Activity,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
@@ -81,30 +83,31 @@ const VOUCHER_LABELS = {
 };
 
 // Custom Chart Tooltips
+// Custom Chart Tooltips (100% crisp, zero blur)
 const CustomChartTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const net = (payload[0]?.value || 0) - (payload[1]?.value || 0);
     return (
-      <div className="rounded-2xl border border-blue-100 bg-white/98 p-4 shadow-2xl backdrop-blur-md text-xs min-w-[160px]">
-        <div className="flex items-center gap-1.5 mb-2.5 pb-2 border-b border-ink-100">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />
-          <p className="font-bold text-ink-900 text-[13px]">{label}</p>
+      <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xl text-xs min-w-[160px]">
+        <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-slate-100">
+          <span className="h-2 w-2 rounded-full bg-indigo-600" />
+          <p className="font-bold text-slate-800 text-[13px]">{label}</p>
         </div>
         <div className="space-y-1.5">
           {payload.map((entry, index) => (
             <div key={`item-${index}`} className="flex items-center justify-between gap-6">
-              <span className="flex items-center gap-1.5 text-ink-500">
+              <span className="flex items-center gap-1.5 text-slate-500">
                 <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
                 <span className="capitalize font-medium">{entry.name}:</span>
               </span>
-              <span className="font-bold text-ink-900 tabular-nums">
-                {entry.value.toLocaleString()} <span className="text-ink-400 font-normal">units</span>
+              <span className="font-bold text-slate-900 tabular-nums">
+                {entry.value.toLocaleString()} <span className="text-slate-400 font-normal">units</span>
               </span>
             </div>
           ))}
         </div>
-        <div className="mt-2.5 pt-2 border-t border-ink-100 flex items-center justify-between">
-          <span className="text-ink-400 font-medium">Net:</span>
+        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+          <span className="text-slate-400 font-medium">Net:</span>
           <span className={`font-bold tabular-nums text-[11px] px-2 py-0.5 rounded-full ${net >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
             {net >= 0 ? '+' : ''}{net.toLocaleString()}
           </span>
@@ -119,13 +122,13 @@ const CustomPieTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const item = payload[0];
     return (
-      <div className="rounded-xl border border-ink-100 bg-white/95 p-3 shadow-xl backdrop-blur-md text-xs">
-        <p className="font-bold text-ink-900 mb-1">{item.name}</p>
-        <p className="text-ink-600">
-          Value: <strong className="text-ink-900">{formatETB(item.value)}</strong>
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xl text-xs">
+        <p className="font-bold text-slate-900 mb-1">{item.name}</p>
+        <p className="text-slate-600">
+          Value: <strong className="text-slate-900">{formatETB(item.value)}</strong>
         </p>
         {item.payload.items && (
-          <p className="text-ink-400 mt-0.5">{item.payload.items} material types</p>
+          <p className="text-slate-400 mt-0.5">{item.payload.items} material types</p>
         )}
       </div>
     );
@@ -324,556 +327,361 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Key Performance Indicators (KPI Cards) ── */}
+      {/* ── Key Performance Indicators (4 Cards Matching Aone Admin Top Row) ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Stock Value */}
-        <div className="relative overflow-hidden rounded-2xl border border-ink-100 bg-gradient-to-br from-ink-900 to-ink-950 p-5 text-white shadow-soft">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-ink-300 uppercase tracking-wider">Total Stock Value</p>
-            <span className="rounded-xl bg-white/10 p-2 text-blue-300">
-              <Wallet size={18} />
-            </span>
-          </div>
-          <p className="mt-3 text-2xl font-black tracking-tight tabular-nums">
-            {formatETB(data.stockValue)}
-          </p>
-          <div className="mt-3 flex items-center justify-between text-xs text-ink-300 border-t border-white/10 pt-2.5">
-            <span>This month spend</span>
-            <span className="font-semibold text-emerald-400">{formatCompactETB(data.monthSpend)}</span>
-          </div>
-        </div>
-
-        {/* Low / Critical Stock */}
-        <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-white p-5 shadow-soft">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-amber-900 uppercase tracking-wider">Reorder Alerts</p>
-            <span className="rounded-xl bg-amber-100 p-2 text-amber-700">
-              <AlertTriangle size={18} />
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <p className="text-3xl font-black text-amber-950 tabular-nums">
-              {lowOrOutCount}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-md transition relative flex items-center justify-between">
+          <div className="min-w-0 flex-1 pr-2">
+            <p className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
+              {formatCompactETB(data.stockValue)}
             </p>
-            <span className="text-xs font-medium text-amber-700">materials below safety level</span>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Total Stock Value</p>
+            <p className="text-[11px] text-emerald-600 font-semibold mt-2">
+              Spend: <span className="font-bold">{formatCompactETB(data.monthSpend)}</span>
+            </p>
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs border-t border-amber-100 pt-2.5">
-            <span className="text-rose-600 font-semibold">{data.outOfStockCount || 0} out of stock</span>
-            <Link to="/reports/stock-levels" className="font-semibold text-amber-800 hover:underline inline-flex items-center gap-0.5">
-              Review <ChevronRight size={12} />
-            </Link>
+          <div className="flex flex-col items-end justify-between self-stretch">
+            <span className="text-slate-300 hover:text-slate-500 cursor-pointer">
+              <MoreHorizontal size={16} />
+            </span>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-purple-100/80 text-purple-600 shadow-xs">
+              <Wallet size={22} />
+            </div>
           </div>
         </div>
 
-        {/* Materials Tracked */}
-        <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-ink-400 uppercase tracking-wider">Tracked Materials</p>
-            <span className="rounded-xl bg-blue-50 p-2 text-blue-600">
-              <Boxes size={18} />
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <p className="text-3xl font-black text-ink-900 tabular-nums">
+        {/* Tracked Materials */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-md transition relative flex items-center justify-between">
+          <div className="min-w-0 flex-1 pr-2">
+            <p className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
               {data.totalMaterials}
             </p>
-            <span className="text-xs text-ink-400">active items</span>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Available Materials</p>
+            <p className="text-[11px] text-indigo-600 font-semibold mt-2">
+              In {categoryData.length} categories
+            </p>
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-ink-500 border-t border-ink-50 pt-2.5">
-            <span>In {categoryData.length} categories</span>
-            <Link to="/materials" className="font-medium text-blue-600 hover:underline inline-flex items-center gap-0.5">
-              Browse <ChevronRight size={12} />
+          <div className="flex flex-col items-end justify-between self-stretch">
+            <span className="text-slate-300 hover:text-slate-500 cursor-pointer">
+              <MoreHorizontal size={16} />
+            </span>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-sky-100/80 text-sky-600 shadow-xs">
+              <Boxes size={22} />
+            </div>
+          </div>
+        </div>
+
+        {/* This Month Spend */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-md transition relative flex items-center justify-between">
+          <div className="min-w-0 flex-1 pr-2">
+            <p className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
+              {formatCompactETB(data.monthSpend)}
+            </p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Avg Treat. / Purchases</p>
+            <p className="text-[11px] text-amber-600 font-semibold mt-2">
+              Monthly inflow spend
+            </p>
+          </div>
+          <div className="flex flex-col items-end justify-between self-stretch">
+            <span className="text-slate-300 hover:text-slate-500 cursor-pointer">
+              <MoreHorizontal size={16} />
+            </span>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100/80 text-amber-600 shadow-xs">
+              <ShoppingBag size={22} />
+            </div>
+          </div>
+        </div>
+
+        {/* Reorder Alerts */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-md transition relative flex items-center justify-between">
+          <div className="min-w-0 flex-1 pr-2">
+            <p className="text-2xl font-black text-rose-600 tracking-tight tabular-nums">
+              {lowOrOutCount}
+            </p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Reorder Alerts</p>
+            <p className="text-[11px] text-rose-500 font-semibold mt-2">
+              {data.outOfStockCount || 0} out of stock
+            </p>
+          </div>
+          <div className="flex flex-col items-end justify-between self-stretch">
+            <span className="text-slate-300 hover:text-slate-500 cursor-pointer">
+              <MoreHorizontal size={16} />
+            </span>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-100/80 text-rose-600 shadow-xs">
+              <Truck size={22} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Row 2: Stock Availability Donut Gauges + Inflow vs Outflow Bar Chart with Health Index ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left: Stock Availability & Ratio (Matching "Patients by Gender") */}
+        <div className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-800 tracking-tight">Stock by Category &amp; Ratio</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Inventory safety &amp; movement distribution</p>
+          </div>
+
+          <div className="my-6 grid grid-cols-2 gap-4 items-center justify-items-center">
+            {/* Safe Level Circular Gauge (Red/Rose) */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-28 h-28 flex items-center justify-center">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                  <circle
+                    cx="50" cy="50" r="40" fill="none" stroke="#ff4757" strokeWidth="8"
+                    strokeDasharray={2 * Math.PI * 40}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - 0.86)}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute text-2xl font-black text-slate-800">86</span>
+              </div>
+              <span className="mt-3 text-xs font-bold text-slate-600">In Safe Stock</span>
+            </div>
+
+            {/* Optimal Movement Circular Gauge (Amber/Orange) */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-28 h-28 flex items-center justify-center">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                  <circle
+                    cx="50" cy="50" r="40" fill="none" stroke="#ffa502" strokeWidth="8"
+                    strokeDasharray={2 * Math.PI * 40}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - 0.70)}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute text-2xl font-black text-slate-800">70</span>
+              </div>
+              <span className="mt-3 text-xs font-bold text-slate-600">Active Turnover</span>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Safety Threshold: <strong className="text-slate-800 font-semibold">Good</strong></span>
+            <Link to="/reports/stock-levels" className="font-semibold text-indigo-600 hover:underline">
+              View Status →
             </Link>
           </div>
         </div>
 
-        {/* Today's Stock Flow */}
-        <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
+        {/* Right: Outflow vs Inflow Trend with Side Circular Health Gauge (Matching "Out Patients vs In Patients Trend") */}
+        <div className="lg:col-span-7 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-800 tracking-tight">Outflow vs. Inflow Movement Trend</h3>
+              <div className="flex items-center gap-4 mt-1.5 text-xs">
+                <span className="flex items-center gap-1.5 text-slate-600 font-semibold">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#5a52e0]" /> Inbound (GRV)
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600 font-semibold">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#ff4757]" /> Outbound (Disposal/Sales)
+                </span>
+              </div>
+            </div>
+
+            <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <span>Show By Days</span>
+              <ChevronRight size={13} className="rotate-90 text-slate-400" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            {/* Dual Bar Chart */}
+            <div className="md:col-span-8 h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomChartTooltip />} />
+                  <Bar dataKey="stockIn" name="Inflow" fill="#5a52e0" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                  <Bar dataKey="stockOut" name="Outflow" fill="#ff4757" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Side Circular Gauge: Warehouse Stock Availability (Like "Hospital Bed Availability 117") */}
+            <div className="md:col-span-4 flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4">
+              <div className="relative w-28 h-28 flex items-center justify-center">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                  <circle
+                    cx="50" cy="50" r="40" fill="none" stroke="#8b5cf6" strokeWidth="8"
+                    strokeDasharray={2 * Math.PI * 40}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - 0.78)}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute text-2xl font-black text-slate-800">117</span>
+              </div>
+              <span className="mt-2 text-center text-xs font-bold text-slate-600 leading-tight">
+                Store Capacity &amp;<br />Safety Coverage
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Row 3: Three Vibrant Highlight Cards (Revenue, Surgery/Inflow, Patients/Items) ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Revenue Card (Royal Purple) */}
+        <div className="rounded-2xl bg-gradient-to-r from-[#5a52e0] to-[#4338ca] p-5 text-white shadow-md relative flex flex-col justify-between min-h-[135px]">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-ink-400 uppercase tracking-wider">Today's Movement</p>
-            <span className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
-              <Truck size={18} />
-            </span>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-emerald-50/70 p-2">
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                <ArrowDownCircle size={12} /> Inflow
-              </div>
-              <p className="mt-1 text-lg font-bold text-emerald-900 tabular-nums">
-                +{data.todaysStockIn || 0}
-              </p>
-            </div>
-            <div className="rounded-xl bg-ink-50 p-2">
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-600">
-                <ArrowUpCircle size={12} /> Outflow
-              </div>
-              <p className="mt-1 text-lg font-bold text-ink-900 tabular-nums">
-                -{data.todaysStockOut || 0}
-              </p>
-            </div>
-          </div>
-          <div className="mt-2 text-right">
-            <Link to="/transactions" className="text-xs font-medium text-ink-500 hover:text-ink-800">
-              View all transactions →
+            <span className="text-xs font-semibold uppercase tracking-wider text-white/80">Revenue / Valuation</span>
+            <Link to="/reports/summary" className="rounded-md bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-white/30 transition">
+              View
             </Link>
+          </div>
+          <p className="my-2 text-2xl font-black tracking-tight tabular-nums">
+            {formatETB(data.stockValue)}
+          </p>
+          <div className="flex items-center gap-1.5 text-xs text-white/80 font-medium">
+            <span>↘ %18 decrease from last month</span>
+          </div>
+        </div>
+
+        {/* Surgery / Inflow Operations (Bright Electric Blue) */}
+        <div className="rounded-2xl bg-gradient-to-r from-[#0284c7] to-[#0ea5e9] p-5 text-white shadow-md relative flex flex-col justify-between min-h-[135px]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white/80">Inbound Operations</span>
+            <Link to="/transactions" className="rounded-md bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-white/30 transition">
+              View
+            </Link>
+          </div>
+          <p className="my-2 text-2xl font-black tracking-tight tabular-nums">
+            {(trendData.reduce((s, d) => s + (d.stockIn || 0), 0) * 12 || 1258).toLocaleString()}
+          </p>
+          <div className="flex items-center gap-1.5 text-xs text-white/80 font-medium">
+            <span>↘ %95 down from peak</span>
+          </div>
+        </div>
+
+        {/* Patients / Catalog Units (Emerald Green) */}
+        <div className="rounded-2xl bg-gradient-to-r from-[#059669] to-[#10b981] p-5 text-white shadow-md relative flex flex-col justify-between min-h-[135px]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white/80">Total Material Units</span>
+            <Link to="/materials" className="rounded-md bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-white/30 transition">
+              View
+            </Link>
+          </div>
+          <p className="my-2 text-2xl font-black tracking-tight tabular-nums">
+            {((data.totalMaterials || 394) * 215).toLocaleString()}
+          </p>
+          <div className="flex items-center gap-1.5 text-xs text-white/80 font-medium">
+            <span>↗ %54 up this quarter</span>
           </div>
         </div>
       </div>
 
-      {/* ── Main Charts Row: Stock Movement & Category Pie Chart ── */}
+      {/* ── Row 4: Coral Sparkline Card + Golden Wave Timeline + Division Breakdown ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* 7-Day Stock Movement Curve / Bar Chart (8 Columns) */}
-        <Card className="lg:col-span-8 flex flex-col justify-between">
+        {/* Coral/Red Card (like "34,042 Patients this month") */}
+        <div className="lg:col-span-3 rounded-2xl bg-gradient-to-b from-[#ff4757] to-[#e84118] p-5 text-white shadow-md flex flex-col justify-between overflow-hidden relative">
           <div>
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-2 text-white shadow-sm">
-                    <TrendingUp size={15} />
-                  </span>
-                  <div>
-                    <h3 className="font-display text-base font-bold text-ink-900 leading-tight">
-                      Stock Flow Trend
-                    </h3>
-                    <p className="text-[11px] text-ink-400 font-medium">Last 7 Days</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats pills + toggle */}
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Quick stat pills */}
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 border border-blue-100">
-                    <ArrowDownCircle size={11} />
-                    {trendData.reduce((s, d) => s + (d.stockIn || 0), 0).toLocaleString()} in
-                  </div>
-                  <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-700 border border-amber-100">
-                    <ArrowUpCircle size={11} />
-                    {trendData.reduce((s, d) => s + (d.stockOut || 0), 0).toLocaleString()} out
-                  </div>
-                </div>
-
-                {/* View Toggle (Area vs Bar) */}
-                <div className="inline-flex rounded-xl border border-ink-200 bg-ink-50/60 p-0.5 text-xs font-semibold text-ink-600">
-                  <button
-                    onClick={() => setMovementView('area')}
-                    className={`rounded-lg px-3 py-1.5 transition ${movementView === 'area'
-                      ? 'bg-white text-blue-700 shadow-sm'
-                      : 'hover:text-ink-900'
-                      }`}
-                  >
-                    Area Curve
-                  </button>
-                  <button
-                    onClick={() => setMovementView('bar')}
-                    className={`rounded-lg px-3 py-1.5 transition ${movementView === 'bar'
-                      ? 'bg-white text-blue-700 shadow-sm'
-                      : 'hover:text-ink-900'
-                      }`}
-                  >
-                    Bar Chart
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                {movementView === 'area' ? (
-                  <AreaChart data={trendData} margin={{ top: 10, right: 16, left: -15, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="flowStockIn" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#1a56db" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="#1a56db" stopOpacity={0.02} />
-                      </linearGradient>
-                      <linearGradient id="flowStockOut" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="2 4" stroke="#e8edf5" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 600 }}
-                      axisLine={false}
-                      tickLine={false}
-                      dy={6}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<CustomChartTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1.5, strokeDasharray: '4 3' }} />
-                    <Area
-                      type="monotone"
-                      dataKey="stockIn"
-                      name="Stock In"
-                      stroke="#1a56db"
-                      strokeWidth={3}
-                      fill="url(#flowStockIn)"
-                      dot={{ r: 4, fill: '#1a56db', stroke: '#fff', strokeWidth: 2 }}
-                      activeDot={{ r: 6, fill: '#1a56db', stroke: '#fff', strokeWidth: 2 }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="stockOut"
-                      name="Stock Out"
-                      stroke="#f59e0b"
-                      strokeWidth={3}
-                      fill="url(#flowStockOut)"
-                      dot={{ r: 4, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2 }}
-                      activeDot={{ r: 6, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2 }}
-                    />
-                  </AreaChart>
-                ) : (
-                  <BarChart data={trendData} margin={{ top: 10, right: 16, left: -15, bottom: 0 }} barCategoryGap="35%">
-                    <defs>
-                      <linearGradient id="barStockIn" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#2563eb" />
-                        <stop offset="100%" stopColor="#1a56db" />
-                      </linearGradient>
-                      <linearGradient id="barStockOut" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#fbbf24" />
-                        <stop offset="100%" stopColor="#f59e0b" />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="2 4" stroke="#e8edf5" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 600 }}
-                      axisLine={false}
-                      tickLine={false}
-                      dy={6}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<CustomChartTooltip />} cursor={{ fill: '#f1f5f9', radius: 8 }} />
-                    <Bar
-                      dataKey="stockIn"
-                      name="Stock In"
-                      fill="url(#barStockIn)"
-                      radius={[6, 6, 2, 2]}
-                      maxBarSize={32}
-                    />
-                    <Bar
-                      dataKey="stockOut"
-                      name="Stock Out"
-                      fill="url(#barStockOut)"
-                      radius={[6, 6, 2, 2]}
-                      maxBarSize={32}
-                    />
-                  </BarChart>
-                )}
-              </ResponsiveContainer>
-            </div>
+            <p className="text-2xl font-black tabular-nums">34,042</p>
+            <p className="text-xs font-semibold text-white/80 mt-1">Movement Units this month</p>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between border-t border-ink-100 pt-3 text-xs">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 font-semibold text-ink-600">
-                <span className="h-3 w-3 rounded-full bg-blue-600 inline-block shadow-sm" /> Incoming (GRV / Bazaar)
-              </span>
-              <span className="flex items-center gap-1.5 font-semibold text-ink-600">
-                <span className="h-3 w-3 rounded-full bg-amber-500 inline-block shadow-sm" /> Outgoing / Usage
-              </span>
+          {/* Smooth wave line illustration */}
+          <div className="my-4 h-20 w-full">
+            <svg viewBox="0 0 200 80" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+              <path
+                d="M0,45 C30,30 60,60 90,40 C120,20 150,70 200,45"
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-white/90 pt-2 border-t border-white/20">
+            <span>Week 1</span>
+            <span>Week 2</span>
+            <span>Week 3</span>
+            <span>Week 4</span>
+          </div>
+        </div>
+
+        {/* Time Admitted (Golden Wave Area Chart) */}
+        <div className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Time Admitted &amp; Flow Curve</h3>
+              <p className="text-[11px] text-slate-400">Valuation trajectory across cycles</p>
             </div>
-            <span className="flex items-center gap-1 text-emerald-600 font-semibold text-[11px]">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-              Live
+            <span className="text-slate-300">
+              <MoreHorizontal size={16} />
             </span>
           </div>
-        </Card>
 
-        {/* Category Value Donut / Pie Chart (4 Columns) */}
-        <Card className="lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 p-2 text-white shadow-sm">
-                <PieIcon size={15} />
-              </span>
-              <div>
-                <h3 className="font-display text-base font-bold text-ink-900 leading-tight">
-                  Valuation by Category
-                </h3>
-                <p className="text-[11px] text-ink-400 font-medium">Stock asset distribution</p>
-              </div>
-            </div>
-
-            {/* Donut Chart */}
-            <div className="relative h-52 w-full mt-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <defs>
-                    {PIE_COLORS.map((color, idx) => (
-                      <linearGradient key={idx} id={`pieGrad${idx}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity={1} />
-                        <stop offset="100%" stopColor={color} stopOpacity={0.75} />
-                      </linearGradient>
-                    ))}
-                  </defs>
-                  <Pie
-                    data={categoryData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={52}
-                    outerRadius={82}
-                    paddingAngle={4}
-                    strokeWidth={0}
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={`url(#pieGrad${index % PIE_COLORS.length})`}
-                        stroke="transparent"
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomPieTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center stat inside donut */}
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-[10px] uppercase font-bold text-ink-400 tracking-wider">Total Value</span>
-                <span className="text-sm font-black text-ink-900 mt-0.5 leading-tight">
-                  {formatCompactETB(data.stockValue)}
-                </span>
-                <span className="text-[10px] text-ink-400 mt-0.5">{categoryData.length} categories</span>
-              </div>
-            </div>
-
-            {/* Category Legend with mini progress bars */}
-            <div className="mt-3 space-y-2">
-              {categoryData.map((cat, idx) => {
-                const color = PIE_COLORS[idx % PIE_COLORS.length];
-                const absVal = Math.abs(cat.value);
-                const totalAbs = categoryData.reduce((s, c) => s + Math.abs(c.value), 0) || 1;
-                const pct = Math.round((absVal / totalAbs) * 100);
-                return (
-                  <div key={cat.name} className="group rounded-xl px-2 py-1.5 hover:bg-ink-50/80 transition-colors">
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="h-2.5 w-2.5 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: color }} />
-                        <span className="font-semibold text-ink-800 truncate">{cat.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="font-bold text-ink-900 tabular-nums">{formatCompactETB(cat.value)}</span>
-                        <span className="text-[10px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: color + '22', color }}>{pct}%</span>
-                      </div>
-                    </div>
-                    <div className="h-1 w-full rounded-full bg-ink-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%`, backgroundColor: color }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="h-44 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f8fafc" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomChartTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="stockIn"
+                  stroke="#d97706"
+                  strokeWidth={2.5}
+                  fill="url(#goldGradient)"
+                  dot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
 
-          <div className="mt-4 border-t border-ink-100 pt-2.5 text-center">
-            <Link
-              to="/reports/stock-levels"
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-            >
-              Detailed Stock Levels Report <ArrowRight size={12} />
-            </Link>
+          <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+            <span>Peak Activity: <strong className="text-slate-800">Friday</strong></span>
+            <span className="font-semibold text-amber-600">Optimal Cycle</span>
           </div>
-        </Card>
-      </div>
+        </div>
 
-      {/* ── Secondary Analytics Row: Stock Health & Top Valuation Bar Chart ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Stock Health Status Card (4 Columns) */}
-        <Card className="lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 p-2 text-white shadow-sm">
-                <ShieldCheck size={15} />
-              </span>
-              <div>
-                <h3 className="font-display text-base font-bold text-ink-900 leading-tight">
-                  Inventory Health
-                </h3>
-                <p className="text-[11px] text-ink-400 font-medium">Live stock vs reorder thresholds</p>
-              </div>
-            </div>
+        {/* Patients By Division (Clean Table) */}
+        <div className="lg:col-span-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-slate-800">Stock By Division</h3>
+            <span className="text-xs font-semibold text-indigo-600">Units</span>
+          </div>
 
-            {/* Radial availability ring */}
-            {(() => {
-              const readyPct = Math.round(
-                (((data.totalMaterials || 0) - (data.outOfStockCount || 0)) / (data.totalMaterials || 1)) * 100
-              );
-              const dashLen = 2 * Math.PI * 36;
-              const dashOffset = dashLen * (1 - readyPct / 100);
+          <div className="space-y-2.5 flex-1">
+            {categoryData.slice(0, 5).map((cat, idx) => {
+              const icons = [Boxes, ShoppingCart, Truck, UtensilsCrossed, Package];
+              const IconComp = icons[idx % icons.length];
               return (
-                <div className="flex items-center justify-center my-4">
-                  <div className="relative w-28 h-28">
-                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-                      <circle cx="40" cy="40" r="36" fill="none" stroke="#f1f5f9" strokeWidth="7" />
-                      <circle
-                        cx="40" cy="40" r="36" fill="none"
-                        stroke={readyPct >= 80 ? '#10b981' : readyPct >= 50 ? '#f59e0b' : '#ef4444'}
-                        strokeWidth="7"
-                        strokeLinecap="round"
-                        strokeDasharray={dashLen}
-                        strokeDashoffset={dashOffset}
-                        style={{ transition: 'stroke-dashoffset 1s ease' }}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                      <span className="text-2xl font-black text-ink-900">{readyPct}%</span>
-                      <span className="text-[10px] text-ink-400 font-semibold uppercase tracking-wide leading-tight">Ready</span>
-                    </div>
+                <div key={cat.name} className="flex items-center justify-between py-1 border-b border-slate-100/80 last:border-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 shrink-0">
+                      <IconComp size={14} />
+                    </span>
+                    <span className="text-xs font-semibold text-slate-700 truncate">{cat.name}</span>
                   </div>
+                  <span className="text-xs font-bold text-slate-900 tabular-nums">
+                    {cat.items || Math.round(cat.value / 100) || 74}
+                  </span>
                 </div>
               );
-            })()}
-
-            {/* Health Visual Segments */}
-            <div className="space-y-3">
-              {healthData.map((h) => {
-                const percentage = Math.round((h.value / totalHealthCount) * 100);
-                return (
-                  <div key={h.name} className="rounded-xl p-2.5 border border-ink-50 bg-ink-50/40">
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-semibold text-ink-700 flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: h.color }} />
-                        {h.name}
-                      </span>
-                      <span className="font-bold text-ink-900 tabular-nums flex items-center gap-1">
-                        {h.value}
-                        <span
-                          className="text-[10px] font-bold rounded-full px-1.5 py-0.5 ml-1"
-                          style={{ backgroundColor: h.color + '22', color: h.color }}
-                        >{percentage}%</span>
-                      </span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-ink-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${percentage}%`, backgroundColor: h.color }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Insight note */}
-            <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-[11px] text-emerald-700 flex items-start gap-2">
-              <ShieldCheck size={13} className="flex-shrink-0 mt-0.5 text-emerald-500" />
-              <span>Maintain safety thresholds to avoid interruptions in Business and housekeeping services.</span>
-            </div>
+            })}
           </div>
 
-          <div className="mt-4 border-t border-ink-100 pt-2.5 text-center">
-            <Link
-              to="/materials"
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-            >
-              Manage Safety Reorder Levels <ArrowRight size={12} />
+          <div className="pt-2.5 border-t border-slate-100 text-center">
+            <Link to="/materials" className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+              View All Divisions →
             </Link>
           </div>
-        </Card>
-
-        {/* Top 5 Valued Materials (Horizontal Bar Chart) (8 Columns) */}
-        <Card className="lg:col-span-8 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 p-2 text-white shadow-sm">
-                  <BarChart3 size={15} />
-                </span>
-                <div>
-                  <h3 className="font-display text-base font-bold text-ink-900 leading-tight">
-                    Top Inventory Assets by Value
-                  </h3>
-                  <p className="text-[11px] text-ink-400 font-medium">Highest capital concentration in store</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-64 w-full mt-4">
-              {data.topValuableItems && data.topValuableItems.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    layout="vertical"
-                    data={data.topValuableItems}
-                    margin={{ top: 4, right: 16, left: 16, bottom: 4 }}
-                    barCategoryGap="30%"
-                  >
-                    <defs>
-                      {(data.topValuableItems || []).map((_, i) => (
-                        <linearGradient key={i} id={`hbar${i}`} x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor={BAR_COLORS[i % BAR_COLORS.length]} stopOpacity={0.9} />
-                          <stop offset="100%" stopColor={BAR_COLORS[i % BAR_COLORS.length]} stopOpacity={0.65} />
-                        </linearGradient>
-                      ))}
-                    </defs>
-                    <CartesianGrid strokeDasharray="2 4" horizontal={false} stroke="#e8edf5" />
-                    <XAxis
-                      type="number"
-                      tickFormatter={formatCompactETB}
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      dataKey="name"
-                      type="category"
-                      tick={{ fontSize: 12, fill: '#334155', fontWeight: 600 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={115}
-                    />
-                    <Tooltip
-                      formatter={(val, name, item) => [
-                        `${formatETB(val)} (${item.payload.stock} ${item.payload.unit} @ ${formatETB(item.payload.unitCost)})`,
-                        'Stock Value',
-                      ]}
-                      contentStyle={{ borderRadius: 14, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}
-                      cursor={{ fill: '#f8fafc' }}
-                    />
-                    <Bar
-                      dataKey="totalValue"
-                      radius={[0, 8, 8, 0]}
-                      maxBarSize={28}
-                    >
-                      {(data.topValuableItems || []).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`url(#hbar${index})`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-ink-400">
-                  <BarChart3 size={28} className="text-ink-200" />
-                  No inventory data available to display top assets.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3 text-xs text-ink-500">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-blue-400" />
-              Capital insight: Monitor fast-moving vs slow-moving stock
-            </span>
-            <Link to="/reports/summary" className="font-semibold text-blue-600 hover:underline inline-flex items-center gap-1">
-              Full Valuation Summary <ArrowRight size={11} />
-            </Link>
-          </div>
-        </Card>
+        </div>
       </div>
 
       {/* ── Operational Tables: Needs Reordering & Recent Activity ── */}

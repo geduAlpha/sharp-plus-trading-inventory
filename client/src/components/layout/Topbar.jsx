@@ -5,7 +5,7 @@ import {
   Layers, Clock, HelpCircle, X, BookOpen, Package,
   ArrowLeftRight, ShoppingCart, BarChart2, Users,
   ChevronRight, Search, Lightbulb, CheckCircle2, PlayCircle,
-  Bell, BellRing, Trash2,
+  Bell, BellRing, Trash2, Maximize, MessageSquare, CheckSquare, Calendar, Settings as SettingsGear,
 } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -485,6 +485,7 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -502,6 +503,22 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
     navigate(path);
   };
 
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/materials?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery('');
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
   const roleBadgeStyle = {
     admin: 'bg-amber-50 text-amber-800 border-amber-200',
     manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -512,76 +529,133 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
     <>
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
 
-      <header
-        className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/60 px-4 py-3 backdrop-blur-md shadow-sm sm:px-8"
-        style={{ background: 'rgba(255,255,255,0.85)' }}
-      >
-        {/* Left: menu toggle + title */}
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/80 bg-white px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] sm:px-6 lg:px-8">
+        {/* Left: menu toggle + title + quick action icons */}
         <div className="flex items-center gap-3">
           <button
             onClick={onMenuClick}
-            className="rounded-md p-1.5 text-ink-500 hover:bg-ink-50 lg:hidden"
+            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 lg:hidden transition"
           >
-
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
           <button
             onClick={onToggleCollapse}
-            className="hidden lg:flex items-center justify-center rounded-md p-1.5 text-ink-500 hover:bg-ink-100 transition"
+            className="hidden lg:flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
             title="Toggle sidebar"
           >
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
+
+          {/* Quick tool icons matching Aone Admin header */}
+          <div className="hidden sm:flex items-center gap-1 pl-1 pr-2 border-r border-slate-200/80">
+            <button
+              onClick={() => navigate('/stock-requests')}
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition"
+              title="Stock Requests & Issues"
+            >
+              <MessageSquare size={17} />
+            </button>
+            <button
+              onClick={() => navigate('/reports/inventory-count')}
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition"
+              title="Inventory Count Checklist"
+            >
+              <CheckSquare size={17} />
+            </button>
+            <button
+              onClick={() => navigate('/reports/daily')}
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition"
+              title="Daily Movement Report"
+            >
+              <Calendar size={17} />
+            </button>
+          </div>
+
           <div>
-            <p className="text-xl font-bold text-ink-900">{title}</p>
-            <p className="text-xs text-ink-500">
+            <h1 className="text-lg font-bold text-slate-900 leading-tight">{title}</h1>
+            <p className="text-[11px] font-medium text-slate-400 hidden md:block">
               {new Date().toLocaleDateString('en-US', {
-                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+                weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
               })}
             </p>
           </div>
         </div>
 
-        {/* Right: session indicator + notifications + user menu */}
-        <div className="flex items-center gap-2.5">
+        {/* Center / Search bar */}
+        <form onSubmit={handleSearch} className="relative hidden md:block w-64 lg:w-80 mx-4">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search items, vouchers, suppliers..."
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-1.5 pl-3.5 pr-9 text-xs text-slate-800 placeholder-slate-400 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+          />
+          <button
+            type="submit"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition"
+          >
+            <Search size={15} />
+          </button>
+        </form>
+
+        {/* Right: session indicator + fullscreen + notifications + user menu */}
+        <div className="flex items-center gap-2">
+          {/* Fullscreen toggle button */}
+          <button
+            onClick={toggleFullscreen}
+            className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
+            title="Toggle Fullscreen"
+          >
+            <Maximize size={16} />
+          </button>
+
           {/* Session timeout indicator */}
           <div
             onClick={() => setMenuOpen(v => !v)}
             title={`Session Timeout: ${timeoutMinutes === 0 ? 'Disabled' : `Signs out after ${timeoutMinutes} minutes of inactivity`}`}
-            className="hidden md:flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-2.5 py-1 text-xs text-slate-600 cursor-pointer hover:bg-slate-100 transition"
+            className="hidden xl:flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600 cursor-pointer hover:bg-slate-100 transition"
           >
             <span className={`h-1.5 w-1.5 rounded-full ${timeoutMinutes === 0 ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse'}`} />
             <Clock size={12} className="text-slate-400" />
             <span className="text-[11px] font-medium text-slate-600">
-              {timeoutMinutes === 0 ? 'Timeout: Off' : `Auto-Logout: ${timeoutMinutes}m`}
+              {timeoutMinutes === 0 ? 'Timeout: Off' : `${timeoutMinutes}m`}
             </span>
           </div>
 
           {/* Notification Bell */}
           <NotificationBell />
 
+          {/* Settings shortcut button */}
+          <button
+            onClick={() => navigate('/settings')}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
+            title="System Settings"
+          >
+            <SettingsGear size={17} />
+          </button>
+
           {/* User menu */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(v => !v)}
-              className="flex items-center gap-2.5 rounded-full border border-ink-200/80 bg-white py-1 pl-1 pr-3 shadow-xs hover:border-ink-300 hover:bg-ink-50/60 transition"
+              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-2.5 shadow-xs hover:border-slate-300 hover:bg-slate-50 transition"
             >
               {user?.avatar ? (
-                <img src={user.avatar} alt={user?.name} className="h-8 w-8 rounded-full object-cover ring-1 ring-ink-200" />
+                <img src={user.avatar} alt={user?.name} className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200" />
               ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-xs">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-xs">
                   {user?.name?.[0]?.toUpperCase()}
                 </span>
               )}
               <div className="hidden text-left sm:block">
-                <p className="text-xs font-semibold leading-tight text-ink-800">{user?.name}</p>
-                <p className="text-[10px] capitalize leading-none text-ink-400">{user?.role}</p>
+                <p className="text-xs font-semibold leading-tight text-slate-800">{user?.name}</p>
+                <p className="text-[10px] capitalize leading-none text-slate-400">{user?.role}</p>
               </div>
-              <ChevronDown size={14} className={`text-ink-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={13} className={`text-slate-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-ink-100 bg-white p-2 shadow-xl ring-1 ring-black/5 z-50">
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl ring-1 ring-black/5 z-50">
                 {/* Profile card */}
                 <div className="rounded-xl bg-ink-50/70 p-3 mb-1">
                   <div className="flex items-center gap-2.5">

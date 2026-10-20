@@ -2,24 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
-  height: 100%;
+@layer base {
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: #f4f6fb;
+    color: #1e293b;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
 }
 
-body {
-  @apply bg-ink-50 text-ink-900 antialiased;
+/* ── Eliminate blurry glassmorphism / fuzzy filters for crispness ── */
+.no-blur,
+.crisp-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: #ffffff !important;
+}
+
+/* Crisp card & shadow tokens */
+.aone-card {
+  background: #ffffff;
+  border: 1px solid #eef2f6;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(30, 41, 59, 0.04);
+}
+
+.aone-card:hover {
+  box-shadow: 0 4px 16px rgba(30, 41, 59, 0.07);
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #d7ddea; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #aeb9d2; }
+/* Crisp minimal scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 *:focus-visible {
-  outline: 2px solid #c89b3c;
+  outline: 2px solid #4f46e5;
   outline-offset: 2px;
 }
 

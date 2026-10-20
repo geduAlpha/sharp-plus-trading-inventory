@@ -8,7 +8,7 @@ import {
   BarChart2, Calendar, PackageOpen, Settings as SettingsIcon, UploadCloud,
   Scale, ClipboardList, Trash2, Coffee, UserCog, Sparkles,
   SendToBack, X, Rocket, ClipboardCheck, ArrowRightLeft, History,
-  BadgeDollarSign, Banknote, FolderOpen, Package,
+  BadgeDollarSign, Banknote, FolderOpen, Package, Lock,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -45,22 +45,22 @@ const REPORT_ITEMS = [
 const SubLink = ({ to, label, icon: Icon, end = false, onClick }) => (
   <NavLink to={to} end={end} onClick={onClick}
     className={({ isActive }) =>
-      `group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 ${isActive
-        ? 'bg-white/15 text-white font-bold'
-        : 'text-blue-300/80 hover:bg-white/8 hover:text-white'
+      `group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-all duration-150 ${isActive
+        ? 'bg-indigo-50 text-indigo-700 font-bold'
+        : 'text-slate-500 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
       }`
     }
   >
-    <span className="h-1 w-1 rounded-full bg-current opacity-50 group-hover:opacity-100 transition-opacity" />
-    <Icon size={12} className="shrink-0" />
-    {label}
+    <span className={`h-1.5 w-1.5 rounded-full transition-colors ${to ? 'bg-slate-300 group-hover:bg-indigo-500' : ''}`} />
+    <Icon size={13} className="shrink-0" />
+    <span className="truncate">{label}</span>
   </NavLink>
 );
 
 /* ── Section label ── */
 const SectionLabel = ({ children, collapsed }) =>
-  collapsed ? <div className="my-2 border-t border-white/10" /> : (
-    <p className="px-3 pt-3 pb-1 text-[9px] font-bold uppercase tracking-[0.15em] text-blue-400/60 select-none">
+  collapsed ? <div className="my-2 border-t border-slate-200" /> : (
+    <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
       {children}
     </p>
   );
@@ -69,27 +69,27 @@ const SectionLabel = ({ children, collapsed }) =>
 const CollapsibleNav = ({ label, icon: Icon, isActive, open, onToggle, children, collapsed }) => (
   <div>
     <button onClick={onToggle} title={collapsed ? label : undefined}
-      className={`group w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-all duration-200 ${collapsed ? 'justify-center' : ''
+      className={`group w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${collapsed ? 'justify-center' : ''
         } ${isActive || open
-          ? 'bg-white/15 text-white shadow-sm ring-1 ring-white/10'
-          : 'text-blue-100/80 hover:bg-white/8 hover:text-white'
+          ? 'bg-slate-100 text-slate-900 font-bold'
+          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
         }`}
     >
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive || open ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive || open ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-800'
         }`}>
         <Icon size={15} strokeWidth={2} />
       </span>
       {!collapsed && (
         <>
-          <span className="flex-1 text-left text-[13px] font-bold tracking-wide">{label}</span>
-          <span className={`transition-transform duration-200 opacity-60 ${open ? 'rotate-180' : ''}`}>
-            <ChevronDown size={13} />
+          <span className="flex-1 text-left text-[13px] font-semibold tracking-tight">{label}</span>
+          <span className={`transition-transform duration-200 text-slate-400 ${open ? 'rotate-180' : ''}`}>
+            <ChevronDown size={14} />
           </span>
         </>
       )}
     </button>
     {open && !collapsed && (
-      <div className="mt-1 ml-5 border-l border-white/10 pl-2.5 space-y-0.5">
+      <div className="mt-1 ml-4 border-l-2 border-slate-200/80 pl-2 space-y-0.5">
         {children}
       </div>
     )}
@@ -135,8 +135,7 @@ const COMING_SOON_FEATURES = [
 ];
 
 const StockIssueComingSoonModal = ({ onClose }) => (
-  <div className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+  <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60"
     onClick={onClose}>
     <div
       className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden"
@@ -152,7 +151,7 @@ const StockIssueComingSoonModal = ({ onClose }) => (
         </button>
 
         {/* Icon */}
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm shadow-lg">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 shadow-lg">
           <SendToBack size={30} className="text-white" />
         </div>
 
@@ -237,14 +236,14 @@ React.useEffect(() => {
   const toggleMenu = (key) => setOpenMenu(prev => (prev === key ? null : key));
 
 const linkCls = (isActive) =>
-  `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
+  `group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${collapsed ? 'justify-center' : ''
   } ${isActive
-    ? 'bg-white/15 text-white shadow-sm ring-1 ring-white/10'
-    : 'text-blue-100/80 hover:bg-white/8 hover:text-white'
+    ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100/80 shadow-xs'
+    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
   }`;
 
 const iconSpan = (isActive) =>
-  `flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
+  `flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-800'
   }`;
 
 const fullLink = (to, Icon, label, end = false) => (
@@ -253,9 +252,9 @@ const fullLink = (to, Icon, label, end = false) => (
     {({ isActive }) => (
       <>
         <span className={iconSpan(isActive)}><Icon size={15} strokeWidth={2} /></span>
-        {!collapsed && <span className="text-[13px] font-bold tracking-wide">{label}</span>}
+        {!collapsed && <span className="text-[13px] tracking-tight">{label}</span>}
         {isActive && !collapsed && (
-          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white/60" />
+          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-600" />
         )}
       </>
     )}
@@ -274,55 +273,69 @@ const iconLink = (to, Icon, label, end = false) => (
 const navLink = (to, Icon, label, end = false) =>
   collapsed ? iconLink(to, Icon, label, end) : fullLink(to, Icon, label, end);
 
-const roleColors = {
-  admin: 'from-amber-400 to-orange-500',
-  manager: 'from-emerald-400 to-teal-500',
-  storekeeper: 'from-blue-400 to-indigo-500',
+const roleBadges = {
+  admin: 'bg-amber-50 text-amber-700 border-amber-200',
+  manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  storekeeper: 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
 return (
   <>
-    {open && <div className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden" onClick={onClose} />}
+    {open && <div className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden" onClick={onClose} />}
 
     <aside
       className={`
-          fixed z-40 flex h-full flex-col
-          transition-all duration-300 ease-in-out
-          lg:static lg:translate-x-0
-          ${open ? 'translate-x-0' : '-translate-x-full'}
-          ${collapsed ? 'w-[68px]' : 'w-64'}
-        `}
+        fixed z-40 flex h-full flex-col bg-white border-r border-slate-200/90
+        transition-all duration-300 ease-in-out
+        lg:static lg:translate-x-0
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+        ${collapsed ? 'w-[72px]' : 'w-64'}
+      `}
       style={{
-        background: 'linear-gradient(160deg, #060d2b 0%, #0a1a52 40%, #0d2680 70%, #1238a8 100%)',
-        borderRight: '1px solid rgba(99,130,255,0.15)',
-        boxShadow: '4px 0 24px rgba(0,0,50,0.4)',
+        boxShadow: '2px 0 16px rgba(0,0,0,0.02)',
       }}
     >
-      {/* ── Decorative glow orbs ── */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-20 -left-20 h-60 w-60 rounded-full opacity-[0.07]"
-          style={{ background: 'radial-gradient(circle, #4f8ef7 0%, transparent 70%)' }} />
-        <div className="absolute bottom-20 -right-16 h-48 w-48 rounded-full opacity-[0.05]"
-          style={{ background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)' }} />
+      {/* ── Brand Logo Header ── */}
+      <div className={`flex items-center gap-3 py-4 border-b border-slate-100 ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
+        <NavLink to="/" onClick={onClose} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white font-black text-base shadow-sm">
+            SP
+          </div>
+          {!collapsed && (
+            <div>
+              <p className="text-[15px] font-black leading-none text-slate-900 tracking-tight">Sharp Plus</p>
+              <p className="text-[10px] text-indigo-600 mt-0.5 tracking-wide font-semibold uppercase">Trading Inventory</p>
+            </div>
+          )}
+        </NavLink>
       </div>
 
-      {/* ── Logo ── */}
-      <NavLink to="/" onClick={onClose}
-        className={`relative flex items-center gap-3 py-5 hover:opacity-90 transition-opacity ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
-        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden shadow-md bg-white p-1 ring-1 ring-white/20">
-          <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
-        </div>
-        {!collapsed && (
-          <div>
-            <p className="text-[15px] font-extrabold leading-none text-white tracking-tight">Sharp Plus</p>
-            <p className="text-[10px] text-blue-300/70 mt-0.5 tracking-wide font-medium">Trading PLC</p>
+      {/* ── User Profile Card (like Aone Admin "Welcome Joan Wilkins") ── */}
+      {!collapsed && (
+        <div className="mx-3 mt-3.5 mb-2 rounded-xl bg-slate-50 border border-slate-200/70 p-3 flex items-center gap-3">
+          <div className="relative shrink-0">
+            {user?.avatar ? (
+              <img src={user.avatar} alt={user?.name} className="h-10 w-10 rounded-full object-cover ring-2 ring-white shadow-xs" />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 font-bold text-white text-sm shadow-xs">
+                {user?.name?.[0]?.toUpperCase()}
+              </div>
+            )}
+            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-white" />
           </div>
-        )}
-      </NavLink>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-medium text-slate-400 leading-tight">Welcome</p>
+            <p className="truncate text-xs font-bold text-slate-800 leading-tight">{user?.name}</p>
+            <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold border capitalize ${roleBadges[user?.role] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+              {user?.role}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── Nav ── */}
-      <nav className="relative flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 pb-4
-          scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+      <nav className="relative flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2.5 py-2
+          scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200">
 
         <SectionLabel collapsed={collapsed}>Main</SectionLabel>
         {canSeeNav('dashboard') && navLink('/', LayoutDashboard, 'Dashboard', true)}
@@ -439,76 +452,52 @@ return (
   )
 }
 
-<SectionLabel collapsed={collapsed}>Admin</SectionLabel>
-{ canSeeNav('staffAccounts') && navLink('/users', Users, 'Staff Accounts') }
-{ navLink('/settings', SettingsIcon, 'Settings') }
+        <SectionLabel collapsed={collapsed}>Admin & System</SectionLabel>
+        {canSeeNav('staffAccounts') && navLink('/users', Users, 'Staff Accounts')}
+        {navLink('/settings', SettingsIcon, 'Settings')}
 
-{/* Recycle Bin */ }
-{
-  (canSeeNav('staffAccounts') || user?.role === 'admin' || user?.role === 'manager') && (
-    <NavLink to="/recycle-bin" onClick={onClose} title="Recycle Bin"
-      className={({ isActive }) =>
-        `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${collapsed ? 'justify-center' : ''
-        } ${isActive
-          ? 'bg-red-500/20 text-red-300 ring-1 ring-red-500/20'
-          : 'text-red-400/60 hover:bg-red-500/10 hover:text-red-300'
-        }`
-      }
-    >
-      {({ isActive }) => (
-        <>
-          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-red-500/25' : 'bg-red-500/10 group-hover:bg-red-500/15'
-            }`}>
-            <Trash2 size={14} strokeWidth={2} />
-          </span>
-          {!collapsed && <span className="text-[13px]">Recycle Bin</span>}
-        </>
-      )}
-    </NavLink>
-  )
-}
-        </nav >
-
-  {/* ── User card ── */ }
-  < div className = {`relative mx-2 mb-4 overflow-hidden rounded-xl p-3
-          flex items-center gap-3 transition-all
-          ${collapsed ? 'justify-center' : ''}
-          `}
-style = {{
-  background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.08)',
-      backdropFilter: 'blur(12px)',
-          }}>
-  {/* Avatar */ }
-  < div className = "relative shrink-0" >
-  {
-    user?.avatar?(
-              <img src = { user.avatar } alt = { user?.name }
-                className = "h-9 w-9 rounded-xl object-cover ring-2 ring-white/20" />
-            ): (
-        <div className = {`flex h-9 w-9 items-center justify-center rounded-xl font-bold text-white text-sm
-                bg-gradient-to-br ${roleColors[user?.role] || 'from-blue-400 to-indigo-500'}`}
-                title={user?.name}>
-                {user?.name?.[0]?.toUpperCase()}
-              </div>
-            )}
-            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-[#0d2680]" />
-          </div>
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-bold text-white leading-tight">{user?.name}</p>
-              <p className="capitalize text-[10px] leading-tight mt-0.5">
-                <span className={`inline - block rounded - full px - 1.5 py - 0.5 font - semibold
-bg - gradient - to - r ${ roleColors[user?.role] || 'from-blue-400 to-indigo-500' }
-text - white text - [9px]`}>
-                  {user?.role}
+        {/* Recycle Bin */}
+        {(canSeeNav('staffAccounts') || user?.role === 'admin' || user?.role === 'manager') && (
+          <NavLink to="/recycle-bin" onClick={onClose} title="Recycle Bin"
+            className={({ isActive }) =>
+              `group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${collapsed ? 'justify-center' : ''
+              } ${isActive
+                ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200'
+                : 'text-rose-600/80 hover:bg-rose-50 hover:text-rose-700'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-500 group-hover:bg-rose-100'
+                  }`}>
+                  <Trash2 size={14} strokeWidth={2} />
                 </span>
-              </p>
-            </div>
-          )}
-        </div>
-      </aside>
-    </>
+                {!collapsed && <span className="text-[13px]">Recycle Bin</span>}
+              </>
+            )}
+          </NavLink>
+        )}
+      </nav>
+
+      {/* ── Footer quick icons matching Aone Admin ── */}
+      <div className={`border-t border-slate-100 p-2.5 flex items-center ${collapsed ? 'justify-center' : 'justify-around'} text-slate-400`}>
+        <NavLink to="/settings" title="Settings" className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition">
+          <SettingsIcon size={16} />
+        </NavLink>
+        {!collapsed && (
+          <>
+            <NavLink to="/stock-requests" title="Issues & Requests" className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition">
+              <SendToBack size={16} />
+            </NavLink>
+            <NavLink to="/settings?tab=security" title="Security & Passwords" className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition">
+              <Lock size={16} />
+            </NavLink>
+          </>
+        )}
+      </div>
+    </aside>
+  </>
   );
 };
 
