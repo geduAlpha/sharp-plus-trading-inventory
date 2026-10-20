@@ -139,7 +139,16 @@ export default function Login() {
       setStep('otp');
       setResendTimer(60);
     } catch (err) {
-      setOtpError(err.response?.data?.message || 'Failed to send OTP. Please try again.');
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        setOtpError(serverMsg);
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setOtpError('Request timed out. Please try again.');
+      } else if (err.message === 'Network Error' || !err.response) {
+        setOtpError('Unable to reach server. Please ensure the backend is running.');
+      } else {
+        setOtpError('Failed to send OTP. Please try again.');
+      }
     } finally { setOtpLoading(false); }
   };
 

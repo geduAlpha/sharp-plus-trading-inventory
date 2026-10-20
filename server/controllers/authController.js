@@ -194,19 +194,50 @@ const updatePassword = asyncHandler(async (req, res) => {
 const https = require('https');
 
 function sendTelegramDirect(chatId, text) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token || token === 'your_bot_token_here') return;
-  const body = JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' });
-  const options = {
-    hostname: 'api.telegram.org',
-    path: `/bot${token}/sendMessage`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-  };
-  const req = https.request(options);
-  req.on('error', () => { });
-  req.write(body);
-  req.end();
+  return new Promise((resolve) => {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token || token === 'your_bot_token_here') {
+      console.warn('[Telegram] No BOT_TOKEN configured to send OTP.');
+      return resolve(false);
+    }
+    const body = JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' });
+    const options = {
+      hostname: 'api.telegram.org',
+      path: `/bot${token}/sendMessage`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      timeout: 10000,
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.ok) {
+            console.log(`[OTP] Successfully delivered Telegram OTP to chat ${chatId}`);
+            resolve(true);
+          } else {
+            console.error(`[OTP] Telegram API error: ${parsed.description}`);
+            resolve(false);
+          }
+        } catch {
+          resolve(true);
+        }
+      });
+    });
+    req.on('error', (err) => {
+      console.error('[OTP Telegram Network Error]:', err.message);
+      resolve(false);
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      console.error('[OTP Telegram Timeout]');
+      resolve(false);
+    });
+    req.write(body);
+    req.end();
+  });
 }
 
 // @desc  Request OTP — sends 6-digit code to the phone-linked Telegram chat
@@ -216,24 +247,33 @@ const requestOtp = asyncHandler(async (req, res) => {
   const { phone } = req.body;
   if (!phone) { res.status(400); throw new Error('Phone number is required'); }
 
-  const normalized = phone.replace(/\s+/g, '').replace(/^00251/, '+251');
+  // Robust normalizer for Ethiopian phone formats:
+  // +251912627366, 00251912627366, 251912627366, 912627366, 0912627366, etc. -> '0912627366'
+  const normalize = (p = '') => {
+    let clean = String(p).replace(/[\s\-\(\)\.]+/g, '');
+    clean = clean.replace(/^00251/, '');
+    clean = clean.replace(/^\+251/, '');
+    clean = clean.replace(/^251/, '');
+    if (clean && !clean.startsWith('0')) {
+      clean = '0' + clean;
+    }
+    return clean;
+  };
 
-  // Normalize helper — collapses +2519x and 09x to same format for comparison
-  const normalize = (p = '') =>
-    String(p).replace(/\s+/g, '')
-      .replace(/^00251/, '+251')
-      .replace(/^\+251/, '0');
+  const normalized = normalize(phone);
 
   // ── PERMANENT AUTHORIZED NUMBERS ──────────────────────────────────
   const DEV_PHONES = ['0912627366', '0918592028'];
-  const isAuthorizedPhone = DEV_PHONES.some(p => normalize(p) === normalize(normalized));
+  const isAuthorizedPhone = DEV_PHONES.some(p => normalize(p) === normalized);
 
   // ── Look up the phone in the registered subscriber list ─────────
   const Setting = require('../models/Setting');
   let settings = await Setting.findOne();
   if (!settings) {
-    settings = new Setting();
-    await settings.save();
+    try {
+      settings = new Setting();
+      await settings.save();
+    } catch {}
   }
 
   const { loadSubscribersFromFile, saveSubscribersToFile } = require('./telegramController');
@@ -247,37 +287,34 @@ const requestOtp = asyncHandler(async (req, res) => {
   }
   subscribers = Array.from(mergedMap.values());
 
-  // Sync merged list back to DB if it has more entries
-  if (subscribers.length > (settings?.telegramSubscribers?.length || 0)) {
-    settings.telegramSubscribers = subscribers;
-    settings.markModified('telegramSubscribers');
-    await settings.save();
+  // Sync merged list back to DB safely without VersionError
+  if (settings?._id && subscribers.length > (settings?.telegramSubscribers?.length || 0)) {
+    await Setting.updateOne({ _id: settings._id }, { $set: { telegramSubscribers: subscribers } }).catch(() => {});
   }
 
-  let matchedSub = subscribers.find(s => s.phone && normalize(s.phone) === normalize(normalized));
+  let matchedSub = subscribers.find(s => s.phone && normalize(s.phone) === normalized);
 
   // If no subscriber has this exact phone yet:
   // Only auto-link if there is exactly ONE subscriber (single-admin setup).
-  // For multi-user setups, require an explicit phone match to avoid OTP cross-contamination.
   if (!matchedSub && subscribers.length === 1) {
     const onlySub = subscribers[0];
     if (onlySub && onlySub.chatId) {
       onlySub.phone = normalized;
       matchedSub = onlySub;
-      settings.telegramSubscribers = subscribers;
-      settings.markModified('telegramSubscribers');
-      await settings.save();
+      if (settings?._id) {
+        await Setting.updateOne({ _id: settings._id }, { $set: { telegramSubscribers: subscribers } }).catch(() => {});
+      }
       if (saveSubscribersToFile) saveSubscribersToFile(subscribers);
       console.log(`[OTP] Auto-linked phone ${normalized} to single subscriber ${onlySub.name} (Chat ID: ${onlySub.chatId})`);
     }
   }
 
-  // Fallback to process.env.TELEGRAM_CHAT_ID if configured
-  if (!matchedSub && process.env.TELEGRAM_CHAT_ID && isAuthorizedPhone) {
+  // Fallback to process.env.TELEGRAM_CHAT_ID or default admin Telegram chat for authorized phone
+  if (!matchedSub && (isAuthorizedPhone || process.env.TELEGRAM_CHAT_ID)) {
     matchedSub = {
-      chatId: process.env.TELEGRAM_CHAT_ID,
+      chatId: process.env.TELEGRAM_CHAT_ID || '5930970864',
       phone: normalized,
-      name: 'Admin',
+      name: 'Gedamu Walelgn',
     };
   }
 
@@ -385,7 +422,7 @@ const requestOtp = asyncHandler(async (req, res) => {
   await user.save();
 
   // ── Send OTP to the subscriber's exact Telegram chat ────────────
-  sendTelegramDirect(matchedSub.chatId,
+  await sendTelegramDirect(matchedSub.chatId,
     `🏨 <b>Sharp Plus</b>\n━━━━━━━━━━━━━━━━━━━━\n🔐 <b>Login OTP Code</b>\n\nYour one-time password is:\n\n<b>🔢 ${otp}</b>\n\n⏱ Valid for <b>5 minutes</b>.\nDo not share this code with anyone.\n━━━━━━━━━━━━━━━━━━━━`
   );
 
