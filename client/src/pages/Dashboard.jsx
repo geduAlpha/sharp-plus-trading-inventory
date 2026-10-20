@@ -37,6 +37,9 @@ import {
   Scale,
   MoreHorizontal,
   Activity,
+  ShoppingCart,
+  UtensilsCrossed,
+  Package,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
