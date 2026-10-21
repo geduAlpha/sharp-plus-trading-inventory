@@ -26,9 +26,11 @@ const autoSeed = async () => {
     await connectDB();
     const User = require('./models/User');
     const defaults = [
+      { name: 'System Developer & Owner', email: 'developer@company.com', password: 'admin123', role: 'developer', phone: '0912627366' },
       { name: 'Sharp Plus Admin', email: 'admin@company.com', password: 'admin123', role: 'admin', phone: '0912627366' },
       { name: 'company Manager', email: 'manager@company.com', password: 'admin123', role: 'manager' },
       { name: 'Store Keeper', email: 'storekeeper@company.com', password: 'admin123', role: 'storekeeper' },
+      { name: 'Cashier', email: 'cashier@company.com', password: 'admin123', role: 'cashier' },
     ];
     for (const u of defaults) {
       const exists = await User.findOne({ email: u.email });
@@ -50,6 +52,12 @@ const autoSeed = async () => {
           console.log(`[SEED] Ensured active status & phone for ${u.email}`);
         }
       }
+    }
+
+    // Auto-init default company if none exists
+    const { ensureDefaultCompany } = require('./controllers/companyController');
+    if (ensureDefaultCompany) {
+      await ensureDefaultCompany().catch(err => console.warn('[SEED] Company init error:', err.message));
     }
 
     const Supplier = require('./models/Supplier');
@@ -182,6 +190,7 @@ app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/settings', require('./routes/settingRoutes'));
+app.use('/api/companies', require('./routes/companyRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
 app.use('/api/inventory-count', require('./routes/inventoryCountRoutes'));

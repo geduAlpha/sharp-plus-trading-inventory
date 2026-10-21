@@ -8,7 +8,7 @@ import {
   BarChart2, Calendar, PackageOpen, Settings as SettingsIcon, UploadCloud,
   Scale, ClipboardList, Trash2, Coffee, UserCog, Sparkles,
   SendToBack, X, Rocket, ClipboardCheck, ArrowRightLeft, History,
-  BadgeDollarSign, Banknote, FolderOpen, Package, Lock,
+  BadgeDollarSign, Banknote, FolderOpen, Package, Lock, Building2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -438,6 +438,47 @@ return (
     )
   )
 }
+
+        {/* System Developer Exclusive Section */}
+        {user?.role === 'developer' && (
+          <>
+            <SectionLabel collapsed={collapsed}>Platform Owner</SectionLabel>
+            <NavLink
+              to="/developer-console"
+              onClick={onClose}
+              title="System Developer Console"
+              className={({ isActive }) =>
+                `group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${
+                  collapsed ? 'justify-center' : ''
+                } ${
+                  isActive
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold shadow-md'
+                    : 'bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/80'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-indigo-200/70 text-indigo-800'
+                    }`}
+                  >
+                    <Building2 size={15} strokeWidth={2.5} />
+                  </span>
+                  {!collapsed && (
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="text-[13px] font-bold">Developer Console</span>
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-700 text-white uppercase tracking-wider">
+                        Owner
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+            </NavLink>
+          </>
+        )}
 
         <SectionLabel collapsed={collapsed}>Admin & System</SectionLabel>
         {canSeeNav('staffAccounts') && navLink('/users', Users, 'Staff Accounts')}

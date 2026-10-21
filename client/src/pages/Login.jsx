@@ -6,6 +6,7 @@ import api from '../api/axios';
 
 /* ─── role quick-fill data ─────────────────────────────────────── */
 const ROLES = [
+  { label: 'Developer', email: 'developer@company.com' },
   { label: 'Admin', email: 'admin@company.com' },
   { label: 'Manager', email: 'manager@company.com' },
   { label: 'Cashier', email: 'cashier@company.com' },
@@ -606,7 +607,7 @@ export default function Login() {
         /* ── role switcher ── */
         .login-roles {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
           gap: 0.45rem;
         }
         .login-role-btn {

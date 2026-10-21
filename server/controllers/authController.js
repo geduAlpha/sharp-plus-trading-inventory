@@ -101,6 +101,8 @@ const loginUser = asyncHandler(async (req, res) => {
     name: user.name,
     email: user.email,
     role: user.role,
+    company: user.company || null,
+    companyName: user.companyName || '',
     phone: user.phone || '',
     avatar: user.avatar || '',
     customPermissions: user.customPermissions || null,
@@ -566,6 +568,47 @@ const registerCompany = asyncHandler(async (req, res) => {
       isActive: true,
     });
   }
+
+  // 1.5 Create or link Company document
+  const Company = require('../models/Company');
+  let company = await Company.findOne({
+    $or: [{ ownerEmail: cleanOwnerEmail }, { name: cleanCompanyName }]
+  });
+
+  if (!company) {
+    company = new Company();
+  }
+
+  company.name = cleanCompanyName;
+  company.tradeName = tradeName ? tradeName.trim() : cleanCompanyName;
+  company.systemEmail = systemEmail ? systemEmail.trim().toLowerCase() : cleanOwnerEmail;
+  company.phone = phone ? phone.trim() : (ownerPhone || '');
+  if (address) company.address = address.trim();
+  if (city) company.city = city.trim();
+  if (country) company.country = country.trim();
+  if (tinNumber) company.tinNumber = tinNumber.trim();
+  if (currency) company.currency = currency.trim();
+  if (currencySymbol || currency) company.currencySymbol = (currencySymbol || currency).trim();
+  if (taxRate !== undefined && taxRate !== null && taxRate !== '') {
+    const taxNum = Number(taxRate);
+    company.taxRate = isNaN(taxNum) ? 15 : taxNum;
+  }
+  if (companyLogo) company.logo = String(companyLogo).trim();
+  if (notes) company.notes = String(notes).trim();
+
+  company.ownerName = ownerName.trim();
+  company.ownerEmail = cleanOwnerEmail;
+  company.ownerPhone = ownerPhone || phone || '';
+  company.ownerUser = user._id;
+  company.accessGranted = true;
+  company.status = 'active';
+
+  await company.save();
+
+  // Link user to this company
+  user.company = company._id;
+  user.companyName = company.name;
+  await user.save();
 
   // 2. Capture and update the Company Profile in Setting
   const Setting = require('../models/Setting');

@@ -24,6 +24,7 @@ import SessionTimeoutModal from './components/common/SessionTimeoutModal';
 import CashSales from './pages/CashSales';
 import CreditSales from './pages/CreditSales';
 import RegisterCompany from './pages/RegisterCompany';
+import DeveloperConsole from './pages/DeveloperConsole';
 
 function App() {
   return (
@@ -131,6 +132,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Employees />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/developer-console"
+              element={
+                <ProtectedRoute roles={['developer']}>
+                  <DeveloperConsole />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/system-developer"
+              element={
+                <ProtectedRoute roles={['developer']}>
+                  <DeveloperConsole />
                 </ProtectedRoute>
               }
             />

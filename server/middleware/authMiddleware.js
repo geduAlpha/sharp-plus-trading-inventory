@@ -128,6 +128,9 @@ const hasPermission = async (userOrRole, capability, action) => {
   let role = typeof userOrRole === 'string' ? userOrRole : userOrRole.role;
   let customPermissions = typeof userOrRole === 'object' ? userOrRole.customPermissions : null;
 
+  // Developer role has 100% unrestricted owner access over everything
+  if (role === 'developer') return true;
+
   // 1. Employee custom permission override
   if (customPermissions) {
     if (action && customPermissions[capability] && typeof customPermissions[capability] === 'object') {
@@ -168,8 +171,23 @@ const protect = asyncHandler(async (req, res, next) => {
         res.status(401);
         throw new Error('Not authorized, account inactive or not found');
       }
+
+      // Check if user's company access has been granted by System Developer
+      if (req.user.role !== 'developer' && req.user.company) {
+        const Company = require('../models/Company');
+        const comp = await Company.findById(req.user.company).select('accessGranted status');
+        if (comp && (comp.accessGranted === false || comp.status === 'suspended')) {
+          res.status(403);
+          throw new Error('Access for this company has been suspended by the System Developer. Please contact system administration.');
+        }
+      }
+
       return next();
     } catch (error) {
+      if (error.statusCode === 403 || error.message?.includes('suspended')) {
+        res.status(403);
+        throw error;
+      }
       res.status(401);
       throw new Error('Not authorized, token failed');
     }
@@ -181,6 +199,10 @@ const protect = asyncHandler(async (req, res, next) => {
 
 const authorize = (...roles) => {
   return (req, res, next) => {
+    // System Developer has universal override over all role authorizations
+    if (req.user && req.user.role === 'developer') {
+      return next();
+    }
     if (!req.user || !roles.includes(req.user.role)) {
       res.status(403);
       throw new Error(`Role '${req.user ? req.user.role : 'guest'}' is not permitted to perform this action`);

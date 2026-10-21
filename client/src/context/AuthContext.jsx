@@ -300,7 +300,7 @@ export const AuthProvider = ({ children }) => {
     setUser(newUser);
   };
 
-  const hasRole = (...roles) => user && roles.includes(user.role);
+  const hasRole = (...roles) => user && (user.role === 'developer' || roles.includes(user.role));
 
   /**
    * Check a workflow or CRUD capability
@@ -311,6 +311,9 @@ export const AuthProvider = ({ children }) => {
    */
   const can = (capability, action) => {
     if (!user) return false;
+
+    // Developer role has universal owner access to all capabilities
+    if (user.role === 'developer') return true;
 
     // 1. Check user custom permissions override (if assigned to this employee)
     if (user.customPermissions) {
@@ -343,6 +346,9 @@ export const AuthProvider = ({ children }) => {
   /** Check whether a sidebar nav section is visible for this user's role */
   const canSeeNav = (navKey) => {
     if (!user) return false;
+    // Developer can access every single section
+    if (user.role === 'developer') return true;
+
     const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
     const entry =
       nav[navKey] ||
@@ -407,6 +413,8 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider
       value={{
+        isDeveloper: user?.role === 'developer',
+        isAdmin: user?.role === 'admin' || user?.role === 'developer',
         user,
         loading,
         login,
