@@ -13,9 +13,9 @@ router.get('/public', getPublicCompanyProfile);
 
 router.route('/')
   .get(protect, getSettings)
-  .put(protect, authorize('admin'), updateSettings);
+  .put(protect, authorize('admin', 'manager'), updateSettings);
 
-router.put('/company-profile', protect, authorize('admin'), updateSettings);
-router.post('/apply-product-price-adjustment', protect, authorize('admin'), applyProductPriceAdjustment);
+router.put('/company-profile', protect, authorize('admin', 'manager'), updateSettings);
+router.post('/apply-product-price-adjustment', protect, authorize('admin', 'manager'), applyProductPriceAdjustment);
 
 module.exports = router;

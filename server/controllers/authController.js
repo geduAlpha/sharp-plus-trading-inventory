@@ -563,11 +563,14 @@ const registerCompany = asyncHandler(async (req, res) => {
   if (tinNumber) settings.tinNumber = tinNumber.trim();
   if (currency) settings.currency = currency.trim();
   if (currencySymbol || currency) settings.currencySymbol = (currencySymbol || currency).trim();
-  if (taxRate !== undefined && taxRate !== null && !isNaN(taxRate)) {
-    settings.taxRate = Number(taxRate);
+  if (taxRate !== undefined && taxRate !== null && taxRate !== '') {
+    const taxNum = Number(taxRate);
+    settings.taxRate = isNaN(taxNum) ? 15 : taxNum;
+  } else {
+    settings.taxRate = 15;
   }
-  if (companyLogo) settings.companyLogo = companyLogo;
-  if (notes) settings.notes = notes;
+  if (companyLogo) settings.companyLogo = String(companyLogo).trim();
+  if (notes) settings.notes = String(notes).trim();
 
   settings.ownerName = ownerName.trim();
   settings.ownerEmail = cleanOwnerEmail;
@@ -595,8 +598,12 @@ const registerCompany = asyncHandler(async (req, res) => {
   if (clearSettingsCache) clearSettingsCache();
 
   try {
-    tg.notifyUserCreated(user, { name: 'Company Onboarding' });
-  } catch (err) {}
+    if (tg && typeof tg.notifyUserCreated === 'function') {
+      tg.notifyUserCreated(user, 'Company Registration');
+    }
+  } catch (err) {
+    console.warn('[Telegram] Could not notify user created:', err.message);
+  }
 
   const token = generateToken(user._id);
 

@@ -62,35 +62,86 @@ const updateSettings = asyncHandler(async (req, res) => {
     settings = new Setting();
   }
 
-  const allowedFields = [
+  const stringFields = [
     'companyName', 'tradeName', 'systemEmail', 'phone', 'address',
     'city', 'country', 'tinNumber', 'website', 'companyLogo',
-    'ownerName', 'ownerEmail', 'ownerPhone', 'isConfigured',
-    'currency', 'currencySymbol', 'lowStockThresholdDefault',
-    'taxRate', 'autoGenerateVoucherNo', 'allowNegativeStock', 'notes',
-    // Pricing & Cost Parameters
-    'contingencyPercent', 'overheadPercent', 'defaultFoodCostPercent',
-    'rawMaterialPriceAdjustType', 'rawMaterialPriceAdjustValue',
-    'productSellingPriceAdjustPercent',
+    'ownerName', 'ownerEmail', 'ownerPhone', 'notes',
+    'rawMaterialPriceAdjustType',
   ];
 
-  allowedFields.forEach((field) => {
-    if (req.body[field] !== undefined) settings[field] = req.body[field];
+  const booleanFields = [
+    'autoGenerateVoucherNo', 'allowNegativeStock', 'isConfigured',
+  ];
+
+  const numericFields = [
+    'currencySymbol', 'currency', // handle string/symbol
+    'lowStockThresholdDefault', 'taxRate',
+    'contingencyPercent', 'overheadPercent', 'defaultFoodCostPercent',
+    'rawMaterialPriceAdjustValue', 'productSellingPriceAdjustPercent',
+  ];
+
+  stringFields.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      settings[field] = typeof req.body[field] === 'string' ? req.body[field].trim() : String(req.body[field] || '');
+    }
   });
 
-  if (req.body.rolePermissions !== undefined) {
+  booleanFields.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      settings[field] = Boolean(req.body[field]);
+    }
+  });
+
+  if (req.body.currency !== undefined && req.body.currency !== null) {
+    settings.currency = String(req.body.currency).trim();
+  }
+  if (req.body.currencySymbol !== undefined && req.body.currencySymbol !== null) {
+    settings.currencySymbol = String(req.body.currencySymbol).trim();
+  }
+
+  // Safe numeric conversion (never cast empty string or null into NaN)
+  const numbersToConvert = [
+    { field: 'lowStockThresholdDefault', defaultVal: 15 },
+    { field: 'taxRate', defaultVal: 15 },
+    { field: 'contingencyPercent', defaultVal: 10 },
+    { field: 'overheadPercent', defaultVal: 25 },
+    { field: 'defaultFoodCostPercent', defaultVal: 30 },
+    { field: 'rawMaterialPriceAdjustValue', defaultVal: 0 },
+    { field: 'productSellingPriceAdjustPercent', defaultVal: 0 },
+  ];
+
+  numbersToConvert.forEach(({ field, defaultVal }) => {
+    if (req.body[field] !== undefined) {
+      if (req.body[field] === '' || req.body[field] === null) {
+        settings[field] = defaultVal;
+      } else {
+        const val = Number(req.body[field]);
+        settings[field] = isNaN(val) ? defaultVal : val;
+      }
+    }
+  });
+
+  if (req.body.rolePermissions !== undefined && typeof req.body.rolePermissions === 'object') {
     settings.rolePermissions = req.body.rolePermissions;
     settings.markModified('rolePermissions');
   }
 
-  if (req.body.navVisibility !== undefined) {
+  if (req.body.navVisibility !== undefined && typeof req.body.navVisibility === 'object') {
     settings.navVisibility = req.body.navVisibility;
     settings.markModified('navVisibility');
   }
 
   const updated = await settings.save();
   clearSettingsCache();
-  tg.notifySettingsChanged(req.body, req.user);
+
+  try {
+    if (tg && typeof tg.notifySettingsChanged === 'function') {
+      tg.notifySettingsChanged(req.body, req.user);
+    }
+  } catch (tgErr) {
+    console.warn('[Telegram] Could not notify settings changed:', tgErr.message);
+  }
+
   res.json(updated);
 });
 
