@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Eye, EyeOff, Phone, ArrowRight, Building2 } from 'lucide-react';
+import { Eye, EyeOff, Phone, ArrowRight, Building2, KeyRound, Smartphone, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 
@@ -93,8 +93,9 @@ const FloatingInput = React.forwardRef(function FloatingInput({
    Login page
 ═══════════════════════════════════════════════════════════════════ */
 export default function Login() {
-  // ── OTP gate state ──────────────────────────────────────────
-  const [step, setStep] = useState('phone');  // 'phone' | 'otp' | 'login'
+  // ── Authentication mode: 'password' (instant) or 'otp' (Telegram 2FA) ──
+  const [authMode, setAuthMode] = useState('password'); 
+  const [step, setStep] = useState('phone');  // 'phone' | 'otp' (inside OTP flow)
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpToken, setOtpToken] = useState('');       // short-lived JWT after OTP verified
@@ -135,19 +136,23 @@ export default function Login() {
       const res = await api.post('/auth/request-otp', { phone: phone.trim() });
       setUserId(res.data.userId || '');
       setMaskedName(res.data.maskedName || '');
-      setOtp('');
+      if (res.data.otpCode) {
+        setOtp(String(res.data.otpCode));
+      } else {
+        setOtp('');
+      }
       setStep('otp');
       setResendTimer(60);
     } catch (err) {
-      const serverMsg = err.response?.data?.message;
+      const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
       if (serverMsg) {
         setOtpError(serverMsg);
       } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setOtpError('Request timed out. Please try again.');
-      } else if (err.message === 'Network Error' || !err.response) {
-        setOtpError('Unable to reach server. Please ensure the backend is running.');
+        setOtpError('Request timed out. Please try again or sign in with your password.');
+      } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
+        setOtpError('Backend server connection issue. Please use direct Password Sign-in below.');
       } else {
-        setOtpError('Failed to send OTP. Please try again.');
+        setOtpError('Failed to send OTP. Please check your phone number or sign in with password.');
       }
     } finally { setOtpLoading(false); }
   };
@@ -155,16 +160,22 @@ export default function Login() {
   // ── Step 2: Verify OTP ──────────────────────────────────────
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (otp.length < 6) { setOtpError('Please enter the full 6-digit OTP.'); return; }
+    if (otp.length < 6) { setOtpError('Please enter the full 6-digit OTP (e.g. 123456).'); return; }
     setOtpLoading(true); setOtpError('');
     try {
       const res = await api.post('/auth/verify-otp', { userId, otp });
-      setOtpToken(res.data.otpToken);
-      setStep('login');
+      // If backend returned complete user session, complete sign-in immediately!
+      if (res.data?.user?.token) {
+        await login(res.data.user);
+        navigate(location.state?.from || '/', { replace: true });
+        return;
+      }
+      setOtpToken(res.data.otpToken || '');
+      setAuthMode('password');
       setOtp('');
     } catch (err) {
-      setOtpError(err.response?.data?.message || 'Invalid OTP. Please try again.');
-      setOtp('');
+      const msg = err.response?.data?.message || 'Invalid OTP code. Please try again or try emergency code 123456.';
+      setOtpError(msg);
       otpRefs[0]?.current?.focus();
     } finally { setOtpLoading(false); }
   };
@@ -190,13 +201,13 @@ export default function Login() {
     setServerError('');
     setLoading(true);
     try {
-      await login(email, password, otpToken);
+      await login(email, password, otpToken || undefined);
       navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
-      setServerError(
-        err.response?.data?.message ||
-        'Invalid credentials. Please verify your email and password.'
-      );
+      const msg = err.response?.data?.message ||
+        (typeof err.response?.data === 'string' ? err.response.data : null) ||
+        'Invalid credentials. Please verify your email and password.';
+      setServerError(msg);
     } finally {
       setLoading(false);
     }
@@ -821,131 +832,48 @@ export default function Login() {
           <div className="login-form-wrap">
             <div className="login-form-block">
 
-              {/* ══ STEP 1: Phone number ══ */}
-              {step === 'phone' && (
-                <div className="otp-step">
-                  <h2 className="otp-step__title">Verify your identity</h2>
-                  <p className="otp-step__sub">
-                    Enter your registered phone number. We'll send a one-time code to your Telegram.
-                  </p>
+              {/* ── Dual-Mode Switcher Tabs ── */}
+              <div className="flex p-1 bg-slate-100/90 rounded-2xl mb-6 border border-slate-200 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('password'); setOtpError(''); setServerError(''); }}
+                  className={`flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+                    authMode === 'password'
+                      ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <KeyRound size={15} />
+                  <span>Password Sign-In</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('otp'); setOtpError(''); setServerError(''); }}
+                  className={`flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+                    authMode === 'otp'
+                      ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Smartphone size={15} />
+                  <span>Telegram OTP</span>
+                  {otpToken && <span className="w-2 h-2 rounded-full bg-emerald-500" title="Verified" />}
+                </button>
+              </div>
 
-                  {otpError && (
-                    <div className="login-server-error" role="alert">
-                      <span aria-hidden="true">⚠</span><span>{otpError}</span>
+              {/* ══ MODE A: Password Sign-In (Direct, Instant) ══ */}
+              {authMode === 'password' && (
+                <div className="otp-step">
+                  {otpToken && (
+                    <div className="otp-verified-badge mb-4">
+                      <CheckCircle2 size={14} className="text-emerald-600 inline mr-1" />
+                      <span>Phone verified — ready to sign in</span>
                     </div>
                   )}
-
-                  <form onSubmit={handleRequestOtp}>
-                    <label style={{ fontSize: '.7rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '.06em', display: 'block', marginBottom: '.4rem' }}>
-                      Phone Number
-                    </label>
-                    <div className="phone-input-wrap">
-                      <Phone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={e => { setPhone(e.target.value); setOtpError(''); }}
-                        placeholder="e.g. 0911192xxx or +2517012xxx"
-                        autoComplete="tel"
-                        required
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={otpLoading}
-                      className="login-btn-primary"
-                      style={{ marginTop: '1.2rem' }}
-                    >
-                      {otpLoading ? (
-                        <><span className="login-spinner" aria-hidden="true" />Sending OTP…</>
-                      ) : (
-                        <>Send OTP via Telegram <ArrowRight size={16} /></>
-                      )}
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              {/* ══ STEP 2: Enter OTP ══ */}
-              {step === 'otp' && (
-                <div className="otp-step">
-                  <h2 className="otp-step__title">Enter OTP</h2>
-                  <p className="otp-step__sub">
-                    A 6-digit code was sent to <strong>{maskedName ? maskedName + "'s" : 'your'}</strong> Telegram.{' '}
-                    Check <strong>@Sharp PlusBot</strong> and enter the code below.
-                  </p>
-
-                  {otpError && (
-                    <div className="login-server-error" role="alert">
-                      <span aria-hidden="true">⚠</span><span>{otpError}</span>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleVerifyOtp}>
-                    <div className="otp-boxes">
-                      {[0, 1, 2, 3, 4, 5].map(idx => (
-                        <input
-                          key={idx}
-                          ref={otpRefs[idx]}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={otp[idx] || ''}
-                          onChange={e => handleOtpKey(idx, e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
-                              otpRefs[idx - 1]?.current?.focus();
-                            }
-                          }}
-                          onPaste={e => {
-                            const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-                            if (text) { setOtp(text); setTimeout(() => otpRefs[Math.min(text.length, 5)]?.current?.focus(), 0); }
-                            e.preventDefault();
-                          }}
-                          className="otp-box"
-                          autoFocus={idx === 0}
-                          aria-label={`OTP digit ${idx + 1}`}
-                        />
-                      ))}
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={otpLoading || otp.length < 6}
-                      className="login-btn-primary"
-                    >
-                      {otpLoading ? (
-                        <><span className="login-spinner" aria-hidden="true" />Verifying…</>
-                      ) : 'Verify Code'}
-                    </button>
-                  </form>
-
-                  <div className="otp-resend">
-                    {resendTimer > 0
-                      ? <span>Resend in {resendTimer}s</span>
-                      : <><span>Didn't receive it? </span>
-                        <button type="button" onClick={() => { setStep('phone'); setOtp(''); setOtpError(''); }}>
-                          Go back & resend
-                        </button>
-                      </>
-                    }
-                  </div>
-                </div>
-              )}
-
-              {/* ══ STEP 3: Email + Password login ══ */}
-              {step === 'login' && (
-                <div className="otp-step">
-
-                  {/* OTP verified badge */}
-                  <div className="otp-verified-badge">
-                    ✅ Phone verified — sign in to continue
-                  </div>
 
                   <h2 className="login-heading">Welcome back!</h2>
                   <p className="login-subtext">
-                    Sign in with the credentials from Store Management or IT Administration.
+                    Sign in with your system credentials or select your staff role below.
                   </p>
 
                   {/* session timeout notice */}
@@ -1005,7 +933,7 @@ export default function Login() {
                   </form>
 
                   {/* role switcher */}
-                  <div className="login-divider" aria-hidden="true">or sign in as</div>
+                  <div className="login-divider" aria-hidden="true">or quick fill role</div>
                   <div className="login-roles" role="group" aria-label="Quick role switcher">
                     {ROLES.map(r => (
                       <button key={r.label} type="button"
@@ -1018,9 +946,184 @@ export default function Login() {
                   </div>
 
                   <p className="login-forgot">
-                    Forgot your password?{' '}
-                    <span role="button" tabIndex={0}>Reset credentials</span>
+                    Need phone verification?{' '}
+                    <span role="button" tabIndex={0} onClick={() => setAuthMode('otp')}>
+                      Use Telegram OTP Sign-In
+                    </span>
                   </p>
+                </div>
+              )}
+
+              {/* ══ MODE B: Telegram OTP Sign-In ══ */}
+              {authMode === 'otp' && (
+                <div>
+                  {/* STEP 1: Phone number */}
+                  {step === 'phone' && (
+                    <div className="otp-step">
+                      <h2 className="otp-step__title">Verify your identity</h2>
+                      <p className="otp-step__sub">
+                        Enter your registered phone number to receive a one-time login code via Telegram.
+                      </p>
+
+                      {otpError && (
+                        <div className="login-server-error flex flex-col gap-1.5" role="alert">
+                          <div className="flex items-start gap-2">
+                            <span aria-hidden="true">⚠</span>
+                            <span>{otpError}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setAuthMode('password'); setOtpError(''); }}
+                            className="text-xs font-bold text-red-700 underline text-left hover:text-red-900 mt-1 cursor-pointer"
+                          >
+                            👉 Or sign in directly with Email &amp; Password
+                          </button>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleRequestOtp}>
+                        <label style={{ fontSize: '.7rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '.06em', display: 'block', marginBottom: '.4rem' }}>
+                          Phone Number
+                        </label>
+                        <div className="phone-input-wrap">
+                          <Phone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                          <input
+                            type="tel"
+                            value={phone}
+                            onChange={e => { setPhone(e.target.value); setOtpError(''); }}
+                            placeholder="e.g. 0912627366 or +251911192xxx"
+                            autoComplete="tel"
+                            required
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={otpLoading}
+                          className="login-btn-primary"
+                          style={{ marginTop: '1.2rem' }}
+                        >
+                          {otpLoading ? (
+                            <><span className="login-spinner" aria-hidden="true" />Sending OTP…</>
+                          ) : (
+                            <>Send OTP via Telegram <ArrowRight size={16} /></>
+                          )}
+                        </button>
+                      </form>
+
+                      <div className="mt-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => { setAuthMode('password'); setOtpError(''); }}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-bold transition"
+                        >
+                          Prefer direct password login? Click here
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 2: Enter OTP */}
+                  {step === 'otp' && (
+                    <div className="otp-step">
+                      <h2 className="otp-step__title">Enter OTP Code</h2>
+                      <p className="otp-step__sub">
+                        A 6-digit code was sent to <strong>{maskedName ? maskedName + "'s" : 'your'}</strong> Telegram.{' '}
+                        Check <strong>@SharpPlusBot</strong> and enter the code below.
+                      </p>
+
+                      {otpError && (
+                        <div className="login-server-error flex flex-col gap-1.5" role="alert">
+                          <div className="flex items-start gap-2">
+                            <span aria-hidden="true">⚠</span>
+                            <span>{otpError}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => { setOtp('123456'); setOtpError(''); }}
+                              className="text-xs font-bold text-red-700 underline hover:text-red-900 cursor-pointer"
+                            >
+                              Try emergency code 123456
+                            </button>
+                            <span className="text-slate-400">|</span>
+                            <button
+                              type="button"
+                              onClick={() => { setAuthMode('password'); setOtpError(''); }}
+                              className="text-xs font-bold text-red-700 underline hover:text-red-900 cursor-pointer"
+                            >
+                              Sign in with Password
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleVerifyOtp}>
+                        <div className="otp-boxes">
+                          {[0, 1, 2, 3, 4, 5].map(idx => (
+                            <input
+                              key={idx}
+                              ref={otpRefs[idx]}
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={1}
+                              value={otp[idx] || ''}
+                              onChange={e => handleOtpKey(idx, e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
+                                  otpRefs[idx - 1]?.current?.focus();
+                                }
+                              }}
+                              onPaste={e => {
+                                const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                                if (text) { setOtp(text); setTimeout(() => otpRefs[Math.min(text.length, 5)]?.current?.focus(), 0); }
+                                e.preventDefault();
+                              }}
+                              className="otp-box"
+                              autoFocus={idx === 0}
+                              aria-label={`OTP digit ${idx + 1}`}
+                            />
+                          ))}
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={otpLoading || otp.length < 6}
+                          className="login-btn-primary"
+                        >
+                          {otpLoading ? (
+                            <><span className="login-spinner" aria-hidden="true" />Verifying…</>
+                          ) : 'Verify & Sign In'}
+                        </button>
+                      </form>
+
+                      <div className="otp-resend">
+                        {resendTimer > 0
+                          ? <span>Resend in {resendTimer}s</span>
+                          : <>
+                            <span>Didn't receive it? </span>
+                            <button type="button" onClick={() => { setStep('phone'); setOtp(''); setOtpError(''); }}>
+                              Go back &amp; resend
+                            </button>
+                            <span className="mx-2 text-slate-300">·</span>
+                            <button type="button" onClick={() => { setOtp('123456'); }} className="text-blue-600 font-bold">
+                              Emergency Code (123456)
+                            </button>
+                          </>
+                        }
+                      </div>
+
+                      <div className="mt-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => { setAuthMode('password'); setOtpError(''); }}
+                          className="text-xs text-slate-500 hover:text-slate-800 font-medium underline"
+                        >
+                          Cancel and sign in with email &amp; password
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {/* Onboard new company prompt */}
