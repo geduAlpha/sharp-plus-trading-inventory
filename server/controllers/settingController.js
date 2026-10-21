@@ -63,7 +63,9 @@ const updateSettings = asyncHandler(async (req, res) => {
   }
 
   const allowedFields = [
-    'companyName', 'systemEmail', 'phone', 'address',
+    'companyName', 'tradeName', 'systemEmail', 'phone', 'address',
+    'city', 'country', 'tinNumber', 'website', 'companyLogo',
+    'ownerName', 'ownerEmail', 'ownerPhone', 'isConfigured',
     'currency', 'currencySymbol', 'lowStockThresholdDefault',
     'taxRate', 'autoGenerateVoucherNo', 'allowNegativeStock', 'notes',
     // Pricing & Cost Parameters
@@ -129,5 +131,51 @@ const applyProductPriceAdjustment = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { getSettings, updateSettings, applyProductPriceAdjustment };
+// @desc   Get public company profile (safe fields for guest/login views)
+// @route  GET /api/settings/public
+// @access Public
+const getPublicCompanyProfile = asyncHandler(async (req, res) => {
+  let settings = await Setting.findOne();
+  if (!settings) {
+    return res.json({
+      companyName: 'Sharp Plus',
+      tradeName: 'Sharp Plus',
+      systemEmail: 'info@Sharp Plus.com',
+      phone: '+251 911 000 111',
+      address: 'Addis Ababa, Ethiopia',
+      city: 'Addis Ababa',
+      country: 'Ethiopia',
+      currency: 'ETB',
+      currencySymbol: 'ETB',
+      taxRate: 15,
+      companyLogo: '',
+      tinNumber: '',
+      isConfigured: false,
+    });
+  }
+  res.json({
+    companyName: settings.companyName || 'Sharp Plus',
+    tradeName: settings.tradeName || settings.companyName || 'Sharp Plus',
+    systemEmail: settings.systemEmail || '',
+    phone: settings.phone || '',
+    address: settings.address || '',
+    city: settings.city || 'Addis Ababa',
+    country: settings.country || 'Ethiopia',
+    currency: settings.currency || 'ETB',
+    currencySymbol: settings.currencySymbol || 'ETB',
+    companyLogo: settings.companyLogo || '',
+    tinNumber: settings.tinNumber || '',
+    taxRate: settings.taxRate !== undefined ? settings.taxRate : 15,
+    ownerName: settings.ownerName || '',
+    isConfigured: settings.isConfigured || false,
+    registeredAt: settings.registeredAt,
+  });
+});
+
+module.exports = {
+  getSettings,
+  updateSettings,
+  applyProductPriceAdjustment,
+  getPublicCompanyProfile,
+};
 

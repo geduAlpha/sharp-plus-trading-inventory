@@ -23,6 +23,7 @@ import { SessionTimeoutProvider } from './context/SessionTimeoutContext';
 import SessionTimeoutModal from './components/common/SessionTimeoutModal';
 import CashSales from './pages/CashSales';
 import CreditSales from './pages/CreditSales';
+import RegisterCompany from './pages/RegisterCompany';
 
 function App() {
   return (
@@ -31,6 +32,8 @@ function App() {
         <SessionTimeoutModal />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<RegisterCompany />} />
+          <Route path="/register-company" element={<RegisterCompany />} />
 
           <Route
             element={

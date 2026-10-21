@@ -22,6 +22,10 @@ import {
   Trash2,
   Clock,
   Send,
+  Building2,
+  FileBadge2,
+  Globe,
+  Percent,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -53,7 +57,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Settings() {
-  const { user, updateUser, hasRole, refreshPermissions } = useAuth();
+  const { user, updateUser, hasRole, refreshPermissions, companyInfo, updateCompanyInfo } = useAuth();
   const { timeoutMinutes, setTimeoutMinutes } = useSessionTimeout();
   const [sessionTimeoutSuccess, setSessionTimeoutSuccess] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -97,11 +101,21 @@ export default function Settings() {
   // System settings state (Admin)
   const [systemForm, setSystemForm] = useState({
     companyName: 'Sharp Plus',
+    tradeName: '',
+    tinNumber: '',
     systemEmail: 'info@Sharp Plus.com',
     phone: '+251 911 000 111',
     address: 'Addis Ababa, Ethiopia',
+    city: 'Addis Ababa',
+    country: 'Ethiopia',
     currency: 'ETB',
     currencySymbol: 'ETB',
+    companyLogo: '',
+    ownerName: '',
+    ownerEmail: '',
+    ownerPhone: '',
+    registeredAt: null,
+    isConfigured: false,
     lowStockThresholdDefault: 15,
     taxRate: 15,
     autoGenerateVoucherNo: true,
@@ -398,12 +412,15 @@ export default function Settings() {
     try {
       const res = await api.put('/settings', systemForm);
       setSystemForm((prev) => ({ ...prev, ...res.data }));
+      if (updateCompanyInfo) {
+        updateCompanyInfo(res.data);
+      }
       if (res.data?.rolePermissions || res.data?.navVisibility) {
         await refreshPermissions(res.data);
       } else {
         await refreshPermissions();
       }
-      setSystemSuccess('Sharp Plus system settings & role permissions saved and activated immediately.');
+      setSystemSuccess(`${res.data?.companyName || 'Company'} profile & system settings saved and activated immediately.`);
       setTimeout(() => setSystemSuccess(''), 4000);
     } catch (err) {
       setSystemError(err.response?.data?.message || 'Failed to update system settings.');
@@ -893,21 +910,84 @@ export default function Settings() {
               </div>
             )}
 
+            {/* Active Company Ownership Badge */}
+            <div className="mb-6 rounded-2xl bg-gradient-to-r from-indigo-900/10 via-slate-900/5 to-indigo-900/10 border border-indigo-200/60 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white font-black text-lg shadow-sm">
+                    {systemForm.companyLogo ? (
+                      <img src={systemForm.companyLogo} alt={systemForm.companyName} className="h-full w-full object-contain rounded-2xl" />
+                    ) : (
+                      (systemForm.companyName || 'CO').slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-ink-900">{systemForm.companyName}</h3>
+                    <p className="text-xs text-indigo-600 font-semibold">
+                      Registered Owner: {systemForm.ownerName || user?.name || 'Primary Admin'} {systemForm.ownerEmail ? `(${systemForm.ownerEmail})` : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                    <CheckCircle2 size={12} /> System Active
+                  </span>
+                  {systemForm.tinNumber && (
+                    <span className="text-xs text-ink-500 font-medium">
+                      TIN: <strong>{systemForm.tinNumber}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <form onSubmit={handleSystemSubmit} className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-ink-700 mb-1">
-                    company / Brand Name
+                    Company / Organization Name
                   </label>
                   <div className="relative">
-                    <Building size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                    <Building2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
                     <input
                       type="text"
                       required
                       value={systemForm.companyName}
                       onChange={(e) => setSystemForm({ ...systemForm, companyName: e.target.value })}
+                      className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 font-medium"
+                      placeholder="e.g. Acme Trading PLC"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">
+                    Trade / Brand Name
+                  </label>
+                  <div className="relative">
+                    <Building size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                    <input
+                      type="text"
+                      value={systemForm.tradeName || ''}
+                      onChange={(e) => setSystemForm({ ...systemForm, tradeName: e.target.value })}
                       className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
-                      placeholder="Sharp Plus"
+                      placeholder="e.g. Acme Stores"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">
+                    TIN / Business Registration Number
+                  </label>
+                  <div className="relative">
+                    <FileBadge2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+                    <input
+                      type="text"
+                      value={systemForm.tinNumber || ''}
+                      onChange={(e) => setSystemForm({ ...systemForm, tinNumber: e.target.value })}
+                      className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                      placeholder="e.g. 0012345678"
                     />
                   </div>
                 </div>
@@ -923,7 +1003,7 @@ export default function Settings() {
                       required
                       value={systemForm.currency}
                       onChange={(e) => setSystemForm({ ...systemForm, currency: e.target.value })}
-                      className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+                      className="w-full rounded-xl border border-ink-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 font-bold"
                       placeholder="ETB"
                     />
                   </div>
@@ -963,7 +1043,7 @@ export default function Settings() {
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-ink-700 mb-1">
-                    Physical Address / Location
+                    Physical Address / Headquarters Location
                   </label>
                   <div className="relative">
                     <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
@@ -975,6 +1055,45 @@ export default function Settings() {
                       placeholder="Addis Ababa, Ethiopia"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">
+                    City / Region
+                  </label>
+                  <input
+                    type="text"
+                    value={systemForm.city || ''}
+                    onChange={(e) => setSystemForm({ ...systemForm, city: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 px-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="Addis Ababa"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">
+                    Country
+                  </label>
+                  <input
+                    type="text"
+                    value={systemForm.country || ''}
+                    onChange={(e) => setSystemForm({ ...systemForm, country: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 px-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="Ethiopia"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">
+                    Company Logo URL
+                  </label>
+                  <input
+                    type="text"
+                    value={systemForm.companyLogo || ''}
+                    onChange={(e) => setSystemForm({ ...systemForm, companyLogo: e.target.value })}
+                    className="w-full rounded-xl border border-ink-200 py-2.5 px-3 text-sm outline-none focus:border-blue-500"
+                    placeholder="https://... or /logo.png"
+                  />
                 </div>
 
                 <div>

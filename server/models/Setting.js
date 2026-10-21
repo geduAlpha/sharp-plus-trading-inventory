@@ -48,6 +48,19 @@ const settingSchema = new mongoose.Schema(
     },
     notes: { type: String, default: 'Sharp Plus Trading PLC & Stock Control System' },
 
+    // ── Company Profile & System Ownership ───────────────────────
+    tradeName: { type: String, default: '' },
+    tinNumber: { type: String, default: '' },
+    companyLogo: { type: String, default: '' },
+    website: { type: String, default: '' },
+    city: { type: String, default: 'Addis Ababa' },
+    country: { type: String, default: 'Ethiopia' },
+    ownerName: { type: String, default: 'System Owner' },
+    ownerEmail: { type: String, default: 'admin@company.com' },
+    ownerPhone: { type: String, default: '' },
+    registeredAt: { type: Date, default: Date.now },
+    isConfigured: { type: Boolean, default: false },
+
     // ── Pricing & Cost Parameters ─────────────────────────────────
     // Contingency: % buffer added on top of raw material cost (waste, price fluctuation)
     contingencyPercent: { type: Number, default: 10, min: 0, max: 100 },

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Phone, ArrowRight } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { Eye, EyeOff, Phone, ArrowRight, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 
@@ -113,7 +113,7 @@ export default function Login() {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, companyInfo } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const passwordRef = useRef(null);
@@ -595,7 +595,7 @@ export default function Login() {
         /* ── role switcher ── */
         .login-roles {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(4, 1fr);
           gap: 0.45rem;
         }
         .login-role-btn {
@@ -765,8 +765,12 @@ export default function Login() {
 
           {/* logo */}
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <div className="h-16 w-16 rounded-2xl bg-white p-2 shadow-2xl ring-2 ring-white/30 flex items-center justify-center">
-              <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
+            <div className="h-16 w-16 rounded-2xl bg-white p-2 shadow-2xl ring-2 ring-white/30 flex items-center justify-center overflow-hidden">
+              {companyInfo?.companyLogo ? (
+                <img src={companyInfo.companyLogo} alt={companyInfo.companyName} className="h-full w-full object-contain" />
+              ) : (
+                <img src="/logo.png" alt={companyInfo?.companyName || "Sharp Plus"} className="h-full w-full object-contain" />
+              )}
             </div>
           </div>
 
@@ -774,7 +778,7 @@ export default function Login() {
           <div className="login-hero__content">
             <h1 className="login-hero__heading">
               Hello<br />
-              Sharp Plus!&nbsp;
+              {companyInfo?.companyName || 'Sharp Plus'}!&nbsp;
               <span className="login-hero__wave" role="img" aria-label="waving hand">👋</span>
             </h1>
             <p className="login-hero__desc">
@@ -785,7 +789,7 @@ export default function Login() {
 
           {/* left footer */}
           <footer className="login-hero__footer">
-            © 2026 Sharp Plus Trading&amp; KD Foam Provider. All rights reserved.
+            © 2026 {companyInfo?.companyName || 'Sharp Plus Trading'}. All rights reserved.
           </footer>
         </section>
 
@@ -793,14 +797,23 @@ export default function Login() {
         <main className="login-form-panel">
 
           {/* top bar */}
-          <div className="login-topbar">
-            <span className="login-wordmark" aria-label="Sharp Plus">
-              <span className="login-wordmark__sharp">Sharp&nbsp;</span>
-              <span className="login-wordmark__plus">+</span>
+          <div className="login-topbar flex items-center justify-between gap-2">
+            <span className="login-wordmark font-black text-slate-900 truncate" aria-label={companyInfo?.companyName || "Sharp Plus"}>
+              {companyInfo?.companyName || "Sharp Plus"}
             </span>
-            <div className="login-status" aria-live="polite">
-              <span className="login-status__dot" aria-hidden="true" />
-              System online
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                to="/register"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition border border-indigo-200 shadow-sm"
+              >
+                <Building2 size={13} className="text-indigo-600" />
+                <span>Register Company</span>
+                <ArrowRight size={13} />
+              </Link>
+              <div className="login-status hidden sm:flex" aria-live="polite">
+                <span className="login-status__dot" aria-hidden="true" />
+                System online
+              </div>
             </div>
           </div>
 
@@ -1010,6 +1023,20 @@ export default function Login() {
                   </p>
                 </div>
               )}
+              {/* Onboard new company prompt */}
+              <div className="mt-6 rounded-2xl bg-indigo-50/70 border border-indigo-100/80 p-4 text-center">
+                <p className="text-xs text-slate-600 mb-2 font-medium">
+                  New entrance company setting up this system?
+                </p>
+                <Link
+                  to="/register"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition underline underline-offset-2"
+                >
+                  <Building2 size={14} />
+                  <span>Register Company Profile &amp; Become System Owner</span>
+                  <ArrowRight size={13} />
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -1039,7 +1066,7 @@ export default function Login() {
             </div>
             <div className="login-footer__bottom">
               <a
-                href="mailto:support@Sharp Plus.com"
+                href={`mailto:${companyInfo?.systemEmail || 'support@Sharp Plus.com'}`}
                 className="login-footer__support"
               >
                 Contact support

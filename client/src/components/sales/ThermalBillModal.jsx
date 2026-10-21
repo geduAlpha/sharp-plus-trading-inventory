@@ -46,38 +46,40 @@ const PRESETS = {
 
 
 export default function ThermalBillModal({ open, onClose, sale }) {
-  const { user } = useAuth();
+  const { user, companyInfo } = useAuth();
   const [activePreset, setActivePreset] = useState('sharpplus');
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState('pos_blue'); // 'pos_blue' (like image) or 'paper_white'
   const [showConfig, setShowConfig] = useState(false);
 
-  // Custom configuration fields - default to Sharp Plus Trading PLC
-  const [config, setConfig] = useState({
-    tinNumber: PRESETS.sharpplus.tinNumber,
-    companyLines: PRESETS.sharpplus.companyLines,
-    addressLine1: PRESETS.sharpplus.addressLine1,
-    addressLine2: PRESETS.sharpplus.addressLine2,
-    phone: PRESETS.sharpplus.phone,
+  // Custom configuration fields - default to registered company profile
+  const [config, setConfig] = useState(() => ({
+    tinNumber: companyInfo?.tinNumber || PRESETS.sharpplus.tinNumber,
+    companyLines: companyInfo?.companyName
+      ? [companyInfo.companyName, companyInfo.tradeName || ''].filter(Boolean)
+      : PRESETS.sharpplus.companyLines,
+    addressLine1: companyInfo?.address || PRESETS.sharpplus.addressLine1,
+    addressLine2: companyInfo?.city ? `${companyInfo.city}, ${companyInfo.country || 'Ethiopia'}` : PRESETS.sharpplus.addressLine2,
+    phone: companyInfo?.phone || PRESETS.sharpplus.phone,
     machineNo: PRESETS.sharpplus.machineNo,
-    poweredBy: PRESETS.sharpplus.poweredBy,
-    operator: user?.name || 'Sharp Plus Admin',
-    taxRate: sale?.taxRate !== undefined ? Number(sale.taxRate) : 15,
+    poweredBy: `${companyInfo?.companyName || 'Sharp Plus'} System`,
+    operator: user?.name || (companyInfo?.ownerName ? `${companyInfo.ownerName} (Admin)` : 'Company Admin'),
+    taxRate: sale?.taxRate !== undefined ? Number(sale.taxRate) : (companyInfo?.taxRate || 15),
     fsNo: '',
-  });
+  }));
 
   // Sync with sale tax rate and fsNo when sale changes
   React.useEffect(() => {
     if (sale) {
-      const defaultTax = sale.taxRate !== undefined ? Number(sale.taxRate) : 15;
+      const defaultTax = sale.taxRate !== undefined ? Number(sale.taxRate) : (companyInfo?.taxRate || 15);
       setConfig((prev) => ({
         ...prev,
         taxRate: defaultTax,
-        operator: user?.name || prev.operator || 'Sharp Plus Admin',
+        operator: user?.name || prev.operator || 'Company Admin',
         fsNo: sale.fsNo || prev.fsNo || '',
       }));
     }
-  }, [sale, user]);
+  }, [sale, user, companyInfo]);
 
   const handleApplyPreset = (key) => {
     setActivePreset(key);

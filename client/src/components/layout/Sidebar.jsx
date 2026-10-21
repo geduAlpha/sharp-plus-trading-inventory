@@ -203,7 +203,7 @@ const StockIssueComingSoonModal = ({ onClose }) => (
    SIDEBAR
 ══════════════════════════════════════════ */
 const Sidebar = ({ open, onClose, collapsed = false }) => {
-  const { user, canSeeNav } = useAuth();
+  const { user, canSeeNav, companyInfo } = useAuth();
   const location = useLocation();
 
   const onTransactions = location.pathname.startsWith('/transactions');
@@ -297,14 +297,26 @@ return (
     >
       {/* ── Brand Logo Header ── */}
       <div className={`flex items-center gap-3 py-4 border-b border-slate-100 ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
-        <NavLink to="/" onClick={onClose} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white font-black text-base shadow-sm">
-            SP
-          </div>
+        <NavLink to="/" onClick={onClose} className="flex items-center gap-3 hover:opacity-90 transition-opacity min-w-0">
+          {companyInfo?.companyLogo ? (
+            <img
+              src={companyInfo.companyLogo}
+              alt={companyInfo.companyName}
+              className="h-9 w-9 shrink-0 rounded-xl object-contain bg-slate-50 border border-slate-200 p-0.5 shadow-sm"
+            />
+          ) : (
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white font-black text-sm shadow-sm">
+              {(companyInfo?.companyName || 'SP').slice(0, 2).toUpperCase()}
+            </div>
+          )}
           {!collapsed && (
-            <div>
-              <p className="text-[15px] font-black leading-none text-slate-900 tracking-tight">Sharp Plus</p>
-              <p className="text-[10px] text-indigo-600 mt-0.5 tracking-wide font-semibold uppercase">Trading Inventory</p>
+            <div className="min-w-0">
+              <p className="text-[14px] font-black leading-tight text-slate-900 tracking-tight truncate max-w-[170px]">
+                {companyInfo?.companyName || 'Sharp Plus'}
+              </p>
+              <p className="text-[10px] text-indigo-600 mt-0.5 tracking-wide font-semibold uppercase truncate max-w-[170px]">
+                {companyInfo?.tradeName ? companyInfo.tradeName : 'Trading & Stock'}
+              </p>
             </div>
           )}
         </NavLink>

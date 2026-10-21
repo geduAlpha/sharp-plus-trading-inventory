@@ -103,6 +103,7 @@ const QUICK_TIPS = [
 // HELP MODAL COMPONENT
 // ─────────────────────────────────────────
 const HelpModal = ({ onClose }) => {
+  const { companyInfo } = useAuth();
   const [activeSection, setActiveSection] = useState('getting-started');
   const [search, setSearch] = useState('');
 
@@ -281,7 +282,7 @@ const HelpModal = ({ onClose }) => {
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between border-t border-ink-100 bg-ink-50/40 px-6 py-3">
-          <p className="text-[10px] text-ink-400">Sharp Plus Trading PLC · Powered by MEGA Technology</p>
+          <p className="text-[10px] text-ink-400">{companyInfo?.companyName || 'Sharp Plus Trading PLC'} · Powered by MEGA Technology</p>
           <button
             onClick={onClose}
             className="rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition"
@@ -552,6 +553,7 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
     admin: 'bg-amber-50 text-amber-800 border-amber-200',
     manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     storekeeper: 'bg-blue-50 text-blue-700 border-blue-200',
+    cashier: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   }[user?.role || 'storekeeper'];
 
   return (

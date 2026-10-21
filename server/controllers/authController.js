@@ -473,5 +473,177 @@ const verifyOtp = asyncHandler(async (req, res) => {
   res.json({ message: 'OTP verified.', otpToken });
 });
 
-module.exports = { registerUser, loginUser, getMe, verifyPassword, updateProfile, updatePassword, requestOtp, verifyOtp };
+// @desc   Register a new Company Profile and set the registrant as system owner
+// @route  POST /api/auth/register-company
+// @access Public
+const registerCompany = asyncHandler(async (req, res) => {
+  const {
+    companyName,
+    tradeName,
+    systemEmail,
+    phone,
+    address,
+    city,
+    country,
+    tinNumber,
+    currency,
+    currencySymbol,
+    taxRate,
+    notes,
+    companyLogo,
+    ownerName,
+    ownerEmail,
+    ownerPassword,
+    ownerPhone,
+    telegramChatId,
+  } = req.body;
+
+  if (!companyName || !companyName.trim()) {
+    res.status(400);
+    throw new Error('Company name is required');
+  }
+
+  if (!ownerName || !ownerName.trim()) {
+    res.status(400);
+    throw new Error('Owner full name is required');
+  }
+
+  if (!ownerEmail || !ownerEmail.trim()) {
+    res.status(400);
+    throw new Error('Owner email address is required');
+  }
+
+  if (!ownerPassword || ownerPassword.length < 6) {
+    res.status(400);
+    throw new Error('Owner password must be at least 6 characters long');
+  }
+
+  const cleanOwnerEmail = ownerEmail.trim().toLowerCase();
+  const cleanCompanyName = companyName.trim();
+
+  // 1. Find or create the Owner User
+  let user = await User.findOne({ email: cleanOwnerEmail });
+  if (user) {
+    user.name = ownerName.trim();
+    user.password = ownerPassword; // hashed automatically by pre('save')
+    user.role = 'admin';
+    user.phone = ownerPhone || phone || user.phone || '';
+    user.isActive = true;
+    if (telegramChatId) user.telegramChatId = telegramChatId.trim();
+    if (companyLogo) user.avatar = companyLogo;
+    await user.save();
+  } else {
+    user = await User.create({
+      name: ownerName.trim(),
+      email: cleanOwnerEmail,
+      password: ownerPassword,
+      role: 'admin',
+      phone: ownerPhone || phone || '',
+      telegramChatId: telegramChatId ? telegramChatId.trim() : '',
+      avatar: companyLogo || '',
+      isActive: true,
+    });
+  }
+
+  // 2. Capture and update the Company Profile in Setting
+  const Setting = require('../models/Setting');
+  const { clearSettingsCache } = require('../middleware/authMiddleware');
+  let settings = await Setting.findOne();
+  if (!settings) {
+    settings = new Setting();
+  }
+
+  settings.companyName = cleanCompanyName;
+  settings.tradeName = tradeName ? tradeName.trim() : cleanCompanyName;
+  settings.systemEmail = systemEmail ? systemEmail.trim().toLowerCase() : cleanOwnerEmail;
+  settings.phone = phone ? phone.trim() : (ownerPhone || settings.phone);
+  if (address) settings.address = address.trim();
+  if (city) settings.city = city.trim();
+  if (country) settings.country = country.trim();
+  if (tinNumber) settings.tinNumber = tinNumber.trim();
+  if (currency) settings.currency = currency.trim();
+  if (currencySymbol || currency) settings.currencySymbol = (currencySymbol || currency).trim();
+  if (taxRate !== undefined && taxRate !== null && !isNaN(taxRate)) {
+    settings.taxRate = Number(taxRate);
+  }
+  if (companyLogo) settings.companyLogo = companyLogo;
+  if (notes) settings.notes = notes;
+
+  settings.ownerName = ownerName.trim();
+  settings.ownerEmail = cleanOwnerEmail;
+  settings.ownerPhone = ownerPhone || phone || '';
+  settings.registeredAt = new Date();
+  settings.isConfigured = true;
+
+  // Telegram auto-subscribe if chatId or phone is available
+  if (telegramChatId && telegramChatId.trim()) {
+    const subs = settings.telegramSubscribers || [];
+    const alreadyExists = subs.some(s => String(s.chatId) === String(telegramChatId.trim()));
+    if (!alreadyExists) {
+      subs.push({
+        chatId: telegramChatId.trim(),
+        name: ownerName.trim(),
+        username: cleanOwnerEmail,
+        phone: ownerPhone || phone || '',
+        subscribedAt: new Date(),
+      });
+      settings.telegramSubscribers = subs;
+    }
+  }
+
+  await settings.save();
+  if (clearSettingsCache) clearSettingsCache();
+
+  try {
+    tg.notifyUserCreated(user, { name: 'Company Onboarding' });
+  } catch (err) {}
+
+  const token = generateToken(user._id);
+
+  res.status(201).json({
+    success: true,
+    message: `Company ${settings.companyName} registered successfully! You are now the system owner.`,
+    token,
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone || '',
+      avatar: user.avatar || '',
+      customPermissions: null,
+    },
+    company: {
+      companyName: settings.companyName,
+      tradeName: settings.tradeName,
+      systemEmail: settings.systemEmail,
+      phone: settings.phone,
+      address: settings.address,
+      city: settings.city,
+      country: settings.country,
+      currency: settings.currency,
+      currencySymbol: settings.currencySymbol,
+      taxRate: settings.taxRate,
+      tinNumber: settings.tinNumber,
+      companyLogo: settings.companyLogo,
+      ownerName: settings.ownerName,
+      ownerEmail: settings.ownerEmail,
+      ownerPhone: settings.ownerPhone,
+      isConfigured: settings.isConfigured,
+      registeredAt: settings.registeredAt,
+    },
+  });
+});
+
+module.exports = {
+  registerUser,
+  registerCompany,
+  loginUser,
+  getMe,
+  verifyPassword,
+  updateProfile,
+  updatePassword,
+  requestOtp,
+  verifyOtp,
+};
 

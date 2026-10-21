@@ -49,6 +49,19 @@ const run = async () => {
     console.log('Storekeeper already exists, skipping.');
   }
 
+  const cashierExists = await User.findOne({ email: 'cashier@company.com' });
+  if (!cashierExists) {
+    await User.create({
+      name: 'Cashier',
+      email: 'cashier@company.com',
+      password: 'admin123',
+      role: 'cashier',
+    });
+    console.log('Created default cashier -> cashier@company.com / admin123');
+  } else {
+    console.log('Cashier already exists, skipping.');
+  }
+
   const supplierCount = await Supplier.countDocuments();
   if (supplierCount === 0) {
     await Supplier.insertMany([

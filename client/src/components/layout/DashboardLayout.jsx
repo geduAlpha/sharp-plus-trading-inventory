@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import AiChat from '../AiChat';
+import { useAuth } from '../../context/AuthContext';
 
 const titles = {
   '/': 'Dashboard',
@@ -39,10 +40,11 @@ const titles = {
   '/stock-requests': 'Stock Issue & Request',
 };
 const DashboardLayout = () => {
+  const { companyInfo } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);  // mobile overlay
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);  // desktop collapse
   const location = useLocation();
-  const title = titles[location.pathname] || 'Sharp PlusPlc Stock';
+  const title = titles[location.pathname] || (companyInfo?.companyName ? `${companyInfo.companyName} Stock` : 'Sharp Plus Stock');
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f4f6fb]">
@@ -63,7 +65,7 @@ const DashboardLayout = () => {
           </div>
           <footer className="mt-8 pt-4 pb-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
             <p className="font-medium text-slate-500">
-              © 2026 <strong className="text-slate-700 font-semibold">Sharp Plus Trading PLC</strong>. All Rights Reserved.
+              © 2026 <strong className="text-slate-700 font-semibold">{companyInfo?.companyName || 'Sharp Plus Trading PLC'}</strong>. All Rights Reserved.
             </p>
             <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
               <span className="text-slate-400">Powered by M*GH 1 Batch</span>
