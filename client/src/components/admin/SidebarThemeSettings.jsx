@@ -234,9 +234,13 @@ export default function SidebarThemeSettings() {
       });
       setTimeout(() => setFeedback({ type: '', message: '' }), 5000);
     } else {
+      let errorMsg = res.error || 'Failed to persist theme settings.';
+      if (errorMsg.includes('500') || errorMsg.includes('Network Error') || errorMsg.includes('ECONNREFUSED')) {
+        errorMsg = 'Backend server communication error. Please ensure the backend server is running on port 5000 and database connection is healthy.';
+      }
       setFeedback({
         type: 'error',
-        message: res.error || 'Failed to persist theme settings.',
+        message: errorMsg,
       });
     }
   };

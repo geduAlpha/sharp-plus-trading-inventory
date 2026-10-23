@@ -14,6 +14,18 @@ export default defineConfig(({ mode }) => {
           target: backendTarget,
           changeOrigin: true,
           secure: false,
+          configure: (proxy, options) => {
+            proxy.on('error', (err, _req, res) => {
+              if (res.writeHead && !res.headersSent) {
+                res.writeHead(503, { 'Content-Type': 'application/json' });
+                res.end(
+                  JSON.stringify({
+                    message: `Backend API server is offline at ${options.target}. Please make sure the backend server is running with 'npm run dev:server'.`,
+                  })
+                );
+              }
+            });
+          },
         },
       },
     },
