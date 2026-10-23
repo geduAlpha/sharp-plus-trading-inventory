@@ -544,9 +544,6 @@ export const openThermalPrintWindow = (sale, config = {}) => {
         <div class="no-print" style="text-align: center; margin-bottom: 12px;">
           <button class="print-btn" onclick="window.print()">🖨️ Click to Print Receipt</button>
         </div>
-        <div style="text-align: center; margin-bottom: 6px;">
-          <img src="/logo.png" alt="Sharp Plus" style="height: 44px; width: 44px; object-fit: contain; display: inline-block;" />
-        </div>
         <div class="receipt">${receiptText}</div>
         <script>
           window.onload = function() {

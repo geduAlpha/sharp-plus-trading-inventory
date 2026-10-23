@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Printer,
   Download,
@@ -8,10 +8,7 @@ import {
   Check,
   X,
   Settings as SettingsIcon,
-  Sun,
-  Moon,
   ChevronDown,
-  Building,
   RotateCcw,
 } from 'lucide-react';
 import {
@@ -44,13 +41,13 @@ const PRESETS = {
   },
 };
 
-
 export default function ThermalBillModal({ open, onClose, sale }) {
   const { user, companyInfo } = useAuth();
   const [activePreset, setActivePreset] = useState('sharpplus');
   const [copied, setCopied] = useState(false);
-  const [theme, setTheme] = useState('pos_blue'); // 'pos_blue' (like image) or 'paper_white'
   const [showConfig, setShowConfig] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef(null);
 
   // Custom configuration fields - default to registered company profile
   const [config, setConfig] = useState(() => ({
@@ -69,7 +66,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
   }));
 
   // Sync with sale tax rate and fsNo when sale changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (sale) {
       const defaultTax = sale.taxRate !== undefined ? Number(sale.taxRate) : (companyInfo?.taxRate || 15);
       setConfig((prev) => ({
@@ -80,6 +77,17 @@ export default function ThermalBillModal({ open, onClose, sale }) {
       }));
     }
   }, [sale, user, companyInfo]);
+
+  // Click-outside listener for export dropdown menu
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setExportMenuOpen(false);
+      }
+    };
+    if (exportMenuOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [exportMenuOpen]);
 
   const handleApplyPreset = (key) => {
     setActivePreset(key);
@@ -185,8 +193,6 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     }
   };
 
-  const isBlue = theme === 'pos_blue';
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
       <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
@@ -216,15 +222,120 @@ export default function ThermalBillModal({ open, onClose, sale }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Theme switcher */}
-            <button
-              onClick={() => setTheme(isBlue ? 'paper_white' : 'pos_blue')}
-              title={isBlue ? 'Switch to Classic Thermal White' : 'Switch to Photo POS Blue'}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 flex items-center gap-1.5 transition"
-            >
-              {isBlue ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
-              <span className="hidden sm:inline">{isBlue ? 'Paper White' : 'POS Blue'}</span>
-            </button>
+            {/* ── Export / Download Bill Dropdown Menu ── */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen((v) => !v)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-700 bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 flex items-center gap-1.5 transition shadow-sm"
+                title="Export or download bill in multiple formats"
+              >
+                <Download size={14} className="text-blue-400 shrink-0" />
+                <span className="hidden sm:inline">Export / Download Bill</span>
+                <span className="sm:hidden">Export</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 text-slate-400 ${exportMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {exportMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-2.5 py-1.5 text-[10px] uppercase font-bold text-slate-400 tracking-wider border-b border-slate-800">
+                    Export Formats &amp; Sharing
+                  </div>
+
+                  {/* Export TXT */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      exportBillToTXT(sale, config);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
+                  >
+                    <FileText size={16} className="text-amber-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-xs text-white">Export .TXT</div>
+                      <div className="text-[10px] text-slate-400">Plain text POS thermal slip</div>
+                    </div>
+                  </button>
+
+                  {/* Export Excel (.xlsx) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      exportBillToExcel(sale, config);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
+                  >
+                    <FileSpreadsheet size={16} className="text-emerald-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-xs text-white">Export .XLSX</div>
+                      <div className="text-[10px] text-slate-400">Excel spreadsheet report</div>
+                    </div>
+                  </button>
+
+                  {/* Export CSV (.csv) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      exportBillToCSV(sale, config);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
+                  >
+                    <Download size={16} className="text-cyan-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-xs text-white">Export .CSV</div>
+                      <div className="text-[10px] text-slate-400">Comma-separated format</div>
+                    </div>
+                  </button>
+
+                  {/* Export JSON (.json) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      exportBillToJSON(sale, config);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
+                  >
+                    <FileText size={16} className="text-purple-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-xs text-white">Export .JSON</div>
+                      <div className="text-[10px] text-slate-400">Structured invoice data</div>
+                    </div>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-800" />
+
+                  {/* Copy Bill Text */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCopyText();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
+                  >
+                    {copied ? (
+                      <>
+                        <Check size={16} className="text-emerald-400 shrink-0" />
+                        <div className="min-w-0 flex-1 font-semibold text-emerald-400 text-xs">
+                          Copied to Clipboard!
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={16} className="text-slate-400 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-xs text-white">Copy Bill Text</div>
+                          <div className="text-[10px] text-slate-400">For Telegram / WhatsApp</div>
+                        </div>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Config Toggle */}
             <button
@@ -243,6 +354,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              title="Close Dialog"
             >
               <X size={18} />
             </button>
@@ -253,39 +365,24 @@ export default function ThermalBillModal({ open, onClose, sale }) {
         <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
           {/* Left / Center: Thermal Receipt Slip Render */}
           <div className="lg:col-span-7 p-4 sm:p-6 flex flex-col items-center justify-start bg-slate-950/40 overflow-y-auto">
-            {/* Visual Receipt Paper Container */}
+            {/* Visual Receipt Paper Container - ALWAYS PURE WHITE BACKGROUND WITH BLACK TEXT */}
             <div
               id="fiscal-thermal-slip"
-              className={`w-full max-w-[340px] rounded-xl shadow-2xl p-5 select-text font-mono text-xs leading-relaxed transition-all duration-200 border ${
-                isBlue
-                  ? 'bg-[#1e3a5f] text-slate-100 border-[#2f558a] shadow-blue-950/50'
-                  : 'bg-white text-slate-900 border-slate-300 shadow-slate-950/30'
-              }`}
+              className="w-full max-w-[340px] rounded-xl shadow-2xl p-5 select-text font-mono text-xs leading-relaxed border bg-white text-slate-950 border-slate-300 shadow-slate-950/40"
               style={{
                 fontFamily:
                   "'Consolas', 'Courier New', 'Lucida Console', Monaco, monospace",
               }}
             >
-              {/* Company Logo Mark */}
-              <div className="flex justify-center mb-2.5">
-                <div className="h-12 w-12 rounded-xl bg-white p-1.5 shadow-md border border-slate-200/40 flex items-center justify-center">
-                  <img src="/logo.png" alt="Sharp Plus" className="h-full w-full object-contain" />
-                </div>
-              </div>
-
-              {/* TIN Header */}
-              <div className="font-bold tracking-wider">
+              {/* TIN Header (Logo completely removed as requested) */}
+              <div className="font-bold tracking-wider text-slate-950 text-left">
                 TIN: {config.tinNumber || '0089234125'}
               </div>
 
-              <div
-                className={`my-1 border-b ${
-                  isBlue ? 'border-dashed border-slate-400/50' : 'border-dashed border-slate-400'
-                }`}
-              />
+              <div className="my-1 border-b border-dashed border-slate-400" />
 
               {/* Caret Organization Lines */}
-              <div className="text-center font-bold tracking-widest text-[13px] leading-tight my-1">
+              <div className="text-center font-bold tracking-widest text-[13px] leading-tight my-1 text-slate-950">
                 {config.companyLines.map((line, idx) => (
                   <div key={idx} className="whitespace-nowrap">
                     {line}
@@ -294,54 +391,46 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               </div>
 
               {/* Address & Tel */}
-              <div className="text-center text-[11px] font-medium mt-1 leading-snug">
+              <div className="text-center text-[11px] font-medium mt-1 leading-snug text-slate-800">
                 <div>{config.addressLine1}</div>
                 {config.addressLine2 && <div>{config.addressLine2}</div>}
                 <div>{config.phone}</div>
               </div>
 
               {/* FS No & Date */}
-              <div className="flex justify-between items-center text-[11px] font-bold mt-2 pb-1">
+              <div className="flex justify-between items-center text-[11px] font-bold mt-2 pb-1 text-slate-900">
                 <span>{fsNumber}</span>
                 <span>DATE: {dateStr}</span>
               </div>
 
               {/* Invoice Type Divider */}
-              <div className="text-center font-bold tracking-tight text-[12px] my-2">
+              <div className="text-center font-bold tracking-tight text-[12px] my-2 text-slate-950">
                 {isCredit
                   ? '============== CREDIT INVOICE =============='
                   : '============== CASH INVOICE =============='}
               </div>
 
               {/* Metadata */}
-              <div className="text-[11px] space-y-0.5 mb-1.5">
+              <div className="text-[11px] space-y-0.5 mb-1.5 text-slate-800">
                 <div>Customer: {customerName}</div>
                 <div>Invoice: {invoiceNo}</div>
                 <div>Operator: {config.operator || 'Samire'}</div>
               </div>
 
-              <div
-                className={`my-1 border-b ${
-                  isBlue ? 'border-dashed border-slate-400/50' : 'border-dashed border-slate-400'
-                }`}
-              />
+              <div className="my-1 border-b border-dashed border-slate-400" />
 
               {/* Items Column Header - Parallel with values */}
-              <div className="flex items-center font-bold text-[11px] tracking-wider py-0.5">
+              <div className="flex items-center font-bold text-[11px] tracking-wider py-0.5 text-slate-950">
                 <span className="flex-1 text-left">Description</span>
                 <span className="w-10 text-center">Qty</span>
                 <span className="w-24 text-right">Price</span>
                 <span className="w-28 text-right">AMOUNT</span>
               </div>
 
-              <div
-                className={`my-1 border-b ${
-                  isBlue ? 'border-dashed border-slate-400/50' : 'border-dashed border-slate-400'
-                }`}
-              />
+              <div className="my-1 border-b border-dashed border-slate-400" />
 
               {/* Line Items - strictly parallel with headers */}
-              <div className="space-y-1.5 my-1 text-[11px]">
+              <div className="space-y-1.5 my-1 text-[11px] text-slate-950">
                 {processedItems.map((it, idx) => (
                   <div key={idx} className="flex items-center py-0.5">
                     <span className="flex-1 font-semibold break-words text-left pr-1" title={it.desc}>
@@ -360,100 +449,88 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 ))}
               </div>
 
-              <div
-                className={`my-1 border-b ${
-                  isBlue ? 'border-dashed border-slate-400/50' : 'border-dashed border-slate-400'
-                }`}
-              />
+              <div className="my-1 border-b border-dashed border-slate-400" />
 
               {/* Taxable & Tax breakdown */}
-              <div className="space-y-0.5 text-[11px]">
+              <div className="space-y-0.5 text-[11px] text-slate-900">
                 <div className="flex justify-between">
                   <span>TXBL1</span>
-                  <span>{toAsteriskAmount(taxable, 2)}</span>
+                  <span className="font-mono">{toAsteriskAmount(taxable, 2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>TAX1 {config.taxRate}%</span>
-                  <span>{toAsteriskAmount(taxAmount, 2)}</span>
+                  <span className="font-mono">{toAsteriskAmount(taxAmount, 2)}</span>
                 </div>
               </div>
 
-              <div
-                className={`my-1 border-b ${
-                  isBlue ? 'border-dashed border-slate-400/50' : 'border-dashed border-slate-400'
-                }`}
-              />
+              <div className="my-1 border-b border-dashed border-slate-400" />
 
               {/* TOTAL */}
-              <div className="flex justify-between font-bold text-[13px] py-0.5">
+              <div className="flex justify-between font-bold text-[13px] py-0.5 text-slate-950">
                 <span>^T^O^T^A^L</span>
-                <span>{toCaretTotal(totalRevenue)}</span>
+                <span className="font-mono">{toCaretTotal(totalRevenue)}</span>
               </div>
 
-              <div
-                className={`my-1 border-b ${
-                  isBlue ? 'border-dashed border-slate-400/50' : 'border-dashed border-slate-400'
-                }`}
-              />
+              <div className="my-1 border-b border-dashed border-slate-400" />
 
               {/* Payment Mode */}
-              <div className="space-y-1 text-[11px]">
+              <div className="space-y-1 text-[11px] text-slate-900">
                 {isCredit ? (
                   <>
-                    <div className="flex justify-between font-bold">
+                    <div className="flex justify-between font-bold text-slate-950">
                       <span>^C^R^E^D^I^T</span>
-                      <span>{toCaretTotal(totalRevenue)}</span>
+                      <span className="font-mono">{toCaretTotal(totalRevenue)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>ADVANCED PAYMENT</span>
-                      <span>{toAsteriskAmount(sale?.amountPaid || 0, 2)}</span>
+                      <span className="font-mono">{toAsteriskAmount(sale?.amountPaid || 0, 2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>PAID QTY</span>
-                      <span>{processedItems.reduce((sum, it) => sum + Number(it.qty), 0)}</span>
+                      <span className="font-mono">{processedItems.reduce((sum, it) => sum + Number(it.qty), 0)}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-amber-300">
+                    <div className="flex justify-between font-bold text-slate-950">
                       <span>BALANCE DUE</span>
-                      <span>{toAsteriskAmount(
+                      <span className="font-mono">{toAsteriskAmount(
                         Math.max(0, totalRevenue - (Number(sale?.amountPaid) || 0)),
                         2
                       )}</span>
                     </div>
                     {sale?.dueDate && (
-                      <div className="flex justify-between text-[10px]">
+                      <div className="flex justify-between text-[10px] text-slate-600">
                         <span>DUE DATE</span>
                         <span>{new Date(sale.dueDate).toLocaleDateString('en-GB')}</span>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="flex justify-between font-bold">
+                  <div className="flex justify-between font-bold text-slate-950">
                     <span>^C^A^S^H</span>
-                    <span>{toCaretTotal(totalRevenue)}</span>
+                    <span className="font-mono">{toCaretTotal(totalRevenue)}</span>
                   </div>
                 )}
               </div>
 
               {/* Items count */}
-              <div className="flex justify-between text-[11px] pt-1">
+              <div className="flex justify-between text-[11px] pt-1 text-slate-800">
                 <span>ITEM#</span>
-                <span>{processedItems.length}</span>
+                <span className="font-mono">{processedItems.length}</span>
               </div>
 
               {/* Fiscal Machine Mark */}
-              <div className="text-center mt-3 space-y-0.5 text-[11px] font-bold">
+              <div className="text-center mt-3 space-y-0.5 text-[11px] font-bold text-slate-900">
                 <div>{fsNumber}</div>
                 <div>MACHINE: {config.machineNo || 'SPM00000189'}</div>
               </div>
 
               {/* Footer */}
-              <div className="text-center mt-2.5 text-[10px] tracking-wide text-slate-400/80">
+              <div className="text-center mt-2.5 text-[10px] tracking-wide text-slate-500">
                 Powered By {config.poweredBy || 'Sharp Plus System'}
               </div>
             </div>
           </div>
 
-          {/* Right Panel: Export Options & Live Settings */}
+          {/* Right Panel: Presets, Printing & Live Settings */}
           <div className="lg:col-span-5 p-5 bg-slate-900/90 flex flex-col justify-between space-y-5">
             <div className="space-y-4">
               {/* Presets Selector */}
@@ -465,16 +542,65 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('sharpplus')}
-                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition ${
+                    className={`p-3 rounded-xl border text-left text-xs font-semibold transition ${
                       activePreset === 'sharpplus'
                         ? 'border-blue-500 bg-blue-500/10 text-blue-300 ring-1 ring-blue-500'
                         : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-750'
                     }`}
                   >
-                    <div className="font-bold text-[11px]">Sharp Plus Trading</div>
-                    <div className="text-[10px] text-slate-400 truncate">PLC Stock Control</div>
+                    <div className="font-bold text-xs text-white">Sharp Plus Trading</div>
+                    <div className="text-[11px] text-slate-400 truncate">PLC Stock Control</div>
                   </button>
                 </div>
+              </div>
+
+              {/* ── Main Printing Action Button ── */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => openThermalPrintWindow(sale, config)}
+                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/40 transition transform active:scale-[0.99]"
+                >
+                  <Printer size={18} />
+                  Print Thermal Bill (80mm / PDF)
+                </button>
+                <p className="text-[11px] text-slate-400 text-center mt-1.5">
+                  Opens high-resolution thermal receipt dialog ready for POS receipt printer or Print-to-PDF.
+                </p>
+              </div>
+
+              {/* Transaction Summary Card */}
+              <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2 text-xs">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Transaction Summary
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Invoice #</span>
+                  <span className="font-mono font-bold text-white">{invoiceNo}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Fiscal Slip #</span>
+                  <span className="font-mono text-blue-400 font-semibold">{fsNumber}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Customer</span>
+                  <span className="font-medium text-white truncate max-w-[170px]">{customerName}</span>
+                </div>
+                <div className="flex justify-between text-slate-300 border-t border-slate-800/80 pt-2 font-bold">
+                  <span>Total Payable</span>
+                  <span className="text-emerald-400 text-sm font-mono">ETB {formatNumber(totalRevenue, 2)}</span>
+                </div>
+              </div>
+
+              {/* Quick Export Hint */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl border border-slate-800 bg-slate-800/40 text-xs text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Download size={14} className="text-blue-400" />
+                  <span className="text-[11px]">Exports available in header menu:</span>
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                  .TXT • .XLSX • .CSV • .JSON
+                </span>
               </div>
 
               {/* Configuration Fields Drawer */}
@@ -558,103 +684,6 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   </div>
                 </div>
               )}
-
-              {/* ── Main Printing Action Button ── */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => openThermalPrintWindow(sale, config)}
-                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30 transition transform active:scale-[0.99]"
-                >
-                  <Printer size={18} />
-                  Print Thermal Bill (80mm / PDF)
-                </button>
-                <p className="text-[11px] text-slate-400 text-center mt-1.5">
-                  Opens high-resolution thermal receipt dialog ready for POS receipt printer or Print-to-PDF.
-                </p>
-              </div>
-
-              {/* ── Export Formats Section ── */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider text-[10px]">
-                  Export in Different File Formats:
-                </span>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Export TXT */}
-                  <button
-                    type="button"
-                    onClick={() => exportBillToTXT(sale, config)}
-                    className="p-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-750 text-slate-200 text-xs font-semibold flex items-center gap-2 transition hover:border-slate-500"
-                  >
-                    <FileText size={16} className="text-amber-400 flex-shrink-0" />
-                    <div className="text-left">
-                      <div>Export .TXT</div>
-                      <div className="text-[10px] text-slate-400">Plain text POS slip</div>
-                    </div>
-                  </button>
-
-                  {/* Export Excel (.xlsx) */}
-                  <button
-                    type="button"
-                    onClick={() => exportBillToExcel(sale, config)}
-                    className="p-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-750 text-slate-200 text-xs font-semibold flex items-center gap-2 transition hover:border-slate-500"
-                  >
-                    <FileSpreadsheet size={16} className="text-emerald-400 flex-shrink-0" />
-                    <div className="text-left">
-                      <div>Export .XLSX</div>
-                      <div className="text-[10px] text-slate-400">Excel spreadsheet</div>
-                    </div>
-                  </button>
-
-                  {/* Export CSV (.csv) */}
-                  <button
-                    type="button"
-                    onClick={() => exportBillToCSV(sale, config)}
-                    className="p-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-750 text-slate-200 text-xs font-semibold flex items-center gap-2 transition hover:border-slate-500"
-                  >
-                    <Download size={16} className="text-cyan-400 flex-shrink-0" />
-                    <div className="text-left">
-                      <div>Export .CSV</div>
-                      <div className="text-[10px] text-slate-400">Comma-separated</div>
-                    </div>
-                  </button>
-
-                  {/* Export JSON (.json) */}
-                  <button
-                    type="button"
-                    onClick={() => exportBillToJSON(sale, config)}
-                    className="p-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-750 text-slate-200 text-xs font-semibold flex items-center gap-2 transition hover:border-slate-500"
-                  >
-                    <FileText size={16} className="text-purple-400 flex-shrink-0" />
-                    <div className="text-left">
-                      <div>Export .JSON</div>
-                      <div className="text-[10px] text-slate-400">Structured invoice data</div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Copy plain text to clipboard */}
-              <button
-                type="button"
-                onClick={handleCopyText}
-                className="w-full py-2 px-3 rounded-xl border border-slate-700 hover:border-slate-600 bg-slate-800 text-xs text-slate-300 hover:text-white font-medium flex items-center justify-center gap-2 transition"
-              >
-                {copied ? (
-                  <>
-                    <Check size={14} className="text-emerald-400" />
-                    <span className="text-emerald-400 font-semibold">
-                      Receipt Text Copied to Clipboard!
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Copy size={14} className="text-slate-400" />
-                    Copy Bill Text (for Telegram / WhatsApp)
-                  </>
-                )}
-              </button>
             </div>
 
             {/* Modal Bottom Actions */}
