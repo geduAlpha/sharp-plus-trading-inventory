@@ -191,7 +191,9 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
     setLoadingMaterials(true);
     try {
       const res = await api.get('/materials?isActive=true&limit=1000');
-      const data = Array.isArray(res.data?.materials)
+      const data = Array.isArray(res.data?.data)
+        ? res.data.data
+        : Array.isArray(res.data?.materials)
         ? res.data.materials
         : Array.isArray(res.data)
         ? res.data
@@ -381,14 +383,14 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
 
   // ── Item Selection & Auto-Fill ───────────────────────────────────────────
   const populateItem = (mat, currentQty = 1) => {
-    const defaultPrice = mat.unitCost ? Number((mat.unitCost * 1.25).toFixed(2)) : 0;
+    const defaultPrice = Number(mat.sellingPrice) || Number(mat.unitPrice) || (mat.unitCost ? Number((mat.unitCost * 1.25).toFixed(2)) : 0);
     return {
       material: mat._id,
       code: mat.code || '',
       description: mat.code ? `${mat.code} - ${mat.name}` : mat.name,
       category: mat.category || 'General',
       uom: mat.unit || 'Pcs',
-      currentStock: mat.currentStock || 0,
+      currentStock: mat.currentStock !== undefined ? mat.currentStock : 0,
       quantity: currentQty,
       sellingPrice: defaultPrice,
       discount: 0,
@@ -1270,7 +1272,7 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                           <option value="">-- Choose item / material --</option>
                           {materials.map((m) => (
                             <option key={m._id} value={m._id}>
-                              {m.code ? `[${m.code}] ` : ''}{m.name} ({m.unit}) — Stock: {m.currentStock}
+                              {m.code ? `[${m.code}] ` : ''}{m.name} ({m.unit || 'Pcs'}) — Stock: {m.currentStock !== undefined ? m.currentStock : 0}
                             </option>
                           ))}
                         </select>

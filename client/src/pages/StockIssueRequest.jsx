@@ -137,7 +137,9 @@ export default function StockIssueRequest() {
     try {
       const matRes = await api.get('/materials?isActive=true&limit=500');
       setMaterials(
-        Array.isArray(matRes.data?.materials)
+        Array.isArray(matRes.data?.data)
+          ? matRes.data.data
+          : Array.isArray(matRes.data?.materials)
           ? matRes.data.materials
           : Array.isArray(matRes.data) ? matRes.data : []
       );

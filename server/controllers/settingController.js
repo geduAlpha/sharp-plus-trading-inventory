@@ -180,7 +180,7 @@ const updateSettings = asyncHandler(async (req, res) => {
       const { logAudit } = require('../utils/auditLogger');
       logAudit({
         req,
-        action: 'PERMISSIONS_UPDATE',
+        action: 'PERMISSIONS_CHANGE',
         module: 'settings',
         resourceName: 'Role Privileges Matrix',
         details: { actor: req.user?.name, role: req.user?.role },

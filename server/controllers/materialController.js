@@ -96,6 +96,7 @@ const getMaterials = asyncHandler(async (req, res) => {
 
     return res.json({
       data: paged,
+      materials: paged,
       total,
       page: pageNum,
       pages: Math.ceil(total / limitNum) || 1,

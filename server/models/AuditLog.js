@@ -37,6 +37,7 @@ const auditLogSchema = new mongoose.Schema(
         'APPROVE',
         'REJECT',
         'PERMISSIONS_CHANGE',
+        'PERMISSIONS_UPDATE',
         'ROLE_CHANGE',
         'STATUS_CHANGE',
         'BACKUP_EXPORT',
