@@ -5,7 +5,8 @@ import {
   ArrowLeftRight, ShoppingCart, BarChart2, Users,
   ChevronRight, Search, Lightbulb, CheckCircle2, PlayCircle,
   Bell, BellRing, Trash2, Maximize, MessageSquare, CheckSquare, Calendar,
-  Sun, Moon, Palette,
+  Sun, Moon, Palette, Crown, ShieldCheck, Sparkles, SendToBack,
+  LayoutDashboard, Boxes, Settings,
 } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -558,12 +559,39 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
 
   const { activeTheme } = useThemeSidebar();
 
+  const isDeveloper = user?.role?.toLowerCase() === 'developer' ||
+    user?.email?.toLowerCase().includes('developer') ||
+    user?.name?.toLowerCase().includes('developer');
+
   const roleBadgeStyle = {
-    admin: 'bg-amber-50 text-amber-800 border-amber-200',
-    manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    storekeeper: 'bg-blue-50 text-blue-700 border-blue-200',
-    cashier: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  }[user?.role || 'storekeeper'];
+    developer: 'bg-purple-100 text-purple-800 border-purple-300 font-bold',
+    admin: 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
+    manager: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+    storekeeper: 'bg-blue-100 text-blue-800 border-blue-300 font-bold',
+    cashier: 'bg-yellow-100 text-yellow-800 border-yellow-300 font-bold',
+  }[user?.role?.toLowerCase() || 'storekeeper'] || 'bg-slate-100 text-slate-700 border-slate-300 font-bold';
+
+  const themeDotColor = {
+    warm: 'from-amber-400 to-orange-500 ring-amber-400/40',
+    navy: 'from-blue-600 to-slate-900 ring-blue-500/40',
+    white: 'from-slate-200 to-slate-400 ring-slate-300',
+    emerald: 'from-emerald-400 to-emerald-600 ring-emerald-500/40',
+    black: 'from-zinc-700 to-zinc-950 ring-zinc-700',
+    gray: 'from-slate-400 to-slate-600 ring-slate-400',
+  }[activeTheme?.theme?.toLowerCase() || 'warm'] || 'from-amber-400 to-orange-500 ring-amber-400/40';
+
+  const headerMod = (() => {
+    const t = (title || '').toLowerCase();
+    if (t.includes('dashboard')) return { icon: LayoutDashboard, gradient: 'from-blue-600 to-indigo-600', ring: 'ring-blue-500/25' };
+    if (t.includes('issue') || t.includes('request')) return { icon: SendToBack, gradient: 'from-indigo-600 to-violet-600', ring: 'ring-indigo-500/25' };
+    if (t.includes('item') || t.includes('material') || t.includes('category')) return { icon: Package, gradient: 'from-emerald-600 to-teal-600', ring: 'ring-emerald-500/25' };
+    if (t.includes('movement') || t.includes('grv') || t.includes('transfer')) return { icon: ArrowLeftRight, gradient: 'from-amber-500 to-orange-600', ring: 'ring-amber-500/25' };
+    if (t.includes('purchase') || t.includes('order')) return { icon: ShoppingCart, gradient: 'from-purple-600 to-indigo-600', ring: 'ring-purple-500/25' };
+    if (t.includes('report') || t.includes('count') || t.includes('analytics')) return { icon: BarChart2, gradient: 'from-cyan-600 to-blue-600', ring: 'ring-cyan-500/25' };
+    if (t.includes('user') || t.includes('staff') || t.includes('role') || t.includes('privilege')) return { icon: Users, gradient: 'from-rose-500 to-pink-600', ring: 'ring-rose-500/25' };
+    if (t.includes('setting') || t.includes('config')) return { icon: Settings, gradient: 'from-slate-700 to-slate-900', ring: 'ring-slate-500/25' };
+    return { icon: Boxes, gradient: 'from-indigo-600 to-blue-600', ring: 'ring-indigo-500/25' };
+  })();
 
   return (
     <>
@@ -611,13 +639,25 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
             </button>
           </div>
 
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 leading-tight">{title}</h1>
-            <p className="text-[11px] font-medium text-slate-400 hidden md:block">
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-              })}
-            </p>
+          <div className="flex items-center gap-2.5">
+            {/* Dynamic Module Symbol / Icon Badge */}
+            <div className={`hidden sm:flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${headerMod.gradient} text-white shadow-sm ring-2 ${headerMod.ring} shrink-0`}>
+              <headerMod.icon size={18} strokeWidth={2.2} />
+            </div>
+
+            <div className="flex flex-col justify-center min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug truncate max-w-[200px] md:max-w-xs lg:max-w-sm">
+                {title}
+              </h1>
+              <div className="hidden md:flex items-center gap-1.5 text-xs font-medium text-slate-500 leading-normal mt-0.5">
+                <Calendar size={13} className="text-indigo-500 shrink-0" />
+                <span>
+                  {new Date().toLocaleDateString('en-US', {
+                    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+                  })}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -625,17 +665,20 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
-          className="relative hidden md:flex items-center justify-between w-64 lg:w-80 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-white hover:border-indigo-400/80 py-1.5 pl-3.5 pr-2 text-xs text-slate-500 transition shadow-2xs group cursor-pointer mx-4"
+          className="relative hidden md:flex items-center justify-between w-64 lg:w-80 rounded-full border border-slate-200/90 bg-slate-50/80 hover:bg-white hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100/70 py-1.5 pl-2.5 pr-2.5 text-xs text-slate-500 transition shadow-2xs group cursor-pointer mx-3"
           title="Open Quick Search & Command Palette (Ctrl+K)"
         >
           <div className="flex items-center gap-2 truncate">
-            <Search size={14} className="text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
-            <span className="text-slate-400 group-hover:text-slate-700 font-medium truncate">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+              <Search size={13} strokeWidth={2.2} />
+            </span>
+            <span className="text-slate-400 group-hover:text-slate-700 font-medium truncate text-xs">
               Search modules, items, actions…
             </span>
           </div>
-          <kbd className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 shadow-2xs group-hover:border-indigo-300 group-hover:text-indigo-600 transition shrink-0">
-            <span className="text-[9px]">⌘</span>K
+          <kbd className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 shadow-2xs group-hover:border-indigo-300 group-hover:text-indigo-600 transition shrink-0">
+            <Sparkles size={10} className="text-amber-500 shrink-0" />
+            <span className="text-[10px]">⌘</span>K
           </kbd>
         </button>
 
@@ -663,25 +706,38 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
           {/* Session timeout indicator */}
           <div
             onClick={() => setMenuOpen(v => !v)}
-            title={`Session Timeout: ${timeoutMinutes === 0 ? 'Disabled' : `Signs out after ${timeoutMinutes} minutes of inactivity`}`}
-            className="hidden xl:flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600 cursor-pointer hover:bg-slate-100 transition"
+            title={`Session Timeout: ${timeoutMinutes === 0 ? 'Disabled' : `Signs out after ${timeoutMinutes} minutes of inactivity`}. Click profile menu to configure.`}
+            className="hidden xl:flex items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/90 hover:bg-slate-100/90 px-3 py-1.5 text-xs text-slate-600 cursor-pointer transition shadow-2xs group"
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${timeoutMinutes === 0 ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse'}`} />
-            <Clock size={12} className="text-slate-400" />
-            <span className="text-[11px] font-medium text-slate-600">
-              {timeoutMinutes === 0 ? 'Timeout: Off' : `${timeoutMinutes}m`}
+            {timeoutMinutes === 0 ? (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="h-2 w-2 rounded-full bg-slate-400 ring-2 ring-slate-200" />
+                <ShieldCheck size={14} className="text-slate-500 group-hover:text-slate-700 transition" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <Clock size={14} className="text-emerald-600 group-hover:rotate-45 transition-transform" />
+              </div>
+            )}
+            <span className={`text-xs font-semibold whitespace-nowrap ${timeoutMinutes === 0 ? 'text-slate-600' : 'text-emerald-700'}`}>
+              {timeoutMinutes === 0 ? 'Timeout: Off' : `Timeout: ${timeoutMinutes}m`}
             </span>
           </div>
 
           {/* Theme Studio quick link */}
           <button
             onClick={() => navigate('/settings?tab=sidebar')}
-            className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition"
-            title={`Active Theme: ${activeTheme?.theme || 'white'}. Click to open Theme Studio`}
+            className="flex h-8 items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/90 hover:bg-indigo-50/80 hover:border-indigo-300 px-3 text-xs text-slate-600 transition shadow-2xs group"
+            title={`Active Theme: ${activeTheme?.theme || 'Warm'}. Click to customize appearance in Theme Studio.`}
           >
-            <Palette size={16} />
-            <span className="hidden md:inline text-[11px] font-bold capitalize text-slate-600">
-              {activeTheme?.theme || 'white'}
+            <Palette size={14} className="text-indigo-600 group-hover:rotate-12 transition-transform shrink-0" />
+            <span className={`h-2.5 w-2.5 rounded-full bg-gradient-to-tr ${themeDotColor} ring-1 ring-offset-1 shadow-2xs shrink-0`} />
+            <span className="hidden md:inline text-xs font-bold capitalize text-slate-700 group-hover:text-indigo-700 transition">
+              {activeTheme?.theme || 'Warm'}
             </span>
           </button>
 
@@ -706,20 +762,39 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(v => !v)}
-              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-2.5 shadow-xs hover:border-slate-300 hover:bg-slate-50 transition"
+              className="flex items-center gap-2.5 rounded-full border border-slate-200/90 bg-white py-1 pl-1 pr-3 shadow-xs hover:border-slate-300 hover:bg-slate-50/80 transition group"
+              title="User Account & Quick Settings"
             >
-              {user?.avatar ? (
-                <img src={user.avatar} alt={user?.name} className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200" />
-              ) : (
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-xs">
-                  {user?.name?.[0]?.toUpperCase()}
-                </span>
-              )}
-              <div className="hidden text-left sm:block">
-                <p className="text-xs font-semibold leading-tight text-slate-800">{user?.name}</p>
-                <p className="text-[10px] capitalize leading-none text-slate-400">{user?.role}</p>
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 p-0.5 shadow-xs shrink-0">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user?.name} className="h-full w-full rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+                    {user?.name?.[0]?.toUpperCase()}
+                  </span>
+                )}
+                {isDeveloper && (
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400 ring-1.5 ring-white shadow-2xs" title="Developer & Owner">
+                    <Crown size={9} className="text-amber-950 fill-amber-900" />
+                  </span>
+                )}
               </div>
-              <ChevronDown size={13} className={`text-slate-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+              <div className="hidden text-left sm:flex flex-col justify-center min-w-0 max-w-[130px] lg:max-w-[160px]">
+                <div className="flex items-center gap-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate leading-tight tracking-tight">
+                    {user?.name}
+                  </p>
+                  {isDeveloper && (
+                    <Crown size={12} className="text-amber-500 fill-amber-400 shrink-0" title="System Developer & Owner" />
+                  )}
+                </div>
+                <div className="mt-0.5 flex items-center">
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider leading-none ${roleBadgeStyle}`}>
+                    {user?.role || 'Staff'}
+                  </span>
+                </div>
+              </div>
+              <ChevronDown size={14} className={`text-slate-400 group-hover:text-slate-600 transition-transform ${menuOpen ? 'rotate-180' : ''} shrink-0`} />
             </button>
 
             {menuOpen && (
@@ -735,7 +810,10 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-ink-900 truncate">{user?.name}</p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-xs font-bold text-ink-900 truncate">{user?.name}</p>
+                        {isDeveloper && <Crown size={12} className="text-amber-500 fill-amber-400 shrink-0" />}
+                      </div>
                       <p className="text-[11px] text-ink-400 truncate">{user?.email}</p>
                     </div>
                   </div>
