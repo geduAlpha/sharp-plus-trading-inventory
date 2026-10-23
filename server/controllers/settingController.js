@@ -87,15 +87,16 @@ const updateSettings = asyncHandler(async (req, res) => {
     settings = new Setting();
   }
 
-  // Restrict global theme, sidebar, and module activation configuration exclusively to System Owner/Developer
+  // Restrict global theme, sidebar, module activation, and role permissions configuration exclusively to System Owner/Developer
   const isPrivilegedSettingUpdate =
+    req.body.rolePermissions !== undefined ||
     req.body.themeConfig !== undefined ||
     req.body.sidebarConfig !== undefined ||
     req.body.modulesEnabled !== undefined;
 
   if (isPrivilegedSettingUpdate && req.user?.role !== 'developer') {
     res.status(403);
-    throw new Error('Access denied: Only the authorized System Owner/Developer can modify global appearance, sidebar navigation, or system module activation.');
+    throw new Error('Access denied: Only the authenticated System Developer & Owner can manage role permissions, global appearance, or system module activation.');
   }
 
   const stringFields = [
@@ -157,18 +158,39 @@ const updateSettings = asyncHandler(async (req, res) => {
     }
   });
 
+  if (!Array.isArray(settings.auditLogs)) {
+    settings.auditLogs = [];
+  }
+
   if (req.body.rolePermissions !== undefined && typeof req.body.rolePermissions === 'object') {
     settings.rolePermissions = req.body.rolePermissions;
     settings.markModified('rolePermissions');
+    clearSettingsCache();
+
+    settings.auditLogs.unshift({
+      action: 'ROLE_PERMISSIONS_UPDATED',
+      details: `Role Privileges Matrix updated by ${req.user?.name || 'System Developer & Owner'}`,
+      actorId: req.user?._id,
+      actorName: req.user?.name || 'System Developer & Owner',
+      actorRole: req.user?.role || 'developer',
+      timestamp: new Date(),
+    });
+
+    try {
+      const { logAudit } = require('../utils/auditLogger');
+      logAudit({
+        req,
+        action: 'PERMISSIONS_UPDATE',
+        module: 'settings',
+        resourceName: 'Role Privileges Matrix',
+        details: { actor: req.user?.name, role: req.user?.role },
+      });
+    } catch {}
   }
 
   if (req.body.navVisibility !== undefined && typeof req.body.navVisibility === 'object') {
     settings.navVisibility = req.body.navVisibility;
     settings.markModified('navVisibility');
-  }
-
-  if (!Array.isArray(settings.auditLogs)) {
-    settings.auditLogs = [];
   }
 
   // System Modules ON/OFF Control with Audit Trail

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import {
   Shield,
   ShieldCheck,
+  ShieldAlert,
   User,
   Users,
   CheckCircle2,
@@ -28,1036 +29,1248 @@ import {
   Search,
   Check,
   X,
-  Sparkles,
-  HelpCircle,
   Eye,
   PlusCircle,
   Pencil,
   Ban,
-  SlidersHorizontal,
+  Scale,
+  Activity,
+  Printer,
+  ChevronDown,
+  ChevronRight,
+  Filter,
+  AlertCircle,
+  Info,
+  Sparkles,
+  UserCheck,
+  XCircle,
 } from 'lucide-react';
+import Button from '../ui/Button';
+import Modal from '../ui/Modal';
 
-export const CRUD_MODULES = [
-  {
-    key: 'items',
-    label: 'Items & Raw Materials',
-    icon: Package,
-    description: 'Raw materials, stock levels, reorder alerts & pricing',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'products',
-    label: 'Products & Recipes',
-    icon: Coffee,
-    description: 'Finished products, recipe formulations & menu prices',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'cashSales',
-    label: 'Cash Sales (Counter POS)',
-    icon: ShoppingBag,
-    description: 'Direct counter cash sales, receipt printing & stock deductions',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'creditSales',
-    label: 'Credit Sales & Debtors',
-    icon: CreditCard,
-    description: 'Credit invoices, customer balances & payment due tracking',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'customers',
-    label: 'Customer Accounts',
-    icon: Users,
-    description: 'Customer directory, contact numbers & credit limits',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'suppliers',
-    label: 'Suppliers & Vendors',
-    icon: Truck,
-    description: 'Supplier directory, categories & contact details',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'purchases',
-    label: 'Purchases & Receiving (GRV)',
-    icon: ShoppingCart,
-    description: 'Cash & Credit Goods Receiving Vouchers from suppliers',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'stockMovements',
-    label: 'Stock Movements & Adjustments',
-    icon: ArrowLeftRight,
-    description: 'Physical count corrections (+ve/-ve) and disposal write-offs',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'stockRequests',
-    label: 'Stock Issue & Requisitions',
-    icon: SendToBack,
-    description: 'Inter-department requisitions and warehouse stock issue',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'consumption',
-    label: 'Branch & Kitchen Consumption',
-    icon: Flame,
-    description: 'Internal food consumption tracking, staff meals & wastage',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'reports',
-    label: 'Financial & Stock Reports',
-    icon: BarChart3,
-    description: 'Balance sheets, P&L, GRV reports, daily summaries & Excel export',
-    actions: ['read', 'export'],
-  },
-  {
-    key: 'staffAccounts',
-    label: 'Staff Accounts & Passwords',
-    icon: Users,
-    description: 'Managing staff login credentials, roles and system accounts',
-    actions: ['create', 'read', 'update', 'delete'],
-  },
-  {
-    key: 'settings',
-    label: 'System Configurations',
-    icon: Settings,
-    description: 'Company profile, currency, taxes & business rules',
-    actions: ['read', 'update'],
-  },
-  {
-    key: 'recycleBin',
-    label: 'Recycle Bin & Data Recovery',
-    icon: Trash2,
-    description: 'Restoring accidentally deleted records and permanent purge',
-    actions: ['read', 'restore', 'delete'],
-  },
-];
-
-export const WORKFLOW_CAPABILITIES = [
-  { key: 'recordGoods', label: 'Record Goods Receiving (Cash/Credit GRV)' },
-  { key: 'checkReview', label: 'Check & Review Transactions (Stage 1)' },
-  { key: 'approveGoods', label: 'Approve Goods & Vouchers (Stage 2)' },
-  { key: 'postLedger', label: 'Post Documents to Ledger (Final Stage)' },
-  { key: 'voidTransactions', label: 'Void / Reverse Posted Transactions' },
-  { key: 'viewReports', label: 'View Financial & Valuation Reports' },
-  { key: 'manageAccounts', label: 'Manage Staff Accounts & Security' },
-];
-
+// ── Roles Available in Sharp Plus ──
 export const SYSTEM_ROLES = [
   {
     key: 'admin',
     label: 'Admin',
     badge: 'bg-amber-100 text-amber-900 border-amber-300',
-    description: 'Master Super-Administrator with full system ownership and permissions',
+    description: 'System Administrator with operational authority',
   },
   {
     key: 'manager',
     label: 'Manager',
     badge: 'bg-emerald-100 text-emerald-900 border-emerald-300',
-    description: 'Department & operations manager with approval and reporting privileges',
+    description: 'Department & operations manager with check, review and approval authority',
   },
   {
     key: 'storekeeper',
     label: 'Storekeeper',
     badge: 'bg-blue-100 text-blue-900 border-blue-300',
-    description: 'Store & inventory operator responsible for goods receiving & counts',
+    description: 'Warehouse & inventory custodian managing stock receiving, issues & counts',
   },
   {
     key: 'cashier',
     label: 'Cashier',
     badge: 'bg-purple-100 text-purple-900 border-purple-300',
-    description: 'Front-desk point-of-sale operator processing counter cash & credit sales',
+    description: 'Front-desk operator handling over-the-counter cash and credit sales',
   },
 ];
 
-export const ACTION_LABELS = {
-  create: { label: 'Create / Add', icon: PlusCircle },
-  read: { label: 'View / Read', icon: Eye },
-  update: { label: 'Edit / Update', icon: Pencil },
-  delete: { label: 'Delete / Void', icon: Ban },
-  export: { label: 'Export Data', icon: ArrowLeftRight },
-  restore: { label: 'Restore Data', icon: RotateCcw },
-};
+// ── 7 Standard Matrix Columns ──
+export const MATRIX_ACTIONS = [
+  { key: 'view', label: 'View', aliases: ['read', 'view'], icon: Eye, color: 'blue' },
+  { key: 'create', label: 'Create', aliases: ['create', 'add'], icon: PlusCircle, color: 'emerald' },
+  { key: 'edit', label: 'Edit', aliases: ['edit', 'update'], icon: Pencil, color: 'amber' },
+  { key: 'delete', label: 'Delete', aliases: ['delete', 'void'], icon: Ban, color: 'rose' },
+  { key: 'approve', label: 'Approve', aliases: ['approve'], icon: CheckCircle2, color: 'purple' },
+  { key: 'reject', label: 'Reject', aliases: ['reject'], icon: XCircle, color: 'red' },
+  { key: 'export', label: 'Print / Export', aliases: ['export', 'print'], icon: Printer, color: 'cyan' },
+];
 
-export default function RolePrivilegesManager({
-  systemForm,
-  setSystemForm,
-  handleSystemSubmit,
-  systemSaving,
-}) {
-  const { user, hasRole, refreshPermissions, updateUser } = useAuth();
-  const isAdmin = hasRole('admin');
+// ── System Modules Grouped Logically ──
+export const MODULE_GROUPS = [
+  {
+    group: 'Inventory & Stock Operations',
+    modules: [
+      {
+        key: 'items',
+        label: 'Items & Raw Materials',
+        description: 'Catalog items, inventory balances, reorder alerts & store allocations',
+        icon: Package,
+      },
+      {
+        key: 'products',
+        label: 'Products & Recipes',
+        description: 'Finished products, recipe formulations & menu prices',
+        icon: Coffee,
+      },
+      {
+        key: 'purchases',
+        label: 'Purchases & Receiving (GRV)',
+        description: 'Cash GRV, Credit GRV, supplier deliveries & receiving vouchers',
+        icon: ShoppingCart,
+      },
+      {
+        key: 'stockMovements',
+        label: 'Stock Movements & Adjustments',
+        description: '+ve/-ve stock adjustments, transfers & disposal write-offs',
+        icon: ArrowLeftRight,
+      },
+      {
+        key: 'stockRequests',
+        label: 'Stock Issue & Requisitions',
+        description: 'Inter-department stock requisitions & warehouse issue approvals',
+        icon: SendToBack,
+      },
+      {
+        key: 'inventoryCount',
+        label: 'Inventory Count & Audits',
+        description: 'Periodic physical inventory counts, variance checks & reconciliation',
+        icon: Scale,
+      },
+      {
+        key: 'consumption',
+        label: 'Branch & Internal Consumption',
+        description: 'Kitchen consumption tracking, staff meals, and production usage',
+        icon: Flame,
+      },
+    ],
+  },
+  {
+    group: 'Sales & Commercial Operations',
+    modules: [
+      {
+        key: 'cashSales',
+        label: 'Cash Sales (Counter POS)',
+        description: 'Direct counter cash sales, receipt printing & instant stock deductions',
+        icon: ShoppingBag,
+      },
+      {
+        key: 'creditSales',
+        label: 'Credit Sales & Invoicing',
+        description: 'Credit sales vouchers, customer balances & payment due tracking',
+        icon: CreditCard,
+      },
+      {
+        key: 'customers',
+        label: 'Customer Accounts',
+        description: 'Customer directory, contact numbers & credit limits',
+        icon: Users,
+      },
+      {
+        key: 'suppliers',
+        label: 'Suppliers & Vendors',
+        description: 'Supplier directory, categories, payment terms & contact details',
+        icon: Truck,
+      },
+    ],
+  },
+  {
+    group: 'Reports, Analytics & Administration',
+    modules: [
+      {
+        key: 'reports',
+        label: 'Financial & Stock Reports',
+        description: 'Balance sheets, daily summaries, GRV registries & Excel/PDF export',
+        icon: BarChart3,
+      },
+      {
+        key: 'analytics',
+        label: 'Analytics & Profit / Loss',
+        description: 'Stock valuation trends, category distribution & P&L intelligence',
+        icon: Activity,
+      },
+      {
+        key: 'staffAccounts',
+        label: 'Staff Accounts & Passwords',
+        description: 'Staff directory, account credentials, roles & system access',
+        icon: ShieldCheck,
+      },
+      {
+        key: 'settings',
+        label: 'System Configurations',
+        description: 'Company profile, currency, tax parameters & business rules',
+        icon: Settings,
+      },
+      {
+        key: 'recycleBin',
+        label: 'Recycle Bin & Data Recovery',
+        description: 'Restoring soft-deleted documents, materials & permanent purge',
+        icon: Trash2,
+      },
+    ],
+  },
+  {
+    group: 'Workflow & Authorization Authorities',
+    modules: [
+      {
+        key: 'workflow_checkReview',
+        canonicalKey: 'checkReview',
+        label: 'Check & Review Transactions (Stage 1)',
+        description: 'Authority to examine and verify prepared GRV, adjustments & sales vouchers',
+        icon: Eye,
+      },
+      {
+        key: 'workflow_approveGoods',
+        canonicalKey: 'approveGoods',
+        label: 'Approve Goods & Vouchers (Stage 2)',
+        description: 'Authority to officially approve receiving vouchers and release stock',
+        icon: CheckCircle2,
+      },
+      {
+        key: 'workflow_postLedger',
+        canonicalKey: 'postLedger',
+        label: 'Post Documents to Ledger (Final Stage)',
+        description: 'Final posting authority that locks transactions into the general ledger',
+        icon: Layers,
+      },
+      {
+        key: 'workflow_voidTransactions',
+        canonicalKey: 'voidTransactions',
+        label: 'Void / Reverse Posted Transactions',
+        description: 'Authority to cancel or void already posted inventory vouchers',
+        icon: Ban,
+      },
+    ],
+  },
+];
 
-  // Main Mode: 'role' (Access Roles) vs 'staff' (Individual User/Staff Member)
-  const [targetType, setTargetType] = useState('role'); // 'role' | 'staff'
+export default function RolePrivilegesManager() {
+  const { user, rolePermissions: contextRolePermissions, refreshPermissions } = useAuth();
+  const isDeveloper = user?.role === 'developer';
 
-  // Selected Role in 'role' mode
+  // Mode: 'role' (Access Roles) vs 'staff' (Individual Staff Member)
+  const [activeTab, setActiveTab] = useState('role');
   const [selectedRole, setSelectedRole] = useState('manager');
 
-  // Staff Selection State
-  const [usersList, setUsersList] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [userSearch, setUserSearch] = useState('');
+  // Staff Mode State
+  const [staffList, setStaffList] = useState([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffSearch, setStaffSearch] = useState('');
 
-  // Selected User Custom Permissions Buffer
-  const [employeePerms, setEmployeePerms] = useState({});
-  const [savingEmployee, setSavingEmployee] = useState(false);
-  const [employeeSuccess, setEmployeeSuccess] = useState('');
-  const [employeeError, setEmployeeError] = useState('');
+  // Working State for Role Permissions & Staff Overrides
+  const [workingRolePermissions, setWorkingRolePermissions] = useState({});
+  const [workingStaffPermissions, setWorkingStaffPermissions] = useState({});
 
-  // Filter modules inside permissions view
-  const [moduleSearch, setModuleSearch] = useState('');
+  // UI Search & Group Collapsing
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
+  const [collapsedGroups, setCollapsedGroups] = useState({});
 
-  // Load Users List
-  const loadUsers = async () => {
-    setLoadingUsers(true);
+  // Confirmation Modal & Feedback State
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null });
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  // Load Settings & Staff on mount
+  const loadInitialData = useCallback(async () => {
     try {
-      const res = await api.get('/users');
-      const list = Array.isArray(res.data) ? res.data : [];
-      setUsersList(list);
-      if (list.length > 0 && !selectedUserId) {
-        const target = list.find((u) => u.role !== 'admin') || list[0];
-        setSelectedUserId(target._id);
-        initEmployeeBuffer(target, systemForm.rolePermissions);
+      const res = await api.get('/settings');
+      if (res.data?.rolePermissions) {
+        setWorkingRolePermissions(JSON.parse(JSON.stringify(res.data.rolePermissions)));
       }
     } catch (err) {
-      console.warn('Failed to load users for permissions manager:', err);
-    } finally {
-      setLoadingUsers(false);
+      console.error('Failed to load settings:', err);
     }
-  };
+
+    try {
+      setStaffLoading(true);
+      const res = await api.get('/users');
+      const users = Array.isArray(res.data) ? res.data : [];
+      setStaffList(users);
+      if (users.length > 0 && !selectedStaffId) {
+        setSelectedStaffId(users[0]._id);
+        setWorkingStaffPermissions(users[0].customPermissions ? JSON.parse(JSON.stringify(users[0].customPermissions)) : {});
+      }
+    } catch (err) {
+      console.error('Failed to load staff list:', err);
+    } finally {
+      setStaffLoading(false);
+    }
+  }, [selectedStaffId]);
 
   useEffect(() => {
-    loadUsers();
+    loadInitialData();
   }, []);
 
-  const selectedUser = useMemo(() => {
-    return usersList.find((u) => u._id === selectedUserId) || null;
-  }, [usersList, selectedUserId]);
+  // Sync working staff permissions when selected staff changes
+  const selectedStaff = useMemo(() => {
+    return staffList.find(s => s._id === selectedStaffId) || null;
+  }, [staffList, selectedStaffId]);
 
-  // Initialize employee custom permissions buffer
-  const initEmployeeBuffer = (targetUser, rolePerms) => {
-    if (!targetUser) return;
-    const role = targetUser.role || 'storekeeper';
-    const fallbackPerms = rolePerms || systemForm.rolePermissions || {};
+  useEffect(() => {
+    if (selectedStaff) {
+      setWorkingStaffPermissions(
+        selectedStaff.customPermissions ? JSON.parse(JSON.stringify(selectedStaff.customPermissions)) : {}
+      );
+    }
+  }, [selectedStaff]);
 
-    if (targetUser.customPermissions && typeof targetUser.customPermissions === 'object') {
-      setEmployeePerms(JSON.parse(JSON.stringify(targetUser.customPermissions)));
-      return;
+  // Helper: Read a permission for a role
+  const getRolePermission = (moduleKey, actionKey, role) => {
+    // If it's a workflow single-capability module
+    if (moduleKey.startsWith('workflow_')) {
+      const capKey = moduleKey.replace('workflow_', '');
+      const val = workingRolePermissions?.[capKey]?.[role];
+      return val !== undefined ? Boolean(val) : false;
     }
 
-    // Default to role baseline
-    const initial = {};
-    CRUD_MODULES.forEach((mod) => {
-      initial[mod.key] = {};
-      mod.actions.forEach((act) => {
-        const roleVal =
-          fallbackPerms?.[mod.key]?.[act]?.[role] ??
-          (role === 'admin' ? true : role === 'manager' && act !== 'delete' ? true : act === 'read');
-        initial[mod.key][act] = Boolean(roleVal);
-      });
-    });
+    const mod = workingRolePermissions?.[moduleKey];
+    if (!mod) return false;
 
-    WORKFLOW_CAPABILITIES.forEach((cap) => {
-      const roleVal = fallbackPerms?.[cap.key]?.[role] ?? (role === 'admin');
-      initial[cap.key] = Boolean(roleVal);
-    });
-
-    setEmployeePerms(initial);
-  };
-
-  const handleSelectUser = (uid) => {
-    setSelectedUserId(uid);
-    setEmployeeSuccess('');
-    setEmployeeError('');
-    const u = usersList.find((item) => item._id === uid);
-    if (u) {
-      initEmployeeBuffer(u, systemForm.rolePermissions);
+    // Check specific action
+    if (mod[actionKey] && mod[actionKey][role] !== undefined) {
+      return Boolean(mod[actionKey][role]);
     }
-  };
 
-  // ── ROLE PERMISSIONS HELPERS ──
-  const isRoleActionAllowed = (roleKey, moduleKey, action) => {
-    if (roleKey === 'admin') return true;
-    return Boolean(systemForm.rolePermissions?.[moduleKey]?.[action]?.[roleKey]);
-  };
-
-  const isRoleWorkflowAllowed = (roleKey, capKey) => {
-    if (roleKey === 'admin') return true;
-    return Boolean(systemForm.rolePermissions?.[capKey]?.[roleKey]);
-  };
-
-  const toggleRoleAction = (roleKey, moduleKey, action) => {
-    if (!isAdmin || roleKey === 'admin') return;
-    const current = isRoleActionAllowed(roleKey, moduleKey, action);
-    setSystemForm((prev) => ({
-      ...prev,
-      rolePermissions: {
-        ...prev.rolePermissions,
-        [moduleKey]: {
-          ...prev.rolePermissions?.[moduleKey],
-          [action]: {
-            ...prev.rolePermissions?.[moduleKey]?.[action],
-            [roleKey]: !current,
-          },
-        },
-      },
-    }));
-  };
-
-  const toggleRoleWorkflow = (roleKey, capKey) => {
-    if (!isAdmin || roleKey === 'admin') return;
-    const current = isRoleWorkflowAllowed(roleKey, capKey);
-    setSystemForm((prev) => ({
-      ...prev,
-      rolePermissions: {
-        ...prev.rolePermissions,
-        [capKey]: {
-          ...prev.rolePermissions?.[capKey],
-          [roleKey]: !current,
-        },
-      },
-    }));
-  };
-
-  const grantAllToRole = (roleKey) => {
-    if (!isAdmin || roleKey === 'admin') return;
-    setSystemForm((prev) => {
-      const rp = JSON.parse(JSON.stringify(prev.rolePermissions || {}));
-      CRUD_MODULES.forEach((mod) => {
-        if (!rp[mod.key]) rp[mod.key] = {};
-        mod.actions.forEach((act) => {
-          if (!rp[mod.key][act]) rp[mod.key][act] = {};
-          rp[mod.key][act][roleKey] = true;
-        });
-      });
-      WORKFLOW_CAPABILITIES.forEach((cap) => {
-        if (!rp[cap.key]) rp[cap.key] = {};
-        rp[cap.key][roleKey] = true;
-      });
-      return { ...prev, rolePermissions: rp };
-    });
-  };
-
-  const denyWriteToRole = (roleKey) => {
-    if (!isAdmin || roleKey === 'admin') return;
-    setSystemForm((prev) => {
-      const rp = JSON.parse(JSON.stringify(prev.rolePermissions || {}));
-      CRUD_MODULES.forEach((mod) => {
-        if (!rp[mod.key]) rp[mod.key] = {};
-        mod.actions.forEach((act) => {
-          if (!rp[mod.key][act]) rp[mod.key][act] = {};
-          rp[mod.key][act][roleKey] = act === 'read';
-        });
-      });
-      WORKFLOW_CAPABILITIES.forEach((cap) => {
-        if (!rp[cap.key]) rp[cap.key] = {};
-        rp[cap.key][roleKey] = cap.key === 'viewReports';
-      });
-      return { ...prev, rolePermissions: rp };
-    });
-  };
-
-  const denyAllToRole = (roleKey) => {
-    if (!isAdmin || roleKey === 'admin') return;
-    setSystemForm((prev) => {
-      const rp = JSON.parse(JSON.stringify(prev.rolePermissions || {}));
-      CRUD_MODULES.forEach((mod) => {
-        if (!rp[mod.key]) rp[mod.key] = {};
-        mod.actions.forEach((act) => {
-          if (!rp[mod.key][act]) rp[mod.key][act] = {};
-          rp[mod.key][act][roleKey] = false;
-        });
-      });
-      WORKFLOW_CAPABILITIES.forEach((cap) => {
-        if (!rp[cap.key]) rp[cap.key] = {};
-        rp[cap.key][roleKey] = false;
-      });
-      return { ...prev, rolePermissions: rp };
-    });
-  };
-
-  // ── STAFF INDIVIDUAL HELPERS ──
-  const isEmployeeAllowed = (moduleKey, action) => {
-    if (!selectedUser) return false;
-    if (action) {
-      return Boolean(employeePerms?.[moduleKey]?.[action]);
+    // Check action aliases (e.g. read -> view)
+    const actionDef = MATRIX_ACTIONS.find(a => a.key === actionKey);
+    if (actionDef) {
+      for (const alias of actionDef.aliases) {
+        if (mod[alias] && mod[alias][role] !== undefined) {
+          return Boolean(mod[alias][role]);
+        }
+      }
     }
-    return Boolean(employeePerms?.[moduleKey]);
+
+    // Default admin true, others false
+    return role === 'admin';
   };
 
-  const toggleEmployeeAction = (moduleKey, action) => {
-    if (!isAdmin) return;
-    setEmployeePerms((prev) => {
-      const next = { ...prev };
+  // Helper: Set a permission for a role
+  const setRolePermission = (moduleKey, actionKey, role, value) => {
+    setWorkingRolePermissions(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+
+      // Workflow single-capability
+      if (moduleKey.startsWith('workflow_')) {
+        const capKey = moduleKey.replace('workflow_', '');
+        if (!next[capKey]) next[capKey] = {};
+        next[capKey][role] = value;
+        return next;
+      }
+
       if (!next[moduleKey]) next[moduleKey] = {};
-      next[moduleKey] = {
-        ...next[moduleKey],
-        [action]: !next[moduleKey][action],
-      };
+      if (!next[moduleKey][actionKey]) next[moduleKey][actionKey] = {};
+      next[moduleKey][actionKey][role] = value;
+
+      // Sync aliases (e.g. view <-> read, edit <-> update)
+      if (actionKey === 'view') {
+        if (!next[moduleKey].read) next[moduleKey].read = {};
+        next[moduleKey].read[role] = value;
+      }
+      if (actionKey === 'edit') {
+        if (!next[moduleKey].update) next[moduleKey].update = {};
+        next[moduleKey].update[role] = value;
+      }
+
       return next;
     });
   };
 
-  const toggleEmployeeWorkflow = (capKey) => {
-    if (!isAdmin) return;
-    setEmployeePerms((prev) => ({
-      ...prev,
-      [capKey]: !prev[capKey],
-    }));
-  };
+  // Helper: Get staff status for a cell: { state: 'inherited' | 'override_granted' | 'override_denied', value: boolean }
+  const getStaffPermissionStatus = (moduleKey, actionKey) => {
+    const staffRole = selectedStaff?.role || 'employee';
+    const roleVal = getRolePermission(moduleKey, actionKey, staffRole);
 
-  const handleGrantAllEmployee = () => {
-    const updated = {};
-    CRUD_MODULES.forEach((mod) => {
-      updated[mod.key] = {};
-      mod.actions.forEach((act) => {
-        updated[mod.key][act] = true;
-      });
-    });
-    WORKFLOW_CAPABILITIES.forEach((cap) => {
-      updated[cap.key] = true;
-    });
-    setEmployeePerms(updated);
-  };
-
-  const handleDenyWriteEmployee = () => {
-    const updated = {};
-    CRUD_MODULES.forEach((mod) => {
-      updated[mod.key] = {};
-      mod.actions.forEach((act) => {
-        updated[mod.key][act] = act === 'read';
-      });
-    });
-    WORKFLOW_CAPABILITIES.forEach((cap) => {
-      updated[cap.key] = cap.key === 'viewReports';
-    });
-    setEmployeePerms(updated);
-  };
-
-  const handleDenyAllEmployee = () => {
-    const updated = {};
-    CRUD_MODULES.forEach((mod) => {
-      updated[mod.key] = {};
-      mod.actions.forEach((act) => {
-        updated[mod.key][act] = false;
-      });
-    });
-    WORKFLOW_CAPABILITIES.forEach((cap) => {
-      updated[cap.key] = false;
-    });
-    setEmployeePerms(updated);
-  };
-
-  const handleResetToRoleDefault = async () => {
-    if (!selectedUser) return;
-    if (!window.confirm(`Reset ${selectedUser.name}'s permissions back to their default role (${selectedUser.role}) permissions?`)) return;
-
-    setSavingEmployee(true);
-    try {
-      await api.put(`/users/${selectedUser._id}`, { customPermissions: null });
-      setUsersList((prev) =>
-        prev.map((u) =>
-          u._id === selectedUser._id ? { ...u, customPermissions: null } : u
-        )
-      );
-      initEmployeeBuffer({ ...selectedUser, customPermissions: null }, systemForm.rolePermissions);
-      if (user && user._id === selectedUser._id) {
-        updateUser({ customPermissions: null });
+    let customVal = undefined;
+    if (moduleKey.startsWith('workflow_')) {
+      const capKey = moduleKey.replace('workflow_', '');
+      customVal = workingStaffPermissions?.[capKey];
+    } else {
+      customVal = workingStaffPermissions?.[moduleKey]?.[actionKey];
+      if (customVal === undefined) {
+        const actionDef = MATRIX_ACTIONS.find(a => a.key === actionKey);
+        if (actionDef) {
+          for (const alias of actionDef.aliases) {
+            if (workingStaffPermissions?.[moduleKey]?.[alias] !== undefined) {
+              customVal = workingStaffPermissions[moduleKey][alias];
+              break;
+            }
+          }
+        }
       }
-      setEmployeeSuccess(`Custom overrides cleared for ${selectedUser.name}. Now using ${selectedUser.role} role defaults.`);
-      setTimeout(() => setEmployeeSuccess(''), 4000);
+    }
+
+    if (customVal === true) {
+      return { state: 'override_granted', value: true, inherited: roleVal };
+    }
+    if (customVal === false) {
+      return { state: 'override_denied', value: false, inherited: roleVal };
+    }
+    return { state: 'inherited', value: roleVal, inherited: roleVal };
+  };
+
+  // Helper: Cycle staff permission: Inherited -> Override Granted -> Override Denied -> Inherited
+  const toggleStaffPermission = (moduleKey, actionKey) => {
+    const current = getStaffPermissionStatus(moduleKey, actionKey);
+
+    setWorkingStaffPermissions(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+
+      // Workflow single-capability
+      if (moduleKey.startsWith('workflow_')) {
+        const capKey = moduleKey.replace('workflow_', '');
+        if (current.state === 'inherited') {
+          // If inherited was true, flip to denied false; if false, flip to granted true
+          next[capKey] = !current.inherited;
+        } else if ((current.state === 'override_granted' && !current.inherited) ||
+                   (current.state === 'override_denied' && current.inherited)) {
+          // Flip to the opposite override
+          next[capKey] = !current.value;
+        } else {
+          // Return to inherited
+          delete next[capKey];
+        }
+        return next;
+      }
+
+      if (!next[moduleKey]) next[moduleKey] = {};
+
+      if (current.state === 'inherited') {
+        next[moduleKey][actionKey] = !current.inherited;
+      } else if ((current.state === 'override_granted' && !current.inherited) ||
+                 (current.state === 'override_denied' && current.inherited)) {
+        next[moduleKey][actionKey] = !current.value;
+      } else {
+        // Clear override
+        delete next[moduleKey][actionKey];
+        if (Object.keys(next[moduleKey]).length === 0) {
+          delete next[moduleKey];
+        }
+      }
+
+      return next;
+    });
+  };
+
+  // Bulk Actions
+  const handleBulkRoleAction = (type) => {
+    const roleName = SYSTEM_ROLES.find(r => r.key === selectedRole)?.label || selectedRole;
+    setConfirmModal({
+      open: true,
+      title: type === 'enable' ? `Enable All Permissions for ${roleName}?` : `Disable All Permissions for ${roleName}?`,
+      message: type === 'enable'
+        ? `This will grant all permissions across all modules to the ${roleName} role. Are you sure you want to proceed?`
+        : `This will revoke all permissions across all modules for the ${roleName} role. Are you sure you want to proceed?`,
+      onConfirm: () => {
+        const val = type === 'enable';
+        setWorkingRolePermissions(prev => {
+          const next = JSON.parse(JSON.stringify(prev || {}));
+          MODULE_GROUPS.forEach(g => {
+            g.modules.forEach(m => {
+              if (m.key.startsWith('workflow_')) {
+                const cap = m.canonicalKey;
+                if (!next[cap]) next[cap] = {};
+                next[cap][selectedRole] = val;
+              } else {
+                if (!next[m.key]) next[m.key] = {};
+                MATRIX_ACTIONS.forEach(a => {
+                  if (!next[m.key][a.key]) next[m.key][a.key] = {};
+                  next[m.key][a.key][selectedRole] = val;
+                  if (a.key === 'view') {
+                    if (!next[m.key].read) next[m.key].read = {};
+                    next[m.key].read[selectedRole] = val;
+                  }
+                  if (a.key === 'edit') {
+                    if (!next[m.key].update) next[m.key].update = {};
+                    next[m.key].update[selectedRole] = val;
+                  }
+                });
+              }
+            });
+          });
+          return next;
+        });
+        setConfirmModal({ open: false });
+      },
+    });
+  };
+
+  // Toggle all modules for a specific column in the active role
+  const handleToggleColumnForRole = (actionKey) => {
+    if (!isDeveloper) return;
+    // Check if majority are enabled
+    let enabledCount = 0;
+    let totalCount = 0;
+    MODULE_GROUPS.forEach(g => {
+      g.modules.forEach(m => {
+        if (!m.key.startsWith('workflow_')) {
+          totalCount++;
+          if (getRolePermission(m.key, actionKey, selectedRole)) enabledCount++;
+        }
+      });
+    });
+
+    const targetVal = enabledCount < totalCount;
+    setWorkingRolePermissions(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+      MODULE_GROUPS.forEach(g => {
+        g.modules.forEach(m => {
+          if (!m.key.startsWith('workflow_')) {
+            if (!next[m.key]) next[m.key] = {};
+            if (!next[m.key][actionKey]) next[m.key][actionKey] = {};
+            next[m.key][actionKey][selectedRole] = targetVal;
+            if (actionKey === 'view') {
+              if (!next[m.key].read) next[m.key].read = {};
+              next[m.key].read[selectedRole] = targetVal;
+            }
+            if (actionKey === 'edit') {
+              if (!next[m.key].update) next[m.key].update = {};
+              next[m.key].update[selectedRole] = targetVal;
+            }
+          }
+        });
+      });
+      return next;
+    });
+  };
+
+  // Clear Staff Overrides
+  const handleClearStaffOverrides = () => {
+    if (!selectedStaff) return;
+    setConfirmModal({
+      open: true,
+      title: `Reset All Custom Overrides for ${selectedStaff.name}?`,
+      message: `This will remove all individual permissions overrides for ${selectedStaff.name}. They will immediately inherit the standard permissions of their "${selectedStaff.role}" role.`,
+      onConfirm: () => {
+        setWorkingStaffPermissions({});
+        setConfirmModal({ open: false });
+      },
+    });
+  };
+
+  // Save Role Permissions
+  const handleSaveRolePermissions = async () => {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      await api.put('/settings', {
+        rolePermissions: workingRolePermissions,
+      });
+
+      await refreshPermissions();
+      setFeedback({ type: 'success', message: 'Role Privileges Matrix saved successfully! Changes apply immediately.' });
+      setTimeout(() => setFeedback(null), 4000);
     } catch (err) {
-      setEmployeeError('Failed to reset privileges.');
+      setFeedback({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to save role privileges. Make sure you are authenticated as System Developer & Owner.',
+      });
     } finally {
-      setSavingEmployee(false);
+      setSaving(false);
     }
   };
 
-  const handleSaveEmployeePerms = async () => {
-    if (!selectedUser) return;
-    setSavingEmployee(true);
-    setEmployeeSuccess('');
-    setEmployeeError('');
-
+  // Save Staff Permissions
+  const handleSaveStaffPermissions = async () => {
+    if (!selectedStaffId) return;
+    setSaving(true);
+    setFeedback(null);
     try {
-      await api.put(`/users/${selectedUser._id}`, {
-        customPermissions: employeePerms,
+      const cleanCustom = Object.keys(workingStaffPermissions).length > 0 ? workingStaffPermissions : null;
+      const res = await api.put(`/users/${selectedStaffId}`, {
+        customPermissions: cleanCustom,
       });
 
-      setUsersList((prev) =>
-        prev.map((u) =>
-          u._id === selectedUser._id
-            ? { ...u, customPermissions: employeePerms }
-            : u
-        )
-      );
+      // Update local staff list
+      setStaffList(prev => prev.map(u => u._id === selectedStaffId ? res.data : u));
 
-      if (user && user._id === selectedUser._id) {
-        updateUser({ customPermissions: employeePerms });
-      }
-
-      setEmployeeSuccess(`Privileges successfully saved and activated for ${selectedUser.name}!`);
-      setTimeout(() => setEmployeeSuccess(''), 5000);
+      await refreshPermissions();
+      setFeedback({
+        type: 'success',
+        message: `Custom privileges for ${selectedStaff.name} saved successfully!`,
+      });
+      setTimeout(() => setFeedback(null), 4000);
     } catch (err) {
-      setEmployeeError(err.response?.data?.message || 'Failed to update employee permissions.');
+      setFeedback({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to save staff permissions.',
+      });
     } finally {
-      setSavingEmployee(false);
+      setSaving(false);
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    if (!userSearch.trim()) return usersList;
-    const q = userSearch.toLowerCase();
-    return usersList.filter(
-      (u) =>
-        u.name?.toLowerCase().includes(q) ||
-        u.email?.toLowerCase().includes(q) ||
-        u.role?.toLowerCase().includes(q)
-    );
-  }, [usersList, userSearch]);
+  // Reset unsaved changes
+  const handleReset = () => {
+    loadInitialData();
+    setFeedback({ type: 'info', message: 'Permissions reset to last saved state.' });
+    setTimeout(() => setFeedback(null), 3000);
+  };
 
-  const filteredModules = useMemo(() => {
-    if (!moduleSearch.trim()) return CRUD_MODULES;
-    const q = moduleSearch.toLowerCase();
-    return CRUD_MODULES.filter(
-      (m) => m.label.toLowerCase().includes(q) || m.description.toLowerCase().includes(q)
-    );
-  }, [moduleSearch]);
+  // Filter Modules by search and group
+  const filteredGroups = useMemo(() => {
+    return MODULE_GROUPS.map(g => {
+      if (selectedGroupFilter !== 'all' && g.group !== selectedGroupFilter) return null;
 
-  const hasCustomOverrides = Boolean(selectedUser?.customPermissions);
+      const matchedModules = g.modules.filter(m => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return m.label.toLowerCase().includes(q) || m.description.toLowerCase().includes(q);
+      });
+
+      if (matchedModules.length === 0) return null;
+      return { ...g, modules: matchedModules };
+    }).filter(Boolean);
+  }, [searchQuery, selectedGroupFilter]);
+
+  // Statistics for active role
+  const roleStats = useMemo(() => {
+    let total = 0;
+    let enabled = 0;
+    MODULE_GROUPS.forEach(g => {
+      g.modules.forEach(m => {
+        if (m.key.startsWith('workflow_')) {
+          total++;
+          if (getRolePermission(m.key, null, selectedRole)) enabled++;
+        } else {
+          MATRIX_ACTIONS.forEach(a => {
+            total++;
+            if (getRolePermission(m.key, a.key, selectedRole)) enabled++;
+          });
+        }
+      });
+    });
+    return { total, enabled, percent: total > 0 ? Math.round((enabled / total) * 100) : 0 };
+  }, [workingRolePermissions, selectedRole]);
+
+  // Statistics for active staff overrides
+  const staffStats = useMemo(() => {
+    let grants = 0;
+    let denials = 0;
+    let inherited = 0;
+
+    MODULE_GROUPS.forEach(g => {
+      g.modules.forEach(m => {
+        if (m.key.startsWith('workflow_')) {
+          const s = getStaffPermissionStatus(m.key, null);
+          if (s.state === 'override_granted') grants++;
+          else if (s.state === 'override_denied') denials++;
+          else inherited++;
+        } else {
+          MATRIX_ACTIONS.forEach(a => {
+            const s = getStaffPermissionStatus(m.key, a.key);
+            if (s.state === 'override_granted') grants++;
+            else if (s.state === 'override_denied') denials++;
+            else inherited++;
+          });
+        }
+      });
+    });
+    return { grants, denials, inherited };
+  }, [workingStaffPermissions, workingRolePermissions, selectedStaff]);
 
   return (
-    <div className="space-y-6">
-      {/* ── Mode Selection Header ── */}
-      <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl border border-slate-800">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-5 w-full">
+      {/* ── Security & Authority Header ── */}
+      <div className={`rounded-2xl p-4.5 border transition shadow-sm ${
+        isDeveloper
+          ? 'bg-slate-900 border-indigo-900/60 text-white'
+          : 'bg-amber-50 border-amber-200 text-amber-900'
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
-              <ShieldCheck size={26} />
+            <div className={`rounded-xl p-2.5 ${isDeveloper ? 'bg-indigo-600 text-white' : 'bg-amber-200 text-amber-800'}`}>
+              {isDeveloper ? <ShieldCheck size={24} /> : <ShieldAlert size={24} />}
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight">Access Control &amp; Privileges Management</h2>
-              <p className="text-xs text-indigo-300">
-                Configure baseline access for each Access Role or grant/deny specific access for individual staff members.
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-base">
+                  Access Control &amp; Role Privileges Matrix
+                </h3>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                  isDeveloper
+                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                }`}>
+                  <Sparkles size={11} />
+                  {isDeveloper ? 'System Developer & Owner Mode' : 'Read-Only Mode'}
+                </span>
+              </div>
+              <p className={`text-xs mt-0.5 ${isDeveloper ? 'text-slate-300' : 'text-amber-700'}`}>
+                {isDeveloper
+                  ? 'You have unrestricted authority to manage role permissions and configure individual employee overrides.'
+                  : 'Role Privileges are managed exclusively by the System Developer & Owner. Modifications are locked.'}
               </p>
             </div>
           </div>
 
-          {/* Segmented Mode Switch */}
-          <div className="inline-flex rounded-2xl bg-slate-950/80 p-1.5 border border-slate-700/60 self-start md:self-auto shadow-inner">
-            <button
-              type="button"
-              onClick={() => setTargetType('role')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-                targetType === 'role'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Shield size={14} />
-              <span>By Access Role</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTargetType('staff')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-                targetType === 'staff'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <User size={14} />
-              <span>By User / Staff Member</span>
-            </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-black/20 border border-white/10 text-slate-300">
+              User: <strong className="text-white">{user?.name}</strong> ({user?.role})
+            </span>
           </div>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          SECTION A: CONFIGURE BY ACCESS ROLE (Admin, Manager, Storekeeper, Cashier)
-         ═══════════════════════════════════════════════════════════════════ */}
-      {targetType === 'role' && (
-        <form onSubmit={handleSystemSubmit} className="space-y-6 animate-in fade-in duration-200">
-          {/* Role Tabs Card */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Select Access Role to Configure:
-                </label>
-                <h3 className="text-sm font-black text-slate-900 mt-0.5">
-                  Role: {SYSTEM_ROLES.find(r => r.key === selectedRole)?.label}
-                </h3>
-              </div>
+      {/* ── Main Tab Navigation (By Access Role vs By User / Staff Member) ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-1">
+        <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab('role')}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition ${
+              activeTab === 'role'
+                ? 'bg-white text-blue-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Shield size={15} /> By Access Role
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('staff')}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition ${
+              activeTab === 'staff'
+                ? 'bg-white text-indigo-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <UserCheck size={15} /> By User / Staff Member
+          </button>
+        </div>
 
-              {/* Role Selection Buttons */}
-              <div className="flex flex-wrap gap-2">
-                {SYSTEM_ROLES.map((role) => (
-                  <button
-                    key={role.key}
-                    type="button"
-                    onClick={() => setSelectedRole(role.key)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition ${
-                      selectedRole === role.key
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{role.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Global Save / Reset Actions */}
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleReset}
+            disabled={saving || !isDeveloper}
+            className="text-xs text-slate-600 hover:bg-slate-100"
+          >
+            <RotateCcw size={14} /> Reset
+          </Button>
 
-            {/* Role Header Description & Quick Presets */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <p className="text-xs text-slate-500 max-w-md">
-                {SYSTEM_ROLES.find(r => r.key === selectedRole)?.description}
-              </p>
+          <Button
+            type="button"
+            variant="brass"
+            onClick={activeTab === 'role' ? handleSaveRolePermissions : handleSaveStaffPermissions}
+            disabled={saving || !isDeveloper}
+            className="shadow-sm font-semibold"
+          >
+            <Save size={15} />
+            {saving ? 'Saving Changes…' : activeTab === 'role' ? 'Save Role Matrix' : 'Save User Overrides'}
+          </Button>
+        </div>
+      </div>
 
-              {selectedRole !== 'admin' ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Role Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => grantAllToRole(selectedRole)}
-                    disabled={!isAdmin}
-                    className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1 transition shadow-xs"
-                  >
-                    <Unlock size={12} /> Give All Access
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => denyWriteToRole(selectedRole)}
-                    disabled={!isAdmin}
-                    className="px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 transition shadow-xs"
-                  >
-                    <Lock size={12} /> Read-Only Access
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => denyAllToRole(selectedRole)}
-                    disabled={!isAdmin}
-                    className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold flex items-center gap-1 transition shadow-xs"
-                  >
-                    <Ban size={12} /> Deny All Access
-                  </button>
-                </div>
-              ) : (
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
-                  👑 Super Admin always has full access to all features.
-                </span>
-              )}
-            </div>
+      {/* Feedback banner */}
+      {feedback && (
+        <div className={`flex items-center justify-between p-3 rounded-xl border text-xs font-medium animate-fadeIn ${
+          feedback.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : feedback.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-800'
+              : 'bg-blue-50 border-blue-200 text-blue-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {feedback.type === 'success' ? <CheckCircle2 size={16} className="text-emerald-600" /> : <AlertCircle size={16} />}
+            <span>{feedback.message}</span>
           </div>
-
-          {/* Workflow Approval Capabilities for Role */}
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                  <SlidersHorizontal size={16} className="text-indigo-600" />
-                  Workflow &amp; Approval Privileges
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Allow or deny approval and authorization powers for the <strong>{selectedRole}</strong> role.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {WORKFLOW_CAPABILITIES.map((cap) => {
-                const allowed = isRoleWorkflowAllowed(selectedRole, cap.key);
-                return (
-                  <div
-                    key={cap.key}
-                    onClick={() => toggleRoleWorkflow(selectedRole, cap.key)}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer ${
-                      allowed
-                        ? 'bg-emerald-50/60 border-emerald-200 hover:bg-emerald-50'
-                        : 'bg-rose-50/40 border-rose-200/80 hover:bg-rose-50/80'
-                    }`}
-                  >
-                    <div className="pr-2">
-                      <span className="text-xs font-bold text-slate-800 block">{cap.label}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black ${
-                          allowed
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-rose-600 text-white shadow-xs'
-                        }`}
-                      >
-                        {allowed ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
-                        <span>{allowed ? 'GIVE ACCESS' : 'DENY ACCESS'}</span>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Granular CRUD Module Access for Role */}
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                  <Layers size={16} className="text-indigo-600" />
-                  Module Operations: Give vs. Deny Access
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Toggle each action below to explicitly give access (green) or deny access (red) for <strong>{selectedRole}</strong>.
-                </p>
-              </div>
-
-              {/* Module Search */}
-              <div className="relative w-full sm:w-64">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Filter modules..."
-                  value={moduleSearch}
-                  onChange={(e) => setModuleSearch(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div className="divide-y divide-slate-100">
-              {filteredModules.map((mod) => {
-                const Icon = mod.icon;
-                return (
-                  <div key={mod.key} className="p-4 hover:bg-slate-50/60 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-[260px]">
-                      <div className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
-                        <Icon size={18} />
-                      </div>
-                      <div>
-                        <span className="font-bold text-xs text-slate-900 block">{mod.label}</span>
-                        <span className="text-[11px] text-slate-400 block">{mod.description}</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons for this Module */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {mod.actions.map((act) => {
-                        const actConfig = ACTION_LABELS[act] || { label: act, icon: Check };
-                        const ActionIcon = actConfig.icon;
-                        const allowed = isRoleActionAllowed(selectedRole, mod.key, act);
-                        return (
-                          <button
-                            key={act}
-                            type="button"
-                            disabled={!isAdmin || selectedRole === 'admin'}
-                            onClick={() => toggleRoleAction(selectedRole, mod.key, act)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
-                              allowed
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                            }`}
-                          >
-                            <ActionIcon size={12} strokeWidth={2.5} />
-                            <span>{actConfig.label}</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${allowed ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'}`}>
-                              {allowed ? 'GIVE' : 'DENY'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Bottom Save Bar */}
-            <div className="p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <p className="text-xs text-slate-500">
-                Saving updates baseline role privileges immediately across all accounts assigned to <strong>{selectedRole}</strong>.
-              </p>
-              <button
-                type="submit"
-                disabled={systemSaving || !isAdmin}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50"
-              >
-                <Save size={15} />
-                <span>{systemSaving ? 'Saving Changes...' : `Save Privileges for ${selectedRole.toUpperCase()}`}</span>
-              </button>
-            </div>
-          </div>
-        </form>
+          <button onClick={() => setFeedback(null)} className="text-slate-400 hover:text-slate-700">
+            <X size={14} />
+          </button>
+        </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          SECTION B: CONFIGURE BY USER / STAFF MEMBER (Individual Overrides)
-         ═══════════════════════════════════════════════════════════════════ */}
-      {targetType === 'staff' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          {/* User Selector Bar */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 font-black text-lg border border-indigo-100">
-                  {selectedUser?.name?.[0]?.toUpperCase() || 'U'}
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Individual Staff Member Selected:
-                  </label>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="font-black text-slate-900 text-base">
-                      {selectedUser?.name || 'Select Staff Member'}
-                    </span>
-                    {selectedUser && (
-                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                        {selectedUser.role}
-                      </span>
-                    )}
-                    {hasCustomOverrides ? (
-                      <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                        <Sparkles size={11} /> Custom Overrides Active
-                      </span>
-                    ) : (
-                      <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-                        Inheriting Role Defaults
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Staff Select Dropdown */}
-              <div className="flex items-center gap-2">
-                <select
-                  value={selectedUserId}
-                  onChange={(e) => handleSelectUser(e.target.value)}
-                  className="rounded-xl border border-slate-300 bg-white py-2.5 px-3 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 shadow-sm"
-                >
-                  {usersList.map((u) => (
-                    <option key={u._id} value={u._id}>
-                      {u.name} ({u.role.toUpperCase()}) — {u.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Quick Presets for this individual staff */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+      {/* ── Mode 1: BY ACCESS ROLE CONTROLS ── */}
+      {activeTab === 'role' && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1.5">
+                Select Access Role to Configure:
+              </label>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Staff Presets:</span>
-                <button
-                  type="button"
-                  onClick={handleGrantAllEmployee}
-                  disabled={!isAdmin}
-                  className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1 transition shadow-xs"
-                >
-                  <Unlock size={12} /> Give Full Access
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDenyWriteEmployee}
-                  disabled={!isAdmin}
-                  className="px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 transition shadow-xs"
-                >
-                  <Lock size={12} /> Read-Only Access
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDenyAllEmployee}
-                  disabled={!isAdmin}
-                  className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold flex items-center gap-1 transition shadow-xs"
-                >
-                  <Ban size={12} /> Deny All Access
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetToRoleDefault}
-                  disabled={!isAdmin}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium flex items-center gap-1 transition shadow-xs"
-                >
-                  <RotateCcw size={12} /> Reset to {selectedUser?.role} Defaults
-                </button>
+                {SYSTEM_ROLES.map(r => {
+                  const isSelected = selectedRole === r.key;
+                  return (
+                    <button
+                      key={r.key}
+                      type="button"
+                      onClick={() => setSelectedRole(r.key)}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition border ${
+                        isSelected
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-blue-500/30'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <Shield size={14} className={isSelected ? 'text-amber-400' : 'text-slate-400'} />
+                      <span>{r.label}</span>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* Save Button for Staff */}
+            {/* Quick Bulk Actions for this role */}
+            <div className="flex items-center flex-wrap gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+              <span className="text-xs text-slate-500 font-semibold mr-1">Bulk Role Controls:</span>
               <button
                 type="button"
-                onClick={handleSaveEmployeePerms}
-                disabled={savingEmployee || !isAdmin}
-                className="py-2.5 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-md transition disabled:opacity-50"
+                onClick={() => isDeveloper && handleBulkRoleAction('enable')}
+                disabled={!isDeveloper}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition disabled:opacity-50"
               >
-                <Save size={15} />
-                <span>{savingEmployee ? 'Saving...' : `Save Privileges for ${selectedUser?.name || 'Staff'}`}</span>
+                <CheckCircle2 size={13} /> Enable All
               </button>
-            </div>
-
-            {/* Status alerts */}
-            {employeeSuccess && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-                <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
-                <span>{employeeSuccess}</span>
-              </div>
-            )}
-            {employeeError && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
-                <AlertTriangle size={16} className="text-rose-600 flex-shrink-0" />
-                <span>{employeeError}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Workflow Capabilities for Selected Staff Member */}
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                  <SlidersHorizontal size={16} className="text-indigo-600" />
-                  Individual Workflow &amp; Approval Authority
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Allow or revoke approval powers for <strong>{selectedUser?.name}</strong>.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {WORKFLOW_CAPABILITIES.map((cap) => {
-                const allowed = Boolean(employeePerms[cap.key]);
-                return (
-                  <div
-                    key={cap.key}
-                    onClick={() => toggleEmployeeWorkflow(cap.key)}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border transition cursor-pointer ${
-                      allowed
-                        ? 'bg-emerald-50/60 border-emerald-200 hover:bg-emerald-50'
-                        : 'bg-rose-50/40 border-rose-200/80 hover:bg-rose-50/80'
-                    }`}
-                  >
-                    <div className="pr-2">
-                      <span className="text-xs font-bold text-slate-800 block">{cap.label}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black ${
-                          allowed
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-rose-600 text-white shadow-xs'
-                        }`}
-                      >
-                        {allowed ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
-                        <span>{allowed ? 'GIVE ACCESS' : 'DENY ACCESS'}</span>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+              <button
+                type="button"
+                onClick={() => isDeveloper && handleBulkRoleAction('disable')}
+                disabled={!isDeveloper}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-100 transition disabled:opacity-50"
+              >
+                <XCircle size={13} /> Disable All
+              </button>
             </div>
           </div>
 
-          {/* Granular Module Matrix for Staff Member */}
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                  <Layers size={16} className="text-indigo-600" />
-                  Individual Module Permissions: Give vs. Deny Access
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Click any action to switch between <strong>Give Access (Green)</strong> and <strong>Deny Access (Red)</strong> for <strong>{selectedUser?.name}</strong>.
-                </p>
-              </div>
-
-              {/* Module Search */}
-              <div className="relative w-full sm:w-64">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Filter modules..."
-                  value={moduleSearch}
-                  onChange={(e) => setModuleSearch(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-indigo-500"
-                />
-              </div>
+          {/* Role Status Summary Banner */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="font-bold text-slate-800">
+                Active Role: <span className="capitalize text-blue-700 font-black">{selectedRole}</span>
+              </span>
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-600">
+                {SYSTEM_ROLES.find(r => r.key === selectedRole)?.description}
+              </span>
             </div>
-
-            <div className="divide-y divide-slate-100">
-              {filteredModules.map((mod) => {
-                const Icon = mod.icon;
-                return (
-                  <div key={mod.key} className="p-4 hover:bg-slate-50/60 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-[260px]">
-                      <div className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
-                        <Icon size={18} />
-                      </div>
-                      <div>
-                        <span className="font-bold text-xs text-slate-900 block">{mod.label}</span>
-                        <span className="text-[11px] text-slate-400 block">{mod.description}</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons for this Module */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {mod.actions.map((act) => {
-                        const actConfig = ACTION_LABELS[act] || { label: act, icon: Check };
-                        const ActionIcon = actConfig.icon;
-                        const allowed = isEmployeeAllowed(mod.key, act);
-                        return (
-                          <button
-                            key={act}
-                            type="button"
-                            disabled={!isAdmin}
-                            onClick={() => toggleEmployeeAction(mod.key, act)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
-                              allowed
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                            }`}
-                          >
-                            <ActionIcon size={12} strokeWidth={2.5} />
-                            <span>{actConfig.label}</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${allowed ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'}`}>
-                              {allowed ? 'GIVE' : 'DENY'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Bottom Save Bar */}
-            <div className="p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <p className="text-xs text-slate-500">
-                Custom privileges override role defaults and become active immediately for <strong>{selectedUser?.name}</strong>.
-              </p>
-              <button
-                type="button"
-                onClick={handleSaveEmployeePerms}
-                disabled={savingEmployee || !isAdmin}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50"
-              >
-                <Save size={15} />
-                <span>{savingEmployee ? 'Saving Changes...' : `Save Privileges for ${selectedUser?.name}`}</span>
-              </button>
+            <div className="flex items-center gap-3">
+              <span className="text-slate-600 font-medium">
+                Granted: <strong className="text-emerald-700">{roleStats.enabled}</strong> / {roleStats.total} actions ({roleStats.percent}%)
+              </span>
+              <div className="w-24 bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${roleStats.percent}%` }} />
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── Mode 2: BY USER / STAFF MEMBER CONTROLS ── */}
+      {activeTab === 'staff' && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="w-full lg:max-w-md">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1.5">
+                Select Individual Staff Member to Configure:
+              </label>
+              <select
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition"
+              >
+                {staffList.map(s => {
+                  const overrideCount = s.customPermissions ? Object.keys(s.customPermissions).length : 0;
+                  return (
+                    <option key={s._id} value={s._id}>
+                      {s.name} ({s.email}) — Role: {s.role.toUpperCase()} {overrideCount > 0 ? `[${overrideCount} Overrides]` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {selectedStaff && (
+              <div className="flex items-center flex-wrap gap-2 pt-2 lg:pt-0">
+                <button
+                  type="button"
+                  onClick={() => isDeveloper && handleClearStaffOverrides()}
+                  disabled={!isDeveloper || Object.keys(workingStaffPermissions).length === 0}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-200 transition disabled:opacity-50"
+                  title="Remove all custom overrides for this user and revert to role default"
+                >
+                  <RotateCcw size={13} /> Reset All to Role Baseline
+                </button>
+              </div>
+            )}
+          </div>
+
+          {selectedStaff && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-xs">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
+                  {selectedStaff.name?.[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <span className="font-bold text-slate-900">{selectedStaff.name}</span>
+                  <span className="text-slate-500 ml-1.5">({selectedStaff.email})</span>
+                  <span className="ml-2 px-2 py-0.2 rounded-full text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200 uppercase">
+                    Role: {selectedStaff.role}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1 text-emerald-800 font-bold bg-emerald-100/80 px-2 py-0.5 rounded">
+                  <Check size={12} /> {staffStats.grants} Custom Grants
+                </span>
+                <span className="inline-flex items-center gap-1 text-rose-800 font-bold bg-rose-100/80 px-2 py-0.5 rounded">
+                  <Ban size={12} /> {staffStats.denials} Custom Denials
+                </span>
+                <span className="text-slate-500 font-medium">
+                  {staffStats.inherited} Inherited from {selectedStaff.role}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Search & Filter Bar ── */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="relative w-full sm:max-w-xs">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search module or action…"
+            className="w-full rounded-xl border border-slate-200 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-500 transition"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <Filter size={13} className="text-slate-400" />
+          <select
+            value={selectedGroupFilter}
+            onChange={(e) => setSelectedGroupFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700 outline-none focus:border-blue-400"
+          >
+            <option value="all">All Module Groups</option>
+            {MODULE_GROUPS.map(g => (
+              <option key={g.group} value={g.group}>{g.group}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              const allCollapsed = Object.keys(collapsedGroups).length === MODULE_GROUPS.length;
+              if (allCollapsed) setCollapsedGroups({});
+              else {
+                const map = {};
+                MODULE_GROUPS.forEach(g => { map[g.group] = true; });
+                setCollapsedGroups(map);
+              }
+            }}
+            className="text-xs text-blue-600 hover:underline font-semibold ml-2 whitespace-nowrap"
+          >
+            {Object.keys(collapsedGroups).length === MODULE_GROUPS.length ? 'Expand All' : 'Collapse All'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Structured Permission Matrix Table (8 Columns) ── */}
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto max-h-[720px] overflow-y-auto">
+          <table className="min-w-full text-xs text-left border-collapse">
+            {/* Sticky Header */}
+            <thead className="sticky top-0 bg-slate-900 text-white z-20 shadow-md">
+              <tr className="border-b border-slate-800">
+                <th className="py-3.5 px-4 font-bold text-xs uppercase tracking-wider min-w-[280px]">
+                  Module / Feature
+                </th>
+                {MATRIX_ACTIONS.map(action => {
+                  const Icon = action.icon;
+                  return (
+                    <th key={action.key} className="py-3.5 px-2.5 text-center font-bold text-xs uppercase tracking-wider min-w-[95px]">
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <div className="flex items-center gap-1">
+                          <Icon size={14} className="opacity-80" />
+                          <span>{action.label}</span>
+                        </div>
+                        {activeTab === 'role' && isDeveloper && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleColumnForRole(action.key)}
+                            className="text-[10px] text-slate-400 hover:text-white underline font-normal mt-0.5"
+                            title={`Toggle ${action.label} for all modules in ${selectedRole}`}
+                          >
+                            toggle all
+                          </button>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+
+            {/* Matrix Body with Groups */}
+            <tbody className="divide-y divide-slate-100">
+              {filteredGroups.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                    No modules match your search query "{searchQuery}".
+                  </td>
+                </tr>
+              ) : (
+                filteredGroups.map(group => {
+                  const isCollapsed = Boolean(collapsedGroups[group.group]);
+
+                  return (
+                    <React.Fragment key={group.group}>
+                      {/* Group Header Row */}
+                      <tr
+                        onClick={() => setCollapsedGroups(p => ({ ...p, [group.group]: !p[group.group] }))}
+                        className="bg-slate-100/90 hover:bg-slate-200/80 cursor-pointer border-t-2 border-slate-200 transition"
+                      >
+                        <td colSpan={8} className="py-2.5 px-4 font-black text-slate-800 text-xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                              <span>{group.group}</span>
+                              <span className="ml-1 text-[11px] font-normal text-slate-500">
+                                ({group.modules.length} modules)
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-semibold text-slate-500">
+                              {isCollapsed ? 'Click to expand' : 'Click to collapse'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Module Rows */}
+                      {!isCollapsed && group.modules.map(mod => {
+                        const Icon = mod.icon;
+                        const isWorkflow = mod.key.startsWith('workflow_');
+
+                        return (
+                          <tr key={mod.key} className="hover:bg-blue-50/30 transition">
+                            {/* Column 1: Module / Feature Description */}
+                            <td className="py-3 px-4">
+                              <div className="flex items-start gap-2.5">
+                                <div className="rounded-lg bg-slate-100 p-2 text-slate-700 mt-0.5 shrink-0 border border-slate-200">
+                                  <Icon size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900 text-xs leading-tight">
+                                    {mod.label}
+                                  </p>
+                                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                                    {mod.description}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Columns 2 - 8: The 7 Matrix Actions */}
+                            {isWorkflow ? (
+                              // Workflow capabilities are binary (Single Authority Switch)
+                              <td colSpan={7} className="py-3 px-4 text-center">
+                                <div className="flex items-center justify-center gap-3">
+                                  <span className="text-xs font-semibold text-slate-600">
+                                    Workflow Execution Power:
+                                  </span>
+                                  {activeTab === 'role' ? (
+                                    (() => {
+                                      const isEnabled = getRolePermission(mod.key, null, selectedRole);
+                                      return (
+                                        <button
+                                          type="button"
+                                          disabled={!isDeveloper}
+                                          onClick={() => isDeveloper && setRolePermission(mod.key, null, selectedRole, !isEnabled)}
+                                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                            isEnabled ? 'bg-purple-600' : 'bg-slate-300'
+                                          } ${!isDeveloper ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                        >
+                                          <span
+                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                              isEnabled ? 'translate-x-5' : 'translate-x-0'
+                                            }`}
+                                          />
+                                        </button>
+                                      );
+                                    })()
+                                  ) : (
+                                    (() => {
+                                      const s = getStaffPermissionStatus(mod.key, null);
+                                      return (
+                                        <div className="inline-flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={!isDeveloper}
+                                            onClick={() => isDeveloper && toggleStaffPermission(mod.key, null)}
+                                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                              s.value
+                                                ? s.state === 'override_granted' ? 'bg-emerald-600 ring-2 ring-emerald-300' : 'bg-purple-600'
+                                                : s.state === 'override_denied' ? 'bg-rose-600 ring-2 ring-rose-300' : 'bg-slate-300'
+                                            } ${!isDeveloper ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                          >
+                                            <span
+                                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                                s.value ? 'translate-x-5' : 'translate-x-0'
+                                              }`}
+                                            />
+                                          </button>
+                                          {s.state === 'override_granted' && (
+                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">Custom ON</span>
+                                          )}
+                                          {s.state === 'override_denied' && (
+                                            <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded">Custom OFF</span>
+                                          )}
+                                          {s.state === 'inherited' && (
+                                            <span className="text-[10px] font-medium text-slate-500">Role Default</span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()
+                                  )}
+                                </div>
+                              </td>
+                            ) : (
+                              // Regular CRUD Matrix (7 Actions)
+                              MATRIX_ACTIONS.map(action => {
+                                return (
+                                  <td key={action.key} className="py-2.5 px-2 text-center align-middle">
+                                    {activeTab === 'role' ? (
+                                      // Role Mode
+                                      (() => {
+                                        const isEnabled = getRolePermission(mod.key, action.key, selectedRole);
+                                        return (
+                                          <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                                            <input
+                                              type="checkbox"
+                                              disabled={!isDeveloper}
+                                              checked={isEnabled}
+                                              onChange={(e) => isDeveloper && setRolePermission(mod.key, action.key, selectedRole, e.target.checked)}
+                                              className={`h-5 w-5 rounded-md cursor-pointer transition focus:ring-0 ${
+                                                isEnabled ? 'accent-blue-600 text-blue-600' : 'text-slate-300'
+                                              } ${!isDeveloper ? 'cursor-not-allowed opacity-50' : ''}`}
+                                              title={`${action.label} for ${mod.label} (${selectedRole}: ${isEnabled ? 'Allowed' : 'Denied'})`}
+                                            />
+                                          </label>
+                                        );
+                                      })()
+                                    ) : (
+                                      // Staff Mode with Overrides
+                                      (() => {
+                                        const s = getStaffPermissionStatus(mod.key, action.key);
+                                        return (
+                                          <div className="flex flex-col items-center justify-center gap-0.5">
+                                            <button
+                                              type="button"
+                                              disabled={!isDeveloper}
+                                              onClick={() => isDeveloper && toggleStaffPermission(mod.key, action.key)}
+                                              className={`h-5 w-5 rounded-md border flex items-center justify-center transition shadow-2xs ${
+                                                s.state === 'override_granted'
+                                                  ? 'bg-emerald-600 border-emerald-700 text-white ring-2 ring-emerald-300'
+                                                  : s.state === 'override_denied'
+                                                    ? 'bg-rose-600 border-rose-700 text-white ring-2 ring-rose-300'
+                                                    : s.value
+                                                      ? 'bg-blue-600 border-blue-700 text-white'
+                                                      : 'bg-white border-slate-300 text-transparent'
+                                              } ${!isDeveloper ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:scale-105'}`}
+                                              title={`Click to cycle override: Current: ${s.state} (${s.value ? 'Allowed' : 'Denied'})`}
+                                            >
+                                              {s.state === 'override_denied' ? <X size={12} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />}
+                                            </button>
+
+                                            {/* Micro-badge indicating override status */}
+                                            {s.state === 'override_granted' && (
+                                              <span className="text-[9px] font-bold text-emerald-700 leading-none">ON</span>
+                                            )}
+                                            {s.state === 'override_denied' && (
+                                              <span className="text-[9px] font-bold text-rose-700 leading-none">OFF</span>
+                                            )}
+                                          </div>
+                                        );
+                                      })()
+                                    )}
+                                  </td>
+                                );
+                              })
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Legend & Guidance Footer ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="font-bold text-slate-800">Legend:</span>
+          {activeTab === 'role' ? (
+            <>
+              <span className="flex items-center gap-1.5">
+                <input type="checkbox" checked readOnly className="h-4 w-4 rounded accent-blue-600" />
+                <span>Permission Granted (Enabled)</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <input type="checkbox" checked={false} readOnly className="h-4 w-4 rounded" />
+                <span>Permission Denied (Disabled)</span>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-blue-600 inline-block" />
+                <span>Role Default (Inherited)</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-emerald-600 ring-1 ring-emerald-300 inline-block" />
+                <span>Custom Override: Granted</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-rose-600 ring-1 ring-rose-300 inline-block" />
+                <span>Custom Override: Denied</span>
+              </span>
+            </>
+          )}
+        </div>
+
+        <span className="text-[11px] text-slate-500">
+          Changes take effect system-wide in real-time without requiring staff sign-out.
+        </span>
+      </div>
+
+      {/* ── Confirmation Modal for Bulk Changes ── */}
+      <Modal
+        open={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false })}
+        title={confirmModal.title}
+        width="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-700 leading-relaxed">
+            {confirmModal.message}
+          </p>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setConfirmModal({ open: false })}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="brass"
+              onClick={() => confirmModal.onConfirm && confirmModal.onConfirm()}
+            >
+              Confirm &amp; Apply
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

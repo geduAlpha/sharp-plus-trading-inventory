@@ -514,7 +514,7 @@ export default function Settings() {
           </button>
         )}
 
-        {(hasRole('admin') || hasRole('manager')) && (
+        {(hasRole('admin') || hasRole('manager') || user?.role === 'developer') && (
           <button
             onClick={() => setTab('permissions')}
             className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'permissions'
@@ -523,6 +523,7 @@ export default function Settings() {
               }`}
           >
             <Layers size={16} /> Role Privileges
+            <span className="rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5">OWNER</span>
           </button>
         )}
 
@@ -1513,14 +1514,9 @@ export default function Settings() {
       )}
 
       {/* ── Tab 4: Role Privileges & Employee CRUD Controls ── */}
-      {currentTab === 'permissions' && (hasRole('admin') || hasRole('manager')) && (
-        <div className="space-y-6 max-w-4xl">
-          <RolePrivilegesManager
-            systemForm={systemForm}
-            setSystemForm={setSystemForm}
-            handleSystemSubmit={handleSystemSubmit}
-            systemSaving={systemSaving}
-          />
+      {currentTab === 'permissions' && (hasRole('admin') || hasRole('manager') || user?.role === 'developer') && (
+        <div className="space-y-6 w-full max-w-6xl">
+          <RolePrivilegesManager />
 
           {/* ── Sidebar Navigation Visibility Matrix ── */}
           <Card className="max-w-4xl">

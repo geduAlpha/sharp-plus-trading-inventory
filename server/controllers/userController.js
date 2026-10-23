@@ -36,6 +36,12 @@ const updateUser = asyncHandler(async (req, res) => {
     throw new Error('Access denied: Employees cannot manage user accounts or permissions.');
   }
 
+  // Authority boundary: Only System Developer/Owner can configure custom user permissions
+  if (req.body.customPermissions !== undefined && req.user?.role !== 'developer') {
+    res.status(403);
+    throw new Error('Access denied: Only the authenticated System Developer & Owner can manage individual user permission overrides.');
+  }
+
   const wasActive = user.isActive;
   const oldRole = user.role;
   const changedFields = [];
