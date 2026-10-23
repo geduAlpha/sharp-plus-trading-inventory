@@ -53,14 +53,36 @@ const generateVoucherNo = async (voucherType) => {
     : ((voucherType === 'cash_sales') ? 'cash_sale'
     : ((voucherType === 'credit_sales') ? 'credit_sale' : voucherType)));
   const prefix = prefixes[voucherType] ?? prefixes[effectiveType] ?? 'TXN';
-  const count = await StockTransaction.countDocuments({ voucherType: { $in: [voucherType, effectiveType] } });
-  return `${prefix}-${String(count + 1).padStart(5, '0')}`;
+
+  const prefixRegex = new RegExp(`^${prefix}-(\\d+)`, 'i');
+  const existing = await StockTransaction.find({
+    $or: [
+      { voucherType: { $in: [voucherType, effectiveType] } },
+      { voucherNo: prefixRegex },
+    ],
+  })
+    .select('voucherNo')
+    .lean();
+
+  let maxNum = 0;
+  for (const doc of existing) {
+    if (doc.voucherNo) {
+      const match = String(doc.voucherNo).match(/(\d+)/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (val > maxNum) maxNum = val;
+      }
+    }
+  }
+
+  const nextSeq = Math.max(maxNum + 1, existing.length + 1);
+  return `${prefix}-${String(nextSeq).padStart(5, '0')}`;
 };
 
 const getNextVoucherNo = asyncHandler(async (req, res) => {
   const { voucherType = 'cash_grv' } = req.query;
   const vNo = await generateVoucherNo(voucherType);
-  res.json({ voucherNo: `${vNo}-` });
+  res.json({ voucherNo: vNo });
 });
 
 // ── Auto Fiscal Serial (FS) Number for Sales ──────────────────────────────
@@ -435,10 +457,21 @@ const createTransaction = asyncHandler(async (req, res) => {
     assignedFsNumber = fsData.fsNumber;
   }
 
+  let assignedVoucherNo = (voucherNo || '').trim();
+  if (isSale) {
+    // Sales voucher numbers are strictly system auto-generated (e.g. CSALE-00013 / CRSALE-00006)
+    const isValidSalesFormat = /^(CSALE|CRSALE)-\d{5,}$/i.test(assignedVoucherNo);
+    if (!isValidSalesFormat) {
+      assignedVoucherNo = await generateVoucherNo(canonicalVoucherType);
+    }
+  } else if (!assignedVoucherNo) {
+    assignedVoucherNo = await generateVoucherNo(canonicalVoucherType);
+  }
+
   const firstItem = resolvedItems[0];
   const txnData = {
     voucherType: canonicalVoucherType,
-    voucherNo: voucherNo || (await generateVoucherNo(canonicalVoucherType)),
+    voucherNo: assignedVoucherNo,
     fsNo: assignedFsNo,
     fsNumber: assignedFsNumber,
     supplier:  supplier || undefined,
