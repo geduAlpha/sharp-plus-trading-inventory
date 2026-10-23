@@ -488,7 +488,6 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -510,14 +509,6 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
   const handleNav = (path) => {
     setMenuOpen(false);
     navigate(path);
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/materials?search=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
-    }
   };
 
   const toggleFullscreen = () => {
@@ -614,31 +605,6 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
             <Menu size={20} />
           </button>
 
-          {/* Quick tool icons matching Aone Admin header */}
-          <div className="hidden sm:flex items-center gap-1 pl-1 pr-2 border-r border-slate-200/80">
-            <button
-              onClick={() => navigate('/stock-requests')}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition"
-              title="Stock Requests & Issues"
-            >
-              <MessageSquare size={17} />
-            </button>
-            <button
-              onClick={() => navigate('/reports/inventory-count')}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition"
-              title="Inventory Count Checklist"
-            >
-              <CheckSquare size={17} />
-            </button>
-            <button
-              onClick={() => navigate('/reports/daily')}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition"
-              title="Daily Movement Report"
-            >
-              <Calendar size={17} />
-            </button>
-          </div>
-
           <div className="flex items-center gap-2.5">
             {/* Dynamic Module Symbol / Icon Badge */}
             <div className={`hidden sm:flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${headerMod.gradient} text-white shadow-sm ring-2 ${headerMod.ring} shrink-0`}>
@@ -646,10 +612,10 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
             </div>
 
             <div className="flex flex-col justify-center min-w-0">
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug truncate max-w-[200px] md:max-w-xs lg:max-w-sm">
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug truncate max-w-[240px] md:max-w-md lg:max-w-xl">
                 {title}
               </h1>
-              <div className="hidden md:flex items-center gap-1.5 text-xs font-medium text-slate-500 leading-normal mt-0.5">
+              <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-slate-500 leading-normal mt-0.5">
                 <Calendar size={13} className="text-indigo-500 shrink-0" />
                 <span>
                   {new Date().toLocaleDateString('en-US', {
@@ -661,39 +627,8 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
           </div>
         </div>
 
-        {/* Center: Interactive Global Command Palette Trigger */}
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
-          className="relative hidden md:flex items-center justify-between w-64 lg:w-80 rounded-full border border-slate-200/90 bg-slate-50/80 hover:bg-white hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100/70 py-1.5 pl-2.5 pr-2.5 text-xs text-slate-500 transition shadow-2xs group cursor-pointer mx-3"
-          title="Open Quick Search & Command Palette (Ctrl+K)"
-        >
-          <div className="flex items-center gap-2 truncate">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
-              <Search size={13} strokeWidth={2.2} />
-            </span>
-            <span className="text-slate-400 group-hover:text-slate-700 font-medium truncate text-xs">
-              Search modules, items, actions…
-            </span>
-          </div>
-          <kbd className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 shadow-2xs group-hover:border-indigo-300 group-hover:text-indigo-600 transition shrink-0">
-            <Sparkles size={10} className="text-amber-500 shrink-0" />
-            <span className="text-[10px]">⌘</span>K
-          </kbd>
-        </button>
-
-        {/* Right: session indicator + fullscreen + notifications + user menu */}
+        {/* Right: fullscreen + theme studio + dim/dark mode + notifications + user menu */}
         <div className="flex items-center gap-2">
-          {/* Mobile search trigger button */}
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
-            className="flex md:hidden h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
-            title="Quick Search & Command Palette (Ctrl+K)"
-          >
-            <Search size={16} />
-          </button>
-
           {/* Fullscreen toggle button */}
           <button
             onClick={toggleFullscreen}
@@ -702,31 +637,6 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
           >
             <Maximize size={16} />
           </button>
-
-          {/* Session timeout indicator */}
-          <div
-            onClick={() => setMenuOpen(v => !v)}
-            title={`Session Timeout: ${timeoutMinutes === 0 ? 'Disabled' : `Signs out after ${timeoutMinutes} minutes of inactivity`}. Click profile menu to configure.`}
-            className="hidden xl:flex items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/90 hover:bg-slate-100/90 px-3 py-1.5 text-xs text-slate-600 cursor-pointer transition shadow-2xs group"
-          >
-            {timeoutMinutes === 0 ? (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="h-2 w-2 rounded-full bg-slate-400 ring-2 ring-slate-200" />
-                <ShieldCheck size={14} className="text-slate-500 group-hover:text-slate-700 transition" />
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <Clock size={14} className="text-emerald-600 group-hover:rotate-45 transition-transform" />
-              </div>
-            )}
-            <span className={`text-xs font-semibold whitespace-nowrap ${timeoutMinutes === 0 ? 'text-slate-600' : 'text-emerald-700'}`}>
-              {timeoutMinutes === 0 ? 'Timeout: Off' : `Timeout: ${timeoutMinutes}m`}
-            </span>
-          </div>
 
           {/* Theme Studio quick link */}
           <button
