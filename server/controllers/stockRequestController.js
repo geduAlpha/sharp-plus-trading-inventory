@@ -229,6 +229,13 @@ const approveStockRequest = asyncHandler(async (req, res) => {
     res.status(400); throw new Error(`Cannot approve a request in "${request.status}" status`);
   }
 
+  // Anti-self-approval protection
+  const requesterId = request.requestedBy?._id?.toString() || request.requestedBy?.toString();
+  if (requesterId && requesterId === req.user._id.toString() && req.user.role !== 'developer') {
+    res.status(403);
+    throw new Error('Segregation of Duties Violation: You cannot approve a stock request that you submitted. An independent administrator must review and approve.');
+  }
+
   request.status      = 'approved';
   request.approvedBy  = req.user._id;
   request.approvedAt  = new Date();

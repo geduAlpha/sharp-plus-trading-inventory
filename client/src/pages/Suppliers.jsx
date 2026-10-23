@@ -7,7 +7,7 @@ import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ExportDropdown from '../components/ui/ExportDropdown';
 
-const emptyForm = { name: '', contactPerson: '', phone: '', email: '', category: '', address: '' };
+const emptyForm = { name: '', tin: '', contactPerson: '', phone: '', email: '', category: '', address: '' };
 
 const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
@@ -59,6 +59,7 @@ const Suppliers = () => {
 
   const exportData = useMemo(() => suppliers.map(s => ({
     'Supplier Name': s.name,
+    'TIN': s.tin || '—',
     'Category': s.category || 'General',
     'Contact Person': s.contactPerson || '—',
     'Phone': s.phone || '—',
@@ -68,6 +69,7 @@ const Suppliers = () => {
 
   const pdfColumns = [
     { header: 'Supplier Name', accessor: 'Supplier Name' },
+    { header: 'TIN', accessor: 'TIN' },
     { header: 'Category', accessor: 'Category' },
     { header: 'Contact Person', accessor: 'Contact Person' },
     { header: 'Phone', accessor: 'Phone' },
@@ -91,6 +93,7 @@ const Suppliers = () => {
       ),
     }] : []),
     { key: 'name', header: 'Supplier' },
+    { key: 'tin', header: 'TIN', render: (r) => <span className="font-mono text-xs text-ink-500">{r.tin || '—'}</span> },
     { key: 'category', header: 'Category' },
     { key: 'contactPerson', header: 'Contact person' },
     { key: 'phone', header: 'Phone' },
@@ -152,10 +155,17 @@ const Suppliers = () => {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit supplier' : 'Add supplier'}>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-ink-600">Supplier name</label>
-            <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brass-400" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-ink-600">Supplier name *</label>
+              <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brass-400" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-ink-600">TIN (Tax ID Number)</label>
+              <input value={form.tin || ''} onChange={e => setForm({ ...form, tin: e.target.value })} placeholder="e.g. 0001138385"
+                className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brass-400 font-mono" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

@@ -184,6 +184,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/suppliers', require('./routes/supplierRoutes'));
 app.use('/api/materials', require('./routes/materialRoutes'));
+app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/purchases', require('./routes/purchaseRoutes'));
 app.use('/api/transactions', require('./routes/transactionRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
@@ -202,6 +203,7 @@ app.use('/api/stock-requests', require('./routes/stockRequestRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/customers', require('./routes/customerRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
+app.use('/api/backup', require('./routes/backupRoutes'));
 
 // Serve Frontend in production (for Aletcloud, Render, etc.)
 if (process.env.NODE_ENV === 'production') {

@@ -1,532 +1,652 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard, Truck, Boxes, ShoppingCart,
-  ArrowLeftRight, FileBarChart, Users, UtensilsCrossed,
-  ChevronDown, ChevronRight,
-  ShoppingBag, CreditCard, TrendingUp, Flame, TrendingDown,
-  BarChart2, Calendar, PackageOpen, Settings as SettingsIcon, UploadCloud,
-  Scale, ClipboardList, Trash2, Coffee, UserCog, Sparkles,
-  SendToBack, X, Rocket, ClipboardCheck, ArrowRightLeft, History,
-  BadgeDollarSign, Banknote, FolderOpen, Package, Lock, Building2,
-} from 'lucide-react';
+import { ChevronDown, Lock, Building2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useThemeSidebar } from '../../context/ThemeSidebarContext';
+import MuiIconResolver from '../common/MuiIconResolver';
 
-const SALES_ITEMS = [
-  { to: '/sales/cash', label: 'Cash Sales', icon: ShoppingBag },
-  { to: '/sales/credit', label: 'Credit Sales', icon: CreditCard },
+/* ── Avoided / Inactive Navigation Items ── */
+const INACTIVE_AVOIDED_SIDEBAR_IDS = [
+  'movements_disposal',
+  'consumption',
+  'report_disposal',
 ];
 
-const STOCK_ITEMS = [
-  { to: '/transactions', label: 'All Movements', icon: ArrowLeftRight, end: true },
-  { to: '/transactions/cash-grv', label: 'Cash Goods Receiving', icon: ShoppingBag },
-  { to: '/transactions/credit-grv', label: 'Credit Goods Receiving', icon: CreditCard },
-  { to: '/transactions/pos-adjustment', label: 'Positive Adjustment', icon: TrendingUp },
-  { to: '/transactions/disposal', label: 'Goods Disposal', icon: Flame },
-  { to: '/transactions/neg-adjustment', label: 'Negative Adjustment', icon: TrendingDown },
-  { to: '/sales-import', label: 'Import Sales Report', icon: UploadCloud },
-];
-
-const REPORT_ITEMS = [
-  { to: '/reports/summary', label: 'Overview', icon: BarChart2 },
-  { to: '/reports/stock-balance', label: 'Stock Balance Sheet', icon: Scale },
-  { to: '/reports/inventory-count', label: 'Inventory Count', icon: ClipboardList },
-  { to: '/reports/daily', label: 'Daily Report', icon: Calendar },
-  { to: '/reports/cash-grv', label: 'Cash GRV Report', icon: ShoppingBag },
-  { to: '/reports/credit-grv', label: 'Credit GRV Report', icon: CreditCard },
-  { to: '/reports/pos-adjustment', label: '+ve Adjustment Report', icon: TrendingUp },
-  { to: '/reports/disposal', label: 'Disposal Report', icon: Flame },
-  { to: '/reports/neg-adjustment', label: '−ve Adjustment Report', icon: TrendingDown },
-  { to: '/reports/stock-levels', label: 'Stock Levels', icon: PackageOpen },
-  { to: '/reports/purchases', label: 'Purchase History', icon: ShoppingCart },
-];
-
-/* ── Sub-item link ── */
-const SubLink = ({ to, label, icon: Icon, end = false, onClick }) => (
-  <NavLink to={to} end={end} onClick={onClick}
-    className={({ isActive }) =>
-      `group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-all duration-150 ${isActive
-        ? 'bg-indigo-50 text-indigo-700 font-bold'
-        : 'text-slate-500 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
-      }`
-    }
-  >
-    <span className={`h-1.5 w-1.5 rounded-full transition-colors ${to ? 'bg-slate-300 group-hover:bg-indigo-500' : ''}`} />
-    <Icon size={13} className="shrink-0" />
-    <span className="truncate">{label}</span>
-  </NavLink>
-);
+const isAvoidedNavItem = (it) => {
+  if (!it) return false;
+  if (INACTIVE_AVOIDED_SIDEBAR_IDS.includes(it.id)) return true;
+  if (it.to === '/transactions/disposal' || it.to === '/consumption' || it.to === '/reports/disposal') return true;
+  return false;
+};
 
 /* ── Section label ── */
-const SectionLabel = ({ children, collapsed }) =>
-  collapsed ? <div className="my-2 border-t border-slate-200" /> : (
-    <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+const SectionLabel = ({ children, collapsed, isDark, showHeaders = true }) => {
+  if (!showHeaders && !collapsed) {
+    return <div className={`my-1.5 border-t ${isDark ? 'border-white/5' : 'border-slate-100'}`} />;
+  }
+  return collapsed ? (
+    <div className={`my-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`} />
+  ) : (
+    <p
+      className={`px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider select-none sidebar-section-label ${
+        isDark ? 'text-slate-400' : 'text-slate-400'
+      }`}
+    >
       {children}
     </p>
   );
-
-/* ── Collapsible section ── */
-const CollapsibleNav = ({ label, icon: Icon, isActive, open, onToggle, children, collapsed }) => (
-  <div>
-    <button onClick={onToggle} title={collapsed ? label : undefined}
-      className={`group w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${collapsed ? 'justify-center' : ''
-        } ${isActive || open
-          ? 'bg-slate-100 text-slate-900 font-bold'
-          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-        }`}
-    >
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive || open ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-800'
-        }`}>
-        <Icon size={15} strokeWidth={2} />
-      </span>
-      {!collapsed && (
-        <>
-          <span className="flex-1 text-left text-[13px] font-semibold tracking-tight">{label}</span>
-          <span className={`transition-transform duration-200 text-slate-400 ${open ? 'rotate-180' : ''}`}>
-            <ChevronDown size={14} />
-          </span>
-        </>
-      )}
-    </button>
-    {open && !collapsed && (
-      <div className="mt-1 ml-4 border-l-2 border-slate-200/80 pl-2 space-y-0.5">
-        {children}
-      </div>
-    )}
-  </div>
-);
-
-/* ══════════════════════════════════════════
-   COMING SOON MODAL — Stock Issue & Request
-══════════════════════════════════════════ */
-const COMING_SOON_FEATURES = [
-  {
-    icon: ClipboardCheck,
-    color: 'from-blue-500 to-indigo-600',
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
-    title: 'Stock Request',
-    desc: 'branch, Bar & Housekeeping request items from the main store with quantity and urgency level.',
-  },
-  {
-    icon: SendToBack,
-    color: 'from-emerald-500 to-teal-600',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    title: 'Stock Issue / Dispatch',
-    desc: 'Main store approves and issues requested stock to branches. Auto-deducts from main inventory.',
-  },
-  {
-    icon: ArrowRightLeft,
-    color: 'from-violet-500 to-purple-600',
-    bg: 'bg-violet-50',
-    text: 'text-violet-700',
-    title: 'Branch-to-Branch Transfer',
-    desc: 'Transfer excess stock between departments (e.g. Bar → branch) with full audit trail.',
-  },
-  {
-    icon: History,
-    color: 'from-amber-500 to-orange-600',
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    title: 'Issue & Request History',
-    desc: 'Full log of all inter-department stock movements with status tracking (Pending → Approved → Issued).',
-  },
-];
-
-const StockIssueComingSoonModal = ({ onClose }) => (
-  <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60"
-    onClick={onClose}>
-    <div
-      className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden"
-      onClick={e => e.stopPropagation()}
-    >
-      {/* Header gradient */}
-      <div className="relative px-7 pt-8 pb-6 text-center"
-        style={{ background: 'linear-gradient(135deg, #1a56db 0%, #4f46e5 60%, #7c3aed 100%)' }}>
-        {/* Close */}
-        <button onClick={onClose}
-          className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition">
-          <X size={15} />
-        </button>
-
-        {/* Icon */}
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 shadow-lg">
-          <SendToBack size={30} className="text-white" />
-        </div>
-
-        <h2 className="text-xl font-black text-white leading-tight">
-          Stock Issue & Request
-        </h2>
-        <p className="mt-1.5 text-sm text-blue-200 font-medium">
-          Inter-department stock workflow — coming soon
-        </p>
-
-        {/* Coming soon badge */}
-        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-bold text-white border border-white/30">
-          <Rocket size={11} />
-          Under Development
-        </div>
-      </div>
-
-      {/* Feature list */}
-      <div className="px-6 py-5 space-y-3">
-        <p className="text-xs font-semibold text-ink-400 uppercase tracking-wider mb-1">
-          What's being built
-        </p>
-        {COMING_SOON_FEATURES.map((f) => (
-          <div key={f.title}
-            className="flex items-start gap-3.5 rounded-2xl border border-ink-100 bg-ink-50/40 p-3.5 hover:bg-ink-50 transition">
-            <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${f.color} shadow-sm`}>
-              <f.icon size={16} className="text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-ink-900 leading-tight">{f.title}</p>
-              <p className="text-xs text-ink-500 mt-0.5 leading-relaxed">{f.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Footer */}
-      <div className="px-6 pb-6">
-        <button onClick={onClose}
-          className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 py-3 text-sm font-bold text-white hover:from-blue-700 hover:to-indigo-700 transition shadow-sm">
-          Got it, notify me when ready
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
-/* ══════════════════════════════════════════
-   SIDEBAR
-══════════════════════════════════════════ */
-const Sidebar = ({ open, onClose, collapsed = false }) => {
-  const { user, canSeeNav, companyInfo } = useAuth();
-  const location = useLocation();
-
-  const onTransactions = location.pathname.startsWith('/transactions');
-  const onReports = location.pathname.startsWith('/reports');
-  const onSales = location.pathname.startsWith('/sales');
-  const onAllItems = [
-    '/materials', '/products', '/employees', '/suppliers'
-  ].some(p => location.pathname.startsWith(p));
-const onStoreOps = [
-  '/transactions', '/consumption', '/stock-requests'
-].some(p => location.pathname.startsWith(p));
-
-// Accordion: only one menu open at a time
-const initialOpen =
-  onAllItems ? 'allItems' :
-  onStoreOps ? 'storeOps' :
-  onSales ? 'sales' :
-  onReports ? 'reports' : null;
-
-const [openMenu, setOpenMenu] = useState(initialOpen);
-
-// Auto-open the matching section when route changes
-React.useEffect(() => {
-  if (onAllItems)       setOpenMenu('allItems');
-  else if (onStoreOps)  setOpenMenu('storeOps');
-  else if (onSales)     setOpenMenu('sales');
-  else if (onReports)   setOpenMenu('reports');
-}, [onAllItems, onStoreOps, onSales, onReports]);
-
-  const toggleMenu = (key) => setOpenMenu(prev => (prev === key ? null : key));
-
-const linkCls = (isActive) =>
-  `group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${collapsed ? 'justify-center' : ''
-  } ${isActive
-    ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100/80 shadow-xs'
-    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
-  }`;
-
-const iconSpan = (isActive) =>
-  `flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-800'
-  }`;
-
-const fullLink = (to, Icon, label, end = false) => (
-  <NavLink to={to} end={end} onClick={onClose}
-    className={({ isActive }) => linkCls(isActive)}>
-    {({ isActive }) => (
-      <>
-        <span className={iconSpan(isActive)}><Icon size={15} strokeWidth={2} /></span>
-        {!collapsed && <span className="text-[13px] tracking-tight">{label}</span>}
-        {isActive && !collapsed && (
-          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-600" />
-        )}
-      </>
-    )}
-  </NavLink>
-);
-
-const iconLink = (to, Icon, label, end = false) => (
-  <NavLink to={to} end={end} onClick={onClose} title={label}
-    className={({ isActive }) => linkCls(isActive)}>
-    {({ isActive }) => (
-      <span className={iconSpan(isActive)}><Icon size={15} strokeWidth={2} /></span>
-    )}
-  </NavLink>
-);
-
-const navLink = (to, Icon, label, end = false) =>
-  collapsed ? iconLink(to, Icon, label, end) : fullLink(to, Icon, label, end);
-
-const roleBadges = {
-  admin: 'bg-amber-50 text-amber-700 border-amber-200',
-  manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  storekeeper: 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
-return (
-  <>
-    {open && <div className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden" onClick={onClose} />}
-
-    <aside
-      className={`
-        fixed z-40 flex h-full flex-col bg-white border-r border-slate-200/90
-        transition-all duration-300 ease-in-out
-        lg:static lg:translate-x-0
-        ${open ? 'translate-x-0' : '-translate-x-full'}
-        ${collapsed ? 'w-[72px]' : 'w-64'}
-      `}
-      style={{
-        boxShadow: '2px 0 16px rgba(0,0,0,0.02)',
-      }}
-    >
-      {/* ── Brand Logo Header ── */}
-      <div className={`flex items-center gap-3 py-4 border-b border-slate-100 ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
-        <NavLink to="/" onClick={onClose} className="flex items-center gap-3 hover:opacity-90 transition-opacity min-w-0">
-          {companyInfo?.companyLogo ? (
-            <img
-              src={companyInfo.companyLogo}
-              alt={companyInfo.companyName}
-              className="h-9 w-9 shrink-0 rounded-xl object-contain bg-slate-50 border border-slate-200 p-0.5 shadow-sm"
-            />
-          ) : (
-            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white font-black text-sm shadow-sm">
-              {(companyInfo?.companyName || 'SP').slice(0, 2).toUpperCase()}
-            </div>
-          )}
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="text-[14px] font-black leading-tight text-slate-900 tracking-tight truncate max-w-[170px]">
-                {companyInfo?.companyName || 'Sharp Plus'}
-              </p>
-              <p className="text-[10px] text-indigo-600 mt-0.5 tracking-wide font-semibold uppercase truncate max-w-[170px]">
-                {companyInfo?.tradeName ? companyInfo.tradeName : 'Trading & Stock'}
-              </p>
-            </div>
-          )}
-        </NavLink>
-      </div>
-
-      {/* ── Nav ── */}
-      <nav className="relative flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2.5 py-2
-          scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200">
-
-        <SectionLabel collapsed={collapsed}>Main</SectionLabel>
-        {canSeeNav('dashboard') && navLink('/', LayoutDashboard, 'Dashboard', true)}
-
-        {/* ── All ID's folder: Items, Products, Employees, Suppliers ── */}
-        {collapsed ? (
-          <NavLink to="/materials" onClick={onClose} title="All ID's"
-            className={({ isActive }) => linkCls(isActive || onAllItems)}>
-            {({ isActive }) => (
-              <span className={iconSpan(isActive || onAllItems)}>
-                <FolderOpen size={15} strokeWidth={2} />
-              </span>
-            )}
-          </NavLink>
-        ) : (
-          <CollapsibleNav
-            label="All ID's"
-            icon={FolderOpen}
-            isActive={onAllItems}
-            open={openMenu === 'allItems'}
-            onToggle={() => toggleMenu('allItems')}
-            collapsed={collapsed}
-          >
-            <SubLink to="/materials" label="Items" icon={Boxes} onClick={onClose} />
-            {canSeeNav('products') && <SubLink to="/products" label="Products" icon={UtensilsCrossed} onClick={onClose} />}
-            {canSeeNav('staffAccounts') && <SubLink to="/employees" label="Employees" icon={UserCog} onClick={onClose} />}
-            {canSeeNav('suppliers') && <SubLink to="/suppliers" label="Suppliers" icon={Truck} onClick={onClose} />}
-          </CollapsibleNav>
-        )}
-
-{ canSeeNav('analytics') && navLink('/analytics', TrendingUp, 'Analytics & P&L') }
-
-<SectionLabel collapsed={collapsed}>Operations</SectionLabel>
-
-{/* ── Store Operations folder ── */ }
-{
-  collapsed ? (
-    <NavLink to="/transactions" onClick={onClose} title="Store Operations"
-      className={({ isActive }) => linkCls(isActive || onStoreOps)}>
-      {({ isActive }) => (
-        <span className={iconSpan(isActive || onStoreOps)}>
-          <PackageOpen size={15} strokeWidth={2} />
+/* ── Collapsible Group Nav ── */
+const DynamicCollapsibleNav = ({
+  label,
+  iconName,
+  isOpen,
+  isActive,
+  onToggle,
+  collapsed,
+  isDark,
+  badgeRadius,
+  accentHex,
+  children,
+}) => {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        title={collapsed ? label : undefined}
+        className={`group w-full flex items-center gap-2.5 px-2.5 py-2 text-sm font-semibold transition-all duration-150 rounded-xl sidebar-nav-link ${
+          collapsed ? 'justify-center' : ''
+        } ${
+          isActive || isOpen
+            ? isDark
+              ? 'bg-white/10 text-white font-bold'
+              : 'bg-slate-100 text-slate-900 font-bold'
+            : isDark
+            ? 'text-slate-300 hover:bg-white/5 hover:text-white'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }`}
+      >
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center transition-all ${badgeRadius} sidebar-icon-badge ${
+            isActive || isOpen
+              ? 'text-white shadow-xs'
+              : isDark
+              ? 'bg-white/10 text-slate-300 group-hover:bg-white/20 group-hover:text-white'
+              : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-800'
+          }`}
+          style={
+            isActive || isOpen
+              ? { backgroundColor: accentHex || '#4f46e5', color: '#ffffff' }
+              : undefined
+          }
+        >
+          <MuiIconResolver name={iconName} size={15} />
         </span>
-      )}
-    </NavLink>
-  ) : (
-    <CollapsibleNav
-      label="Store Operations"
-      icon={PackageOpen}
-      isActive={onStoreOps}
-      open={openMenu === 'storeOps'}
-      onToggle={() => toggleMenu('storeOps')}
-      collapsed={collapsed}
-    >
-      {/* Stock Movements sub-items */}
-      {canSeeNav('stockMovements') && (
-        <>
-          {STOCK_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
-        </>
-      )}
-      {/* Consumption */}
-      {canSeeNav('consumption') && (
-        <SubLink to="/consumption" label="Consumption" icon={Coffee} onClick={onClose} />
-      )}
-      {/* Stock Issue & Request */}
-      <SubLink to="/stock-requests" label="Stock Issue & Request" icon={SendToBack} onClick={onClose} />
-    </CollapsibleNav>
-  )
-}
 
-{/* Sales and Marketing MS */ }
-{
-  canSeeNav('salesMarketing') && (
-    collapsed ? (
-      <NavLink to="/sales" onClick={onClose} title="Sales and Marketing MS"
-        className={({ isActive }) => linkCls(isActive || onSales)}>
-        {({ isActive }) => (
-          <span className={iconSpan(isActive || onSales)}>
-            <BadgeDollarSign size={15} strokeWidth={2} />
-          </span>
-        )}
-      </NavLink>
-    ) : (
-      <CollapsibleNav label="Sales and Marketing MS" icon={BadgeDollarSign}
-        isActive={onSales} open={openMenu === 'sales'}
-        onToggle={() => toggleMenu('sales')} collapsed={collapsed}>
-        {SALES_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
-      </CollapsibleNav>
-    )
-  )
-}
-
-{/* Reports */ }
-{
-  canSeeNav('reports') && (
-    collapsed ? (
-      <NavLink to="/reports" onClick={onClose} title="Reports"
-        className={({ isActive }) => linkCls(isActive || onReports)}>
-        {({ isActive }) => (
-          <span className={iconSpan(isActive || onReports)}>
-            <FileBarChart size={15} strokeWidth={2} />
-          </span>
-        )}
-      </NavLink>
-    ) : (
-      <CollapsibleNav label="Reports" icon={FileBarChart}
-        isActive={onReports} open={openMenu === 'reports'}
-        onToggle={() => toggleMenu('reports')} collapsed={collapsed}>
-        {REPORT_ITEMS.map(item => <SubLink key={item.to} {...item} onClick={onClose} />)}
-      </CollapsibleNav>
-    )
-  )
-}
-
-        {/* System Developer Exclusive Section */}
-        {user?.role === 'developer' && (
+        {!collapsed && (
           <>
-            <SectionLabel collapsed={collapsed}>Platform Owner</SectionLabel>
-            <NavLink
-              to="/developer-console"
-              onClick={onClose}
-              title="System Developer Console"
-              className={({ isActive }) =>
-                `group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${
-                  collapsed ? 'justify-center' : ''
-                } ${
-                  isActive
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold shadow-md'
-                    : 'bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/80'
-                }`
-              }
+            <span className="flex-1 text-left text-[13px] font-semibold tracking-tight truncate">
+              {label}
+            </span>
+            <span
+              className={`transition-transform duration-200 ${isDark ? 'text-slate-400' : 'text-slate-400'} ${
+                isOpen ? 'rotate-180' : ''
+              }`}
             >
-              {({ isActive }) => (
-                <>
-                  <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-indigo-200/70 text-indigo-800'
-                    }`}
-                  >
-                    <Building2 size={15} strokeWidth={2.5} />
-                  </span>
-                  {!collapsed && (
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="text-[13px] font-bold">Developer Console</span>
-                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-700 text-white uppercase tracking-wider">
-                        Owner
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </NavLink>
+              <ChevronDown size={14} />
+            </span>
           </>
         )}
+      </button>
 
-        <SectionLabel collapsed={collapsed}>Admin & System</SectionLabel>
-        {canSeeNav('staffAccounts') && navLink('/users', Users, 'Staff Accounts')}
-        {navLink('/settings', SettingsIcon, 'Settings')}
+      {isOpen && !collapsed && (
+        <div
+          className={`mt-1 ml-4 pl-2 space-y-0.5 border-l-2 sidebar-divider ${
+            isDark ? 'border-slate-800' : 'border-slate-200/80'
+          }`}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
 
-        {/* Recycle Bin */}
-        {(canSeeNav('staffAccounts') || user?.role === 'admin' || user?.role === 'manager') && (
-          <NavLink to="/recycle-bin" onClick={onClose} title="Recycle Bin"
+/* ── Dynamic Sidebar ── */
+export default function Sidebar({ open, onClose, collapsed = false }) {
+  const { user, canSeeNav, companyInfo } = useAuth();
+  const { activeTheme, activeSidebar, modulesEnabled } = useThemeSidebar();
+  const location = useLocation();
+
+  const themeMode = activeTheme?.theme || 'white';
+  const darkThemes = ['navy', 'blue', 'black', 'gray', 'emerald', 'purple', 'warm', 'teal', 'burgundy', 'glass', 'nordic', 'amber', 'cyberpunk', 'titanium'];
+  const isDark = darkThemes.includes(themeMode);
+
+  // Badge shape radius
+  const badgeRadius = useMemo(() => {
+    switch (activeTheme?.iconBadgeShape) {
+      case 'circle':
+        return 'rounded-full';
+      case 'rounded':
+        return 'rounded-lg';
+      case 'plain':
+        return 'rounded-none bg-transparent';
+      case 'squircle':
+      default:
+        return 'rounded-xl';
+    }
+  }, [activeTheme?.iconBadgeShape]);
+
+  // Accent color mapping
+  const accentHex = useMemo(() => {
+    switch (activeTheme?.accentColor) {
+      case 'blue':
+        return '#2563eb';
+      case 'emerald':
+        return '#059669';
+      case 'amber':
+        return '#d97706';
+      case 'purple':
+        return '#7c3aed';
+      case 'cyan':
+        return '#0891b2';
+      case 'rose':
+        return '#e11d48';
+      case 'indigo':
+      default:
+        return '#4f46e5';
+    }
+  }, [activeTheme?.accentColor]);
+
+  // Sidebar Width class
+  const sidebarWidthClass = useMemo(() => {
+    if (collapsed) return 'w-[72px]';
+    switch (activeTheme?.sidebarWidth) {
+      case 'compact':
+        return 'w-60';
+      case 'wide':
+        return 'w-72';
+      case 'extra':
+        return 'w-[312px]';
+      case 'normal':
+      default:
+        return 'w-[264px]';
+    }
+  }, [collapsed, activeTheme?.sidebarWidth]);
+
+  // Sidebar container style (standard, floating, rounded)
+  const sidebarStyleClass = useMemo(() => {
+    if (activeTheme?.sidebarStyle === 'floating') return 'sidebar-style-floating';
+    if (activeTheme?.sidebarStyle === 'rounded') return 'sidebar-style-rounded';
+    return '';
+  }, [activeTheme?.sidebarStyle]);
+
+  // Menu item spacing
+  const spacingClass = useMemo(() => {
+    switch (activeTheme?.menuSpacing) {
+      case 'compact':
+        return 'py-1.5 px-2';
+      case 'spacious':
+        return 'py-2.5 px-3';
+      case 'comfortable':
+      default:
+        return 'py-2 px-2.5';
+    }
+  }, [activeTheme?.menuSpacing]);
+
+  // Dynamic icon size
+  const resolvedIconSize = useMemo(() => {
+    switch (activeTheme?.iconSize) {
+      case 'small':
+        return 14;
+      case 'large':
+        return 19;
+      case 'xlarge':
+        return 21;
+      case 'medium':
+      default:
+        return 16;
+    }
+  }, [activeTheme?.iconSize]);
+
+  // Colorful icon accent helper
+  const getItemAccent = (item) => {
+    if (!activeTheme?.colorfulIcons) return accentHex;
+    const sec = (item.section || 'main').toLowerCase();
+    if (item.id === 'dashboard') return '#2563eb';
+    if (item.id === 'analytics') return '#059669';
+    if (sec === 'operations') return '#d97706';
+    if (sec === 'admin') return '#7c3aed';
+    return accentHex;
+  };
+
+  // Accordion state
+  const [openMenu, setOpenMenu] = useState(null);
+
+  // Auto-detect which group is active on initial load or route change
+  React.useEffect(() => {
+    const currentPath = location.pathname;
+    const matchingGroup = activeSidebar.find(
+      (item) =>
+        item.isGroup &&
+        item.children?.some(
+          (c) =>
+            currentPath === c.to ||
+            (c.to !== '/' && currentPath.startsWith(c.to))
+        )
+    );
+    if (matchingGroup) {
+      setOpenMenu(matchingGroup.id);
+    }
+  }, [location.pathname, activeSidebar]);
+
+  const toggleMenu = (key) => setOpenMenu((prev) => (prev === key ? null : key));
+
+  // Sort top-level items by order
+  const sortedSidebar = useMemo(() => {
+    return [...(activeSidebar || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [activeSidebar]);
+
+  // Group items by section — respect modulesEnabled for salesMarketing
+  const sections = useMemo(() => {
+    const main = [];
+    const operations = [];
+    const admin = [];
+
+    sortedSidebar.forEach((item) => {
+      // Avoid inactive Goods Disposal and Consumptions
+      if (isAvoidedNavItem(item)) return;
+      // Respect user navigation permission if navKey is specified
+      if (item.navKey && !canSeeNav(item.navKey)) return;
+      // Respect visibility toggle from settings
+      if (item.visible === false) return;
+
+      // If salesMarketing module is disabled, hide the salesMarketing sidebar section
+      if (item.id === 'salesMarketing' || item.navKey === 'salesMarketing') {
+        if (modulesEnabled?.salesMarketing === false && user?.role !== 'developer') return;
+      }
+
+      const sec = (item.section || 'main').toLowerCase();
+      if (sec === 'operations') operations.push(item);
+      else if (sec === 'admin') admin.push(item);
+      else main.push(item);
+    });
+
+    return { main, operations, admin };
+  }, [sortedSidebar, canSeeNav, modulesEnabled, user?.role]);
+
+  // Check if a group currently has an active child
+  const isGroupActive = (item) => {
+    if (!item.children) return false;
+    return item.children.some(
+      (c) =>
+        location.pathname === c.to ||
+        (c.to !== '/' && location.pathname.startsWith(c.to))
+    );
+  };
+
+  // NavLink styling generator
+  const getLinkClasses = (isActive) => {
+    const base = `group flex items-center gap-2.5 rounded-xl ${spacingClass} font-semibold transition-all duration-150 sidebar-nav-link ${
+      collapsed ? 'justify-center' : ''
+    }`;
+
+    if (isActive) {
+      if (isDark) {
+        return `${base} bg-white/15 text-white font-bold active-link shadow-xs`;
+      }
+      return `${base} bg-indigo-50 text-indigo-700 font-bold border border-indigo-100/80 active-link shadow-xs`;
+    }
+
+    if (isDark) {
+      return `${base} text-slate-300 hover:bg-white/5 hover:text-white font-medium`;
+    }
+    return `${base} text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium`;
+  };
+
+  // Icon Badge styling generator
+  const getIconBadgeClasses = (isActive) => {
+    const base = `flex h-7 w-7 shrink-0 items-center justify-center transition-all ${badgeRadius} sidebar-icon-badge`;
+
+    if (isActive) {
+      return `${base} text-white shadow-xs active-badge`;
+    }
+
+    if (isDark) {
+      return `${base} bg-white/10 text-slate-300 group-hover:bg-white/20 group-hover:text-white`;
+    }
+    return `${base} bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-800`;
+  };
+
+  // Render a single leaf navigation link
+  const renderNavLink = (item) => {
+    const itemColor = getItemAccent(item);
+    return (
+      <NavLink
+        key={item.id}
+        to={item.to}
+        end={Boolean(item.exact)}
+        onClick={onClose}
+        title={collapsed ? item.label : undefined}
+        className={({ isActive }) => getLinkClasses(isActive)}
+      >
+        {({ isActive }) => (
+          <>
+            <span
+              className={getIconBadgeClasses(isActive)}
+              style={isActive ? { backgroundColor: itemColor, color: '#ffffff' } : undefined}
+            >
+              <MuiIconResolver name={item.icon} size={resolvedIconSize} />
+            </span>
+            {!collapsed && (
+              <span className="text-[13px] tracking-tight truncate flex-1">
+                {item.label}
+              </span>
+            )}
+            {isActive && !collapsed && (
+              <span
+                className="ml-auto h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: itemColor }}
+              />
+            )}
+          </>
+        )}
+      </NavLink>
+    );
+  };
+
+  // Render a collapsible folder with sub-items
+  const renderGroup = (group) => {
+    const active = isGroupActive(group);
+    const isOpen = openMenu === group.id;
+    const groupColor = getItemAccent(group);
+    const visibleChildren = (group.children || [])
+      .filter((c) => {
+        if (isAvoidedNavItem(c)) return false;
+        if (c.navKey && !canSeeNav(c.navKey)) return false;
+        if (c.visible === false) return false;
+        return true;
+      })
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    if (visibleChildren.length === 0) return null;
+
+    if (collapsed) {
+      return (
+        <NavLink
+          key={group.id}
+          to={visibleChildren[0]?.to || '/'}
+          onClick={onClose}
+          title={group.label}
+          className={({ isActive }) => getLinkClasses(isActive || active)}
+        >
+          {({ isActive }) => (
+            <span
+              className={getIconBadgeClasses(isActive || active)}
+              style={isActive || active ? { backgroundColor: groupColor, color: '#ffffff' } : undefined}
+            >
+              <MuiIconResolver name={group.icon} size={resolvedIconSize} />
+            </span>
+          )}
+        </NavLink>
+      );
+    }
+
+    return (
+      <DynamicCollapsibleNav
+        key={group.id}
+        label={group.label}
+        iconName={group.icon}
+        isOpen={isOpen}
+        isActive={active}
+        onToggle={() => toggleMenu(group.id)}
+        collapsed={collapsed}
+        isDark={isDark}
+        badgeRadius={badgeRadius}
+        accentHex={groupColor}
+      >
+        {visibleChildren.map((sub) => (
+          <NavLink
+            key={sub.id}
+            to={sub.to}
+            end={Boolean(sub.exact)}
+            onClick={onClose}
             className={({ isActive }) =>
-              `group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${collapsed ? 'justify-center' : ''
-              } ${isActive
-                ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200'
-                : 'text-rose-600/80 hover:bg-rose-50 hover:text-rose-700'
+              `group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-all duration-150 sidebar-nav-link ${
+                isActive
+                  ? isDark
+                    ? 'bg-white/15 text-white font-bold'
+                    : 'bg-indigo-50 text-indigo-700 font-bold'
+                  : isDark
+                  ? 'text-slate-400 hover:bg-white/5 hover:text-white font-medium'
+                  : 'text-slate-500 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
               }`
             }
           >
             {({ isActive }) => (
               <>
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-500 group-hover:bg-rose-100'
-                  }`}>
-                  <Trash2 size={14} strokeWidth={2} />
-                </span>
-                {!collapsed && <span className="text-[13px]">Recycle Bin</span>}
+                <span
+                  className={`h-1.5 w-1.5 rounded-full transition-colors shrink-0 ${
+                    isActive
+                      ? 'bg-indigo-500'
+                      : isDark
+                      ? 'bg-slate-600 group-hover:bg-slate-400'
+                      : 'bg-slate-300 group-hover:bg-indigo-500'
+                  }`}
+                  style={isActive ? { backgroundColor: groupColor } : undefined}
+                />
+                <MuiIconResolver name={sub.icon} size={Math.max(12, resolvedIconSize - 3)} className="shrink-0" />
+                <span className="truncate">{sub.label}</span>
               </>
             )}
           </NavLink>
-        )}
-      </nav>
+        ))}
+      </DynamicCollapsibleNav>
+    );
+  };
 
-      {/* ── Footer quick icons matching Aone Admin ── */}
-      <div className={`border-t border-slate-100 p-2.5 flex items-center ${collapsed ? 'justify-center' : 'justify-around'} text-slate-400`}>
-        <NavLink to="/settings" title="Settings" className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition">
-          <SettingsIcon size={16} />
-        </NavLink>
-        {!collapsed && (
-          <>
-            <NavLink to="/stock-requests" title="Issues & Requests" className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition">
-              <SendToBack size={16} />
-            </NavLink>
-            <NavLink to="/settings?tab=security" title="Security & Passwords" className="p-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition">
-              <Lock size={16} />
-            </NavLink>
-          </>
-        )}
-      </div>
-    </aside>
-  </>
+  return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-xs lg:hidden transition-opacity"
+          onClick={onClose}
+        />
+      )}
+
+      <aside
+        className={`
+          fixed z-40 flex h-full flex-col dynamic-themed-sidebar border-r
+          transition-all duration-300 ease-in-out
+          lg:static lg:translate-x-0
+          ${open ? 'translate-x-0' : '-translate-x-full'}
+          ${sidebarWidthClass}
+          ${sidebarStyleClass}
+        `}
+      >
+        {/* ── Brand Logo Header ── */}
+        <div
+          className={`flex items-center gap-3 py-4 border-b sidebar-divider ${
+            isDark ? 'border-slate-800' : 'border-slate-100'
+          } ${collapsed ? 'justify-center px-2' : 'px-5'}`}
+        >
+          <NavLink
+            to="/"
+            onClick={onClose}
+            className="flex items-center gap-3 hover:opacity-90 transition-opacity min-w-0"
+          >
+            {companyInfo?.companyLogo ? (
+              <img
+                src={companyInfo.companyLogo}
+                alt={companyInfo.companyName}
+                className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shadow-sm"
+              />
+            ) : (
+              <div
+                className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-black text-sm shadow-sm"
+                style={{ backgroundColor: accentHex }}
+              >
+                {(companyInfo?.companyName || 'SP').slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-[14px] font-black leading-tight sidebar-brand-title tracking-tight truncate max-w-[170px]">
+                  {companyInfo?.companyName || 'Sharp Plus'}
+                </p>
+                <p
+                  className="text-[10px] sidebar-brand-sub mt-0.5 tracking-wide font-semibold uppercase truncate max-w-[170px]"
+                  style={{ color: isDark ? '#38bdf8' : accentHex }}
+                >
+                  {companyInfo?.tradeName ? companyInfo.tradeName : 'Trading & Stock'}
+                </p>
+              </div>
+            )}
+          </NavLink>
+        </div>
+
+        {/* ── Nav Sections ── */}
+        <nav className="relative flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2.5 py-2 scrollbar-thin scrollbar-track-transparent">
+          {/* Main Section */}
+          {sections.main.length > 0 && (
+            <>
+              <SectionLabel collapsed={collapsed} isDark={isDark} showHeaders={activeTheme?.showSectionHeaders !== false}>
+                Main
+              </SectionLabel>
+              {sections.main.map((item) =>
+                item.isGroup ? renderGroup(item) : renderNavLink(item)
+              )}
+            </>
+          )}
+
+          {/* Operations Section */}
+          {sections.operations.length > 0 && (
+            <>
+              <SectionLabel collapsed={collapsed} isDark={isDark} showHeaders={activeTheme?.showSectionHeaders !== false}>
+                Operations
+              </SectionLabel>
+              {sections.operations.map((item) =>
+                item.isGroup ? renderGroup(item) : renderNavLink(item)
+              )}
+            </>
+          )}
+
+          {/* Developer Console (Exclusive to Developer Role) */}
+          {user?.role === 'developer' && (
+            <>
+              <SectionLabel collapsed={collapsed} isDark={isDark} showHeaders={activeTheme?.showSectionHeaders !== false}>
+                Platform Owner
+              </SectionLabel>
+              <NavLink
+                to="/developer-console"
+                onClick={onClose}
+                title="System Developer Console"
+                className={({ isActive }) =>
+                  `group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${
+                    collapsed ? 'justify-center' : ''
+                  } ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold shadow-md'
+                      : isDark
+                      ? 'bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 border border-indigo-800/40'
+                      : 'bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/80'
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center ${badgeRadius} transition-all ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : isDark
+                          ? 'bg-indigo-900 text-indigo-200'
+                          : 'bg-indigo-200/70 text-indigo-800'
+                      }`}
+                    >
+                      <Building2 size={15} strokeWidth={2.5} />
+                    </span>
+                    {!collapsed && (
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-[13px] font-bold">Developer Console</span>
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-700 text-white uppercase tracking-wider">
+                          Owner
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            </>
+          )}
+
+          {/* Admin & System Section */}
+          {sections.admin.length > 0 && (
+            <>
+              <SectionLabel collapsed={collapsed} isDark={isDark} showHeaders={activeTheme?.showSectionHeaders !== false}>
+                Admin &amp; System
+              </SectionLabel>
+              {sections.admin.map((item) =>
+                item.isGroup ? renderGroup(item) : renderNavLink(item)
+              )}
+            </>
+          )}
+        </nav>
+
+        {/* ── Footer Quick Icons ── */}
+        <div
+          className={`border-t sidebar-divider p-2.5 flex items-center ${
+            collapsed ? 'justify-center' : 'justify-around'
+          } ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-400'}`}
+        >
+          <NavLink
+            to="/settings?tab=sidebar"
+            title="Sidebar & Theme Customization"
+            className={`p-1.5 rounded-lg transition ${
+              isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-slate-100 hover:text-slate-700'
+            }`}
+          >
+            <MuiIconResolver name="TuneRounded" size={17} />
+          </NavLink>
+          <NavLink
+            to="/settings"
+            title="System Settings"
+            className={`p-1.5 rounded-lg transition ${
+              isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-slate-100 hover:text-slate-700'
+            }`}
+          >
+            <MuiIconResolver name="SettingsRounded" size={17} />
+          </NavLink>
+          {!collapsed && (
+            <>
+              <NavLink
+                to="/stock-requests"
+                title="Issues & Requests"
+                className={`p-1.5 rounded-lg transition ${
+                  isDark
+                    ? 'hover:bg-white/10 hover:text-white'
+                    : 'hover:bg-slate-100 hover:text-slate-700'
+                }`}
+              >
+                <MuiIconResolver name="CallSplitRounded" size={17} />
+              </NavLink>
+              <NavLink
+                to="/settings?tab=security"
+                title="Security & Passwords"
+                className={`p-1.5 rounded-lg transition ${
+                  isDark
+                    ? 'hover:bg-white/10 hover:text-white'
+                    : 'hover:bg-slate-100 hover:text-slate-700'
+                }`}
+              >
+                <Lock size={15} />
+              </NavLink>
+            </>
+          )}
+        </div>
+      </aside>
+    </>
   );
-};
-
-export default Sidebar;
+}

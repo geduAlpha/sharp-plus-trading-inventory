@@ -26,6 +26,7 @@ import {
   FileBadge2,
   Globe,
   Percent,
+  Palette,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +34,8 @@ import { useSessionTimeout, TIMEOUT_OPTIONS } from '../context/SessionTimeoutCon
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import RolePrivilegesManager from '../components/admin/RolePrivilegesManager';
+import SidebarThemeSettings from '../components/admin/SidebarThemeSettings';
+import ModuleManagement from '../components/admin/ModuleManagement';
 
 const CAPABILITIES = [
   { key: 'recordGoods', label: 'Record Goods Receiving (Cash/Credit GRV)' },
@@ -69,10 +72,20 @@ export default function Settings() {
 
   // Redirect non-admin and non-manager away from restricted tabs
   useEffect(() => {
+    // Appearance tab is now strictly developer-only (global theme/sidebar control)
+    if ((currentTab === 'appearance' || currentTab === 'sidebar') && user?.role !== 'developer' && user?.role !== 'admin') {
+      setTab('profile');
+    }
+    // Permissions tab: admin or manager
     if (currentTab === 'permissions' && !hasRole('admin') && !hasRole('manager')) {
       setTab('profile');
     }
+    // System config: admin only
     if ((currentTab === 'system' || currentTab === 'telegram') && !hasRole('admin')) {
+      setTab('profile');
+    }
+    // Modules tab: developer only
+    if (currentTab === 'modules' && user?.role !== 'developer') {
       setTab('profile');
     }
   }, [currentTab, user]);
@@ -513,6 +526,18 @@ export default function Settings() {
           </button>
         )}
 
+        {(hasRole('admin') || hasRole('manager')) && (
+          <button
+            onClick={() => setTab('appearance')}
+            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'sidebar' || currentTab === 'appearance'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-ink-400 hover:text-ink-700'
+              }`}
+          >
+            <Palette size={16} /> Appearance &amp; Navigation
+          </button>
+        )}
+
         {hasRole('admin') && (
           <button
             onClick={() => setTab('telegram')}
@@ -522,6 +547,22 @@ export default function Settings() {
               }`}
           >
             <Send size={16} /> Telegram Subscribers
+          </button>
+        )}
+
+        {user?.role === 'developer' && (
+          <button
+            onClick={() => setTab('modules')}
+            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'modules'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-ink-400 hover:text-indigo-600'
+              }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Layers size={16} />
+              <span>Module Management</span>
+              <span className="ml-0.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-indigo-700">Owner</span>
+            </span>
           </button>
         )}
       </div>
@@ -1782,6 +1823,16 @@ export default function Settings() {
             </div>
           )}
         </Card>
+      )}
+
+      {/* ── Tab: Appearance & Navigation Studio ── */}
+      {(currentTab === 'sidebar' || currentTab === 'appearance') && (
+        <SidebarThemeSettings />
+      )}
+
+      {/* ── Tab: Module Management (Developer/Owner Only) ── */}
+      {currentTab === 'modules' && (
+        <ModuleManagement />
       )}
     </div>
   );

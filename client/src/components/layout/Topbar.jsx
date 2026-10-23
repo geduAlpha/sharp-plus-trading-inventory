@@ -5,11 +5,12 @@ import {
   ArrowLeftRight, ShoppingCart, BarChart2, Users,
   ChevronRight, Search, Lightbulb, CheckCircle2, PlayCircle,
   Bell, BellRing, Trash2, Maximize, MessageSquare, CheckSquare, Calendar,
-  Sun, Moon,
+  Sun, Moon, Palette,
 } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useSessionTimeout } from '../../context/SessionTimeoutContext';
+import { useThemeSidebar } from '../../context/ThemeSidebarContext';
 
 // ─────────────────────────────────────────
 // HELP MODAL DATA
@@ -499,6 +500,12 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
+  useEffect(() => {
+    const handleOpenHelp = () => setHelpOpen(true);
+    window.addEventListener('open-help-modal', handleOpenHelp);
+    return () => window.removeEventListener('open-help-modal', handleOpenHelp);
+  }, []);
+
   const handleNav = (path) => {
     setMenuOpen(false);
     navigate(path);
@@ -548,6 +555,8 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
       return next;
     });
   };
+
+  const { activeTheme } = useThemeSidebar();
 
   const roleBadgeStyle = {
     admin: 'bg-amber-50 text-amber-800 border-amber-200',
@@ -612,25 +621,36 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
           </div>
         </div>
 
-        {/* Center / Search bar */}
-        <form onSubmit={handleSearch} className="relative hidden md:block w-64 lg:w-80 mx-4">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search items, vouchers, suppliers..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-1.5 pl-3.5 pr-9 text-xs text-slate-800 placeholder-slate-400 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-          />
-          <button
-            type="submit"
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition"
-          >
-            <Search size={15} />
-          </button>
-        </form>
+        {/* Center: Interactive Global Command Palette Trigger */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+          className="relative hidden md:flex items-center justify-between w-64 lg:w-80 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-white hover:border-indigo-400/80 py-1.5 pl-3.5 pr-2 text-xs text-slate-500 transition shadow-2xs group cursor-pointer mx-4"
+          title="Open Quick Search & Command Palette (Ctrl+K)"
+        >
+          <div className="flex items-center gap-2 truncate">
+            <Search size={14} className="text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
+            <span className="text-slate-400 group-hover:text-slate-700 font-medium truncate">
+              Search modules, items, actions…
+            </span>
+          </div>
+          <kbd className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 shadow-2xs group-hover:border-indigo-300 group-hover:text-indigo-600 transition shrink-0">
+            <span className="text-[9px]">⌘</span>K
+          </kbd>
+        </button>
 
         {/* Right: session indicator + fullscreen + notifications + user menu */}
         <div className="flex items-center gap-2">
+          {/* Mobile search trigger button */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+            className="flex md:hidden h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
+            title="Quick Search & Command Palette (Ctrl+K)"
+          >
+            <Search size={16} />
+          </button>
+
           {/* Fullscreen toggle button */}
           <button
             onClick={toggleFullscreen}
@@ -652,6 +672,18 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
               {timeoutMinutes === 0 ? 'Timeout: Off' : `${timeoutMinutes}m`}
             </span>
           </div>
+
+          {/* Theme Studio quick link */}
+          <button
+            onClick={() => navigate('/settings?tab=sidebar')}
+            className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition"
+            title={`Active Theme: ${activeTheme?.theme || 'white'}. Click to open Theme Studio`}
+          >
+            <Palette size={16} />
+            <span className="hidden md:inline text-[11px] font-bold capitalize text-slate-600">
+              {activeTheme?.theme || 'white'}
+            </span>
+          </button>
 
           {/* Dim / Dark Mode Toggle button */}
           <button

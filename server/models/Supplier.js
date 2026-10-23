@@ -7,6 +7,7 @@ const supplierSchema = new mongoose.Schema(
     phone: { type: String, trim: true },
     email: { type: String, trim: true },
     address: { type: String, trim: true },
+    tin: { type: String, trim: true, default: '' },
     category: { type: String, trim: true, default: 'General' },
     notes: { type: String, trim: true },
     isActive: { type: Boolean, default: true },

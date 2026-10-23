@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const Setting = require('../models/Setting');
+const { DEFAULT_THEME_CONFIG, DEFAULT_SIDEBAR_CONFIG } = Setting;
 const { clearSettingsCache, DEFAULT_ROLE_PERMISSIONS } = require('../middleware/authMiddleware');
 const tg = require('../utils/telegramNotifier');
 
@@ -35,6 +36,10 @@ const getSettings = asyncHandler(async (req, res) => {
       allowNegativeStock: false,
       rolePermissions: DEFAULT_ROLE_PERMISSIONS,
       navVisibility: DEFAULT_NAV_VISIBILITY,
+      themeConfig: DEFAULT_THEME_CONFIG,
+      sidebarConfig: DEFAULT_SIDEBAR_CONFIG,
+      modulesEnabled: { salesMarketing: true, accounting: true },
+      auditLogs: [],
     });
   } else {
     let modified = false;
@@ -46,6 +51,26 @@ const getSettings = asyncHandler(async (req, res) => {
     if (!settings.navVisibility) {
       settings.navVisibility = DEFAULT_NAV_VISIBILITY;
       settings.markModified('navVisibility');
+      modified = true;
+    }
+    if (!settings.themeConfig || Object.keys(settings.themeConfig).length === 0) {
+      settings.themeConfig = DEFAULT_THEME_CONFIG;
+      settings.markModified('themeConfig');
+      modified = true;
+    }
+    if (!settings.sidebarConfig || !Array.isArray(settings.sidebarConfig) || settings.sidebarConfig.length === 0) {
+      settings.sidebarConfig = DEFAULT_SIDEBAR_CONFIG;
+      settings.markModified('sidebarConfig');
+      modified = true;
+    }
+    if (!settings.modulesEnabled || typeof settings.modulesEnabled !== 'object') {
+      settings.modulesEnabled = { salesMarketing: true, accounting: true };
+      settings.markModified('modulesEnabled');
+      modified = true;
+    }
+    if (!Array.isArray(settings.auditLogs)) {
+      settings.auditLogs = [];
+      settings.markModified('auditLogs');
       modified = true;
     }
     if (modified) await settings.save();
@@ -60,6 +85,17 @@ const updateSettings = asyncHandler(async (req, res) => {
   let settings = await Setting.findOne();
   if (!settings) {
     settings = new Setting();
+  }
+
+  // Restrict global theme, sidebar, and module activation configuration exclusively to System Owner/Developer
+  const isPrivilegedSettingUpdate =
+    req.body.themeConfig !== undefined ||
+    req.body.sidebarConfig !== undefined ||
+    req.body.modulesEnabled !== undefined;
+
+  if (isPrivilegedSettingUpdate && req.user?.role !== 'developer') {
+    res.status(403);
+    throw new Error('Access denied: Only the authorized System Owner/Developer can modify global appearance, sidebar navigation, or system module activation.');
   }
 
   const stringFields = [
@@ -129,6 +165,71 @@ const updateSettings = asyncHandler(async (req, res) => {
   if (req.body.navVisibility !== undefined && typeof req.body.navVisibility === 'object') {
     settings.navVisibility = req.body.navVisibility;
     settings.markModified('navVisibility');
+  }
+
+  if (!Array.isArray(settings.auditLogs)) {
+    settings.auditLogs = [];
+  }
+
+  // System Modules ON/OFF Control with Audit Trail
+  if (req.body.modulesEnabled !== undefined && typeof req.body.modulesEnabled === 'object') {
+    const prevModules = settings.modulesEnabled || {};
+    settings.modulesEnabled = {
+      ...prevModules,
+      ...req.body.modulesEnabled,
+    };
+    settings.markModified('modulesEnabled');
+
+    for (const [modKey, val] of Object.entries(req.body.modulesEnabled)) {
+      if (prevModules[modKey] !== val) {
+        settings.auditLogs.unshift({
+          action: 'MODULE_TOGGLED',
+          module: modKey,
+          details: `Module "${modKey === 'salesMarketing' ? 'Sales & Marketing' : modKey}" switched ${val ? 'ON (Activated)' : 'OFF (Deactivated)'}`,
+          actorId: req.user?._id,
+          actorName: req.user?.name || 'System Owner',
+          actorRole: req.user?.role || 'developer',
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    try {
+      const { clearModulesCache } = require('../middleware/moduleGateMiddleware');
+      clearModulesCache();
+    } catch {}
+  }
+
+  // Theme & Appearance Configuration with Audit Trail
+  if (req.body.themeConfig !== undefined && typeof req.body.themeConfig === 'object') {
+    const prevTheme = settings.themeConfig?.theme;
+    settings.themeConfig = {
+      ...(settings.themeConfig || DEFAULT_THEME_CONFIG),
+      ...req.body.themeConfig,
+    };
+    settings.markModified('themeConfig');
+
+    if (req.body.themeConfig.theme && req.body.themeConfig.theme !== prevTheme) {
+      settings.auditLogs.unshift({
+        action: 'THEME_UPDATED',
+        details: `Global appearance theme changed to "${req.body.themeConfig.theme}"`,
+        actorId: req.user?._id,
+        actorName: req.user?.name || 'System Owner',
+        actorRole: req.user?.role || 'developer',
+        timestamp: new Date(),
+      });
+    }
+  }
+
+  if (req.body.sidebarConfig !== undefined && Array.isArray(req.body.sidebarConfig)) {
+    settings.sidebarConfig = req.body.sidebarConfig;
+    settings.markModified('sidebarConfig');
+  }
+
+  // Cap auditLogs to last 150 items
+  if (settings.auditLogs.length > 150) {
+    settings.auditLogs = settings.auditLogs.slice(0, 150);
+    settings.markModified('auditLogs');
   }
 
   const updated = await settings.save();

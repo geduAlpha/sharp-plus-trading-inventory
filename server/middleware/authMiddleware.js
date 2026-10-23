@@ -4,94 +4,130 @@ const User = require('../models/User');
 const Setting = require('../models/Setting');
 
 const DEFAULT_ROLE_PERMISSIONS = {
-  // ── Existing workflow capabilities ──────────────────────────────────────
-  recordGoods: { storekeeper: true, manager: true, admin: true, cashier: false },
-  checkReview: { storekeeper: false, manager: true, admin: true, cashier: false },
-  approveGoods: { storekeeper: false, manager: false, admin: true, cashier: false },
-  postLedger: { storekeeper: false, manager: true, admin: true, cashier: false },
-  voidTransactions: { storekeeper: false, manager: false, admin: true, cashier: false },
-  viewReports: { storekeeper: false, manager: true, admin: true, cashier: false },
-  manageAccounts: { storekeeper: false, manager: false, admin: true, cashier: false },
+  // ── Workflow capabilities ──────────────────────────────────────────────
+  recordGoods: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+  checkReview: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+  approveGoods: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+  postLedger: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+  voidTransactions: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+  viewReports: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+  manageAccounts: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
 
-  // ── Granular CRUD permissions per module ────────────────────────────────
+  // ── Granular CRUD & workflow actions per module ────────────────────────
   items: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: false },
-    read: { storekeeper: true, manager: true, admin: true, cashier: true },
-    update: { storekeeper: true, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    edit: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    update: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    export: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
   },
   products: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: false },
-    read: { storekeeper: true, manager: true, admin: true, cashier: true },
-    update: { storekeeper: true, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    edit: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    update: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    export: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
   },
   cashSales: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: true },
-    read: { storekeeper: true, manager: true, admin: true, cashier: true },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    void: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   creditSales: {
-    create: { storekeeper: false, manager: true, admin: true, cashier: false },
-    read: { storekeeper: true, manager: true, admin: true, cashier: true },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    create: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    void: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   customers: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: true },
-    read: { storekeeper: true, manager: true, admin: true, cashier: true },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   suppliers: {
-    create: { storekeeper: false, manager: true, admin: true, cashier: false },
-    read: { storekeeper: false, manager: true, admin: true, cashier: false },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    create: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    read: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   purchases: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: false },
-    read: { storekeeper: true, manager: true, admin: true, cashier: false },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    approve: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    void: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   stockMovements: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: false },
-    read: { storekeeper: true, manager: true, admin: true, cashier: false },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    void: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    approve: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   stockRequests: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: false },
-    read: { storekeeper: true, manager: true, admin: true, cashier: false },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    approve: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   consumption: {
-    create: { storekeeper: true, manager: true, admin: true, cashier: false },
-    read: { storekeeper: true, manager: true, admin: true, cashier: false },
-    update: { storekeeper: false, manager: true, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    edit: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   reports: {
-    read: { storekeeper: false, manager: true, admin: true, cashier: false },
-    export: { storekeeper: false, manager: true, admin: true, cashier: false },
+    view: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    read: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    export: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
   },
   staffAccounts: {
-    create: { storekeeper: false, manager: false, admin: true, cashier: false },
-    read: { storekeeper: false, manager: false, admin: true, cashier: false },
-    update: { storekeeper: false, manager: false, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    create: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    read: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    edit: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    manageAccess: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   settings: {
-    read: { storekeeper: false, manager: false, admin: true, cashier: false },
-    update: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    read: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    edit: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    update: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   recycleBin: {
-    read: { storekeeper: false, manager: true, admin: true, cashier: false },
-    restore: { storekeeper: false, manager: false, admin: true, cashier: false },
-    delete: { storekeeper: false, manager: false, admin: true, cashier: false },
+    view: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    read: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    restore: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
 };
 
@@ -120,7 +156,7 @@ const clearSettingsCache = () => {
  * Check if a user or role has permission for a capability and optional action
  * @param {Object|String} userOrRole - User object or role string
  * @param {String} capability - Module or workflow key (e.g., 'items', 'recordGoods')
- * @param {String} [action] - Specific CRUD action (e.g., 'create', 'read', 'update', 'delete')
+ * @param {String} [action] - Specific action ('view'/'read', 'create', 'edit'/'update', 'delete', 'void', 'approve', 'export', 'restore', 'manageAccess')
  */
 const hasPermission = async (userOrRole, capability, action) => {
   if (!userOrRole) return false;
@@ -131,11 +167,22 @@ const hasPermission = async (userOrRole, capability, action) => {
   // Developer role has 100% unrestricted owner access over everything
   if (role === 'developer') return true;
 
+  // Normalize action aliases
+  const actionKeys = action
+    ? [action]
+    : [];
+  if (action === 'view') actionKeys.push('read');
+  if (action === 'read') actionKeys.push('view');
+  if (action === 'edit') actionKeys.push('update');
+  if (action === 'update') actionKeys.push('edit');
+
   // 1. Employee custom permission override
   if (customPermissions) {
     if (action && customPermissions[capability] && typeof customPermissions[capability] === 'object') {
-      if (typeof customPermissions[capability][action] === 'boolean') {
-        return customPermissions[capability][action];
+      for (const ak of actionKeys) {
+        if (typeof customPermissions[capability][ak] === 'boolean') {
+          return customPermissions[capability][ak];
+        }
       }
     }
     if (typeof customPermissions[capability] === 'boolean') {
@@ -147,16 +194,43 @@ const hasPermission = async (userOrRole, capability, action) => {
   const rolePermissions = await getCachedRolePermissions();
 
   if (role === 'admin') {
-    if (action && rolePermissions?.[capability]?.[action]?.admin === false) return false;
+    // Admin has access unless specifically set to false for admin
+    if (action) {
+      for (const ak of actionKeys) {
+        if (rolePermissions?.[capability]?.[ak]?.admin === false) return false;
+      }
+    }
     if (rolePermissions?.[capability]?.admin === false) return false;
     return true;
   }
 
-  if (action && rolePermissions?.[capability]?.[action]) {
-    return Boolean(rolePermissions[capability][action][role]);
+  // For employee role (or legacy employee roles: storekeeper, cashier, manager)
+  const effectiveRoles = [role];
+  if (role === 'employee') {
+    effectiveRoles.push('storekeeper');
   }
 
-  return Boolean(rolePermissions?.[capability]?.[role]);
+  if (action && rolePermissions?.[capability]) {
+    for (const ak of actionKeys) {
+      if (rolePermissions[capability][ak]) {
+        for (const r of effectiveRoles) {
+          if (rolePermissions[capability][ak][r] !== undefined) {
+            return Boolean(rolePermissions[capability][ak][r]);
+          }
+        }
+      }
+    }
+  }
+
+  if (rolePermissions?.[capability]) {
+    for (const r of effectiveRoles) {
+      if (rolePermissions[capability][r] !== undefined) {
+        return Boolean(rolePermissions[capability][r]);
+      }
+    }
+  }
+
+  return false;
 };
 
 const protect = asyncHandler(async (req, res, next) => {
@@ -199,15 +273,34 @@ const protect = asyncHandler(async (req, res, next) => {
 
 const authorize = (...roles) => {
   return (req, res, next) => {
+    if (!req.user) {
+      res.status(401);
+      throw new Error('Not authorized, no user found');
+    }
     // System Developer has universal override over all role authorizations
-    if (req.user && req.user.role === 'developer') {
+    if (req.user.role === 'developer') {
       return next();
     }
-    if (!req.user || !roles.includes(req.user.role)) {
-      res.status(403);
-      throw new Error(`Role '${req.user ? req.user.role : 'guest'}' is not permitted to perform this action`);
+    // If route authorizes admin, admin is permitted
+    if (roles.includes('admin') && req.user.role === 'admin') {
+      return next();
     }
-    next();
+    // If route authorizes employee, admin and employee (and legacy sub-roles) are permitted
+    if (roles.includes('employee')) {
+      if (
+        req.user.role === 'admin' ||
+        req.user.role === 'employee' ||
+        ['storekeeper', 'cashier', 'manager'].includes(req.user.role)
+      ) {
+        return next();
+      }
+    }
+    // Direct role match
+    if (roles.includes(req.user.role)) {
+      return next();
+    }
+    res.status(403);
+    throw new Error(`Role '${req.user.role}' is not permitted to perform this action`);
   };
 };
 

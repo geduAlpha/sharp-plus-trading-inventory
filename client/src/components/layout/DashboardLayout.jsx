@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import AiChat from '../AiChat';
+import CommandPalette from '../common/CommandPalette';
 import { useAuth } from '../../context/AuthContext';
 
 const titles = {
@@ -10,12 +11,12 @@ const titles = {
   '/materials': 'Items',
   '/products': 'Sales Products & Recipes',
   '/analytics': 'Analytics & Performance',
-  '/transactions': 'Stock Movements',
-  '/transactions/cash-grv': 'Cash GRV Entries',
-  '/transactions/credit-grv': 'Credit GRV Entries',
-  '/transactions/pos-adjustment': '+ve Adjustment Entries',
-  '/transactions/disposal': 'Goods Disposal Entries',
-  '/transactions/neg-adjustment': '−ve Adjustment Entries',
+  '/transactions': 'Stock Management System',
+  '/transactions/cash-grv': 'Cash Goods Receiving Voucher',
+  '/transactions/credit-grv': 'Credit Goods Receiving Voucher',
+  '/transactions/pos-adjustment': 'Positive Stock Adjustment Voucher',
+  '/transactions/disposal': 'Goods Disposal Voucher',
+  '/transactions/neg-adjustment': 'Negative Stock Adjustment Voucher',
   '/sales-import': 'Sales & POS Import',
   '/purchases': 'Purchases',
   '/suppliers': 'Suppliers Directory',
@@ -92,6 +93,8 @@ const DashboardLayout = () => {
       </div>
       {/* AI Chat — floats over every page */}
       <AiChat />
+      {/* Global Command Palette & Quick Navigation (Ctrl+K) */}
+      <CommandPalette onToggleSidebarCollapse={() => setSidebarCollapsed(c => !c)} />
     </div>
   );
 };

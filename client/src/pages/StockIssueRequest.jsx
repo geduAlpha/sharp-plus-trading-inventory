@@ -71,7 +71,7 @@ const TrailTimeline = ({ trail = [] }) => (
 // MAIN PAGE
 // ════════════════════════════════════════════════════════════════
 export default function StockIssueRequest() {
-  const { user, can } = useAuth();
+  const { user, can, canApprove: canApproveRecord } = useAuth();
 
   // ── Data state ───────────────────────────────────────────────
   const [requests, setRequests] = useState([]);
@@ -330,8 +330,8 @@ export default function StockIssueRequest() {
   };
 
   // ── Helpers ───────────────────────────────────────────────────
-  const canApprove = user?.role === 'admin' || user?.role === 'manager';
-  const canIssue = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'storekeeper';
+  const canApprove = user?.role === 'developer' || user?.role === 'admin' || user?.role === 'manager';
+  const canIssue = user?.role === 'developer' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'storekeeper' || user?.role === 'employee';
 
   const getMaterialStock = (matId) => {
     const mat = materials.find(m => (m._id || m) === matId);
@@ -569,7 +569,13 @@ export default function StockIssueRequest() {
                         {req.status === 'pending' && canApprove && (
                           <button
                             onClick={() => openAction('approve', req)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 transition shadow-sm"
+                            disabled={!canApproveRecord(req)}
+                            title={!canApproveRecord(req) ? 'Segregation of duties: You created this request and cannot self-approve it.' : 'Approve'}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white transition shadow-sm ${
+                              !canApproveRecord(req)
+                                ? 'bg-ink-300 text-ink-500 cursor-not-allowed opacity-60'
+                                : 'bg-blue-600 hover:bg-blue-700'
+                            }`}
                           >
                             <CheckCircle2 size={11} /> Approve
                           </button>
@@ -1072,8 +1078,19 @@ export default function StockIssueRequest() {
             <div className="flex items-center gap-2 border-t border-ink-100 px-6 py-4 bg-ink-50/40 flex-wrap">
               {detailRequest.status === 'pending' && canApprove && (
                 <button
-                  onClick={() => { setDetailOpen(false); openAction('approve', detailRequest); }}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 transition"
+                  disabled={!canApproveRecord(detailRequest)}
+                  title={!canApproveRecord(detailRequest) ? 'Segregation of duties: You created this request and cannot self-approve it.' : 'Approve'}
+                  onClick={() => {
+                    if (canApproveRecord(detailRequest)) {
+                      setDetailOpen(false);
+                      openAction('approve', detailRequest);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition ${
+                    !canApproveRecord(detailRequest)
+                      ? 'bg-ink-300 text-ink-500 cursor-not-allowed opacity-60'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
                 >
                   <CheckCircle2 size={13} /> Approve
                 </button>

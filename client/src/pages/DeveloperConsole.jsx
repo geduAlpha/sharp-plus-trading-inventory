@@ -27,6 +27,14 @@ import {
   Save,
   Server,
   Zap,
+  Download,
+  Database,
+  RotateCcw,
+  Clock,
+  Globe,
+  Shield,
+  Layers,
+  Activity,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -81,6 +89,83 @@ export default function DeveloperConsole() {
     role: 'storekeeper',
     phone: '',
   });
+
+  // Main Developer Console Tabs: 'companies' | 'backup' | 'recovery' | 'audit'
+  const [activeConsoleTab, setActiveConsoleTab] = useState('companies');
+
+  // Backup snapshot state
+  const [backupExporting, setBackupExporting] = useState(false);
+
+  // Audited Record Recovery state
+  const [recoveryModule, setRecoveryModule] = useState('stockMovements');
+  const [recoveryRecordId, setRecoveryRecordId] = useState('');
+  const [recoveryReason, setRecoveryReason] = useState('');
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryResult, setRecoveryResult] = useState(null);
+
+  // Audit Logs state for Developer
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditSearch, setAuditSearch] = useState('');
+
+  const handleDownloadBackup = async () => {
+    setBackupExporting(true);
+    try {
+      const res = await api.get('/backup/export');
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `sharp_plus_database_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Database backup snapshot exported successfully.');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to export backup snapshot', 'error');
+    } finally {
+      setBackupExporting(false);
+    }
+  };
+
+  const handleExecuteRecovery = async (e) => {
+    e.preventDefault();
+    if (!recoveryRecordId.trim()) {
+      showToast('Please provide a record ID or voucher number.', 'warning');
+      return;
+    }
+    setRecoveryLoading(true);
+    setRecoveryResult(null);
+    try {
+      const res = await api.post('/backup/recover', {
+        module: recoveryModule,
+        recordId: recoveryRecordId.trim(),
+        reason: recoveryReason.trim(),
+      });
+      setRecoveryResult(res.data);
+      showToast(res.data.message || 'Record recovered successfully.');
+      setRecoveryRecordId('');
+      setRecoveryReason('');
+      fetchAuditLogs();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to recover record', 'error');
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    setAuditLoading(true);
+    try {
+      const res = await api.get('/backup/audit-logs');
+      setAuditLogs(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Failed to load audit logs', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
 
   const showToast = (text, type = 'success') => {
     setToastMessage({ type, text });
@@ -381,8 +466,61 @@ export default function DeveloperConsole() {
             </button>
           </div>
         </div>
+
+        {/* Developer Console Subsystem Navigation */}
+        <div className="relative z-10 flex flex-wrap items-center gap-2 mt-6 pt-4 border-t border-slate-800/80">
+          <button
+            onClick={() => setActiveConsoleTab('companies')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              activeConsoleTab === 'companies'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <Building2 size={14} />
+            <span>Companies &amp; Staff ({companies.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveConsoleTab('backup')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              activeConsoleTab === 'backup'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <Database size={14} />
+            <span>System Backups &amp; Snapshots</span>
+          </button>
+          <button
+            onClick={() => setActiveConsoleTab('recovery')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              activeConsoleTab === 'recovery'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <RotateCcw size={14} />
+            <span>Audited Record Recovery</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveConsoleTab('audit');
+              fetchAuditLogs();
+            }}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              activeConsoleTab === 'audit'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <Activity size={14} />
+            <span>Audit &amp; Security Trail</span>
+          </button>
+        </div>
       </div>
 
+      {activeConsoleTab === 'companies' && (
+      <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-2xl bg-white p-5 border border-slate-200/80 shadow-sm flex items-center gap-4">
@@ -625,6 +763,251 @@ export default function DeveloperConsole() {
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {/* ══ TAB 2: SYSTEM BACKUPS & SNAPSHOTS ══ */}
+      {activeConsoleTab === 'backup' && (
+        <div className="space-y-6">
+          <div className="rounded-2xl bg-white p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Database size={20} className="text-blue-600" />
+                  <span>Full Database Snapshot &amp; Disaster Recovery Export</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Generates an encrypted, audited point-in-time snapshot of all companies, staff profiles,
+                  inventory records, purchase orders, vouchers, and audit trails.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadBackup}
+                disabled={backupExporting}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition disabled:opacity-50"
+              >
+                <Download size={15} className={backupExporting ? 'animate-bounce' : ''} />
+                <span>{backupExporting ? 'Generating JSON Snapshot...' : 'Export Full System Snapshot (.json)'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Snapshot Scope</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">9 Collections Included</p>
+                <p className="text-xs text-slate-500 mt-0.5">Companies, Users, Materials, Products, Movements, POs, Requests, Settings, Audit Logs</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Audited Non-Repudiation</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">Cryptographic Trace</p>
+                <p className="text-xs text-slate-500 mt-0.5">Every backup generation is recorded in the permanent audit trail with IP &amp; timestamp.</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Developer Privilege</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">Restricted Access</p>
+                <p className="text-xs text-slate-500 mt-0.5">Only accounts with role: 'developer' can initiate system snapshots or read raw exports.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ TAB 3: AUDITED RECORD RECOVERY TOOL ══ */}
+      {activeConsoleTab === 'recovery' && (
+        <div className="space-y-6">
+          <div className="rounded-2xl bg-white p-6 border border-slate-200 shadow-sm space-y-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <RotateCcw size={20} className="text-indigo-600" />
+                <span>Audited Record Recovery Tool (Developer Privilege)</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Recover voided, soft-deleted, or cleared records across the system. An audited justification note is mandatory.
+              </p>
+            </div>
+
+            <form onSubmit={handleExecuteRecovery} className="space-y-4 max-w-2xl pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Target Module *</label>
+                  <select
+                    value={recoveryModule}
+                    onChange={(e) => setRecoveryModule(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-medium outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="stockMovements">Stock Movements &amp; Vouchers</option>
+                    <option value="materials">Raw Materials &amp; Items</option>
+                    <option value="products">Finished Products</option>
+                    <option value="purchases">Purchases &amp; Purchase Orders</option>
+                    <option value="stockRequests">Stock Issue &amp; Requests</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Record ID or Voucher Number *</label>
+                  <input
+                    type="text"
+                    required
+                    value={recoveryRecordId}
+                    onChange={(e) => setRecoveryRecordId(e.target.value)}
+                    placeholder="e.g. 64f1a... or GRV-2026-0012"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-medium outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Audit Justification Note *</label>
+                <textarea
+                  required
+                  rows={2}
+                  value={recoveryReason}
+                  onChange={(e) => setRecoveryReason(e.target.value)}
+                  placeholder="State the technical or business justification for recovering this record..."
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-xs text-slate-400 flex items-center gap-1">
+                  <Shield size={12} className="text-indigo-500" />
+                  <span>Recovery action will be permanently recorded in the Audit Log.</span>
+                </span>
+                <button
+                  type="submit"
+                  disabled={recoveryLoading}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition disabled:opacity-50"
+                >
+                  <RotateCcw size={14} className={recoveryLoading ? 'animate-spin' : ''} />
+                  <span>{recoveryLoading ? 'Restoring Record...' : 'Execute Audited Recovery'}</span>
+                </button>
+              </div>
+            </form>
+
+            {recoveryResult && (
+              <div className="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <CheckCircle2 size={15} className="text-emerald-600" />
+                  <span>{recoveryResult.message}</span>
+                </p>
+                <p className="text-[11px] text-emerald-700 font-mono">
+                  Module: {recoveryResult.module} | Record: {recoveryResult.record?._id || recoveryResult.record?.voucherNo}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ TAB 4: AUDIT & SECURITY TRAIL ══ */}
+      {activeConsoleTab === 'audit' && (
+        <div className="space-y-4">
+          <div className="rounded-2xl bg-white p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={auditSearch}
+                onChange={(e) => setAuditSearch(e.target.value)}
+                placeholder="Search audit trail by user, action, module, or resource..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              />
+            </div>
+            <button
+              onClick={fetchAuditLogs}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+            >
+              <RefreshCw size={12} className={auditLoading ? 'animate-spin' : ''} />
+              <span>Refresh Trail</span>
+            </button>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs" style={{ borderCollapse: 'collapse' }}>
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    {['Timestamp', 'User & Role', 'Action', 'Module', 'Target Resource', 'Details', 'IP Address'].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600"
+                        >
+                          {h}
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {auditLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                        {auditLoading ? 'Loading audit logs...' : 'No audit records found.'}
+                      </td>
+                    </tr>
+                  )}
+                  {auditLogs
+                    .filter((l) => {
+                      const q = auditSearch.toLowerCase();
+                      return (
+                        !q ||
+                        l.userName?.toLowerCase().includes(q) ||
+                        l.action?.toLowerCase().includes(q) ||
+                        l.module?.toLowerCase().includes(q) ||
+                        l.resourceName?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((log) => (
+                      <tr key={log._id} className="hover:bg-slate-50/50 transition">
+                        <td className="px-4 py-3 whitespace-nowrap text-slate-500">
+                          <div className="flex items-center gap-1.5">
+                            <Clock size={11} className="text-slate-400" />
+                            <span>{new Date(log.createdAt).toLocaleString()}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="font-bold text-slate-900">{log.userName || 'System'}</div>
+                          <div className="text-[10px] text-slate-400 capitalize">{log.userRole || '—'}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              log.action?.includes('delete') || log.action?.includes('void')
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : log.action?.includes('approve') || log.action?.includes('recover')
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : log.action?.includes('backup')
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-700">{log.module}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-slate-600 font-mono text-[11px]">
+                          {log.resourceName || log.resourceId || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 max-w-xs truncate" title={JSON.stringify(log.details)}>
+                          {typeof log.details === 'object' ? JSON.stringify(log.details) : String(log.details || '—')}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-slate-400 text-[11px]">
+                          <span className="inline-flex items-center gap-1">
+                            <Globe size={10} /> {log.ip || '127.0.0.1'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ MODAL 1: COMPANY STAFF DRAWER / MODAL ══ */}
       {showStaffModal && selectedCompany && (

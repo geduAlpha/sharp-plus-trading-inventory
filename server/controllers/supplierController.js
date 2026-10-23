@@ -37,7 +37,7 @@ const updateSupplier = asyncHandler(async (req, res) => {
   });
 
   // Diff key fields
-  const changes = ['name','category','contactPerson','phone','email'].reduce((acc, k) => {
+  const changes = ['name','category','contactPerson','phone','email','tin','address'].reduce((acc, k) => {
     if (req.body[k] !== undefined && String(before[k] || '') !== String(req.body[k] || ''))
       acc.push({ label: k.charAt(0).toUpperCase() + k.slice(1), from: before[k] || '—', to: req.body[k] });
     return acc;

@@ -18,6 +18,8 @@ const VOUCHER_TYPES = [
   'disposal',
   'neg_adjustment',
   'pos_adjustment',
+  'psav',
+  'nsav',
   'fresh_bazaar',
   'sales_import',
   'cash_sale',
@@ -33,6 +35,8 @@ const VOUCHER_DIRECTION = {
   disposal:       'out',
   neg_adjustment: 'out',
   pos_adjustment: 'in',
+  psav:           'in',
+  nsav:           'out',
   fresh_bazaar:   'in',
   sales_import:   'out',
   cash_sale:      'out',
@@ -43,12 +47,25 @@ const VOUCHER_DIRECTION = {
 
 const lineItemSchema = new mongoose.Schema(
   {
-    material:     { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
-    quantity:     { type: Number, required: true, min: 0.001 },
-    unitCost:     { type: Number, default: 0 },
-    sellingPrice: { type: Number, default: 0 },
-    totalCost:    { type: Number, default: 0 },
-    totalRevenue: { type: Number, default: 0 },
+    material:         { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
+    quantity:         { type: Number, required: true, min: 0.001 },
+    uom:              { type: String, default: '' },
+    unitCost:         { type: Number, default: 0 },
+    discount:         { type: Number, default: 0 },
+    additionalCharge: { type: Number, default: 0 },
+    serialNumber:     { type: String, trim: true, default: '' },
+    category:         { type: String, trim: true, default: '' },
+    storeLocation:    { type: String, trim: true, default: '' },
+    taxRate:          { type: Number, default: 15 },
+    taxAmount:        { type: Number, default: 0 },
+    subTotal:         { type: Number, default: 0 },
+    sellingPrice:     { type: Number, default: 0 },
+    totalCost:        { type: Number, default: 0 },
+    totalRevenue:     { type: Number, default: 0 },
+    systemStock:      { type: Number, default: 0 },
+    physicalCount:    { type: Number, default: null },
+    projectedBalance: { type: Number, default: 0 },
+    reconciliationNote: { type: String, trim: true, default: '' },
   },
   { _id: false }
 );
@@ -109,6 +126,10 @@ const stockTransactionSchema = new mongoose.Schema(
     items: [lineItemSchema],
 
     supplier: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+    employee: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+    employeeName:  { type: String, trim: true, default: '' },
+    employeeCode:  { type: String, trim: true, default: '' },
+    employeePhone: { type: String, trim: true, default: '' },
     reason:    { type: String, trim: true, default: '' },
     reference: { type: String, trim: true, default: '' },
 
@@ -128,7 +149,18 @@ const stockTransactionSchema = new mongoose.Schema(
       },
     ],
 
+    subTotal:        { type: Number, default: 0 },
+    discount:        { type: Number, default: 0 },
+    additionalCharge:{ type: Number, default: 0 },
     totalAmount:     { type: Number, default: 0 },
+    tin:             { type: String, trim: true, default: '' },
+    storeLocation:   { type: String, trim: true, default: 'Main Store' },
+    consigneeUnit:   { type: String, trim: true, default: 'Main Store' },
+    deviceName:      { type: String, trim: true, default: 'Web Client' },
+    remark:          { type: String, trim: true, default: '' },
+    activity:        { type: String, trim: true, default: '' },
+    creditTerms:     { type: String, trim: true, default: '' },
+    stockApplied:    { type: Boolean, default: false },
     customerName:    { type: String, trim: true, default: '' },
     customerPhone:   { type: String, trim: true, default: '' },
     customerAddress: { type: String, trim: true, default: '' },
@@ -163,17 +195,30 @@ stockTransactionSchema.index({ material: 1 });
 // Virtual: human-readable label
 stockTransactionSchema.virtual('voucherLabel').get(function () {
   const labels = {
-    cash_grv:       'Cash GRV',
-    credit_grv:     'Credit GRV',
+    cash_grv:       'Cash Goods Receiving Voucher',
+    credit_grv:     'Credit Goods Receiving Voucher',
     disposal:       'Goods Disposal',
-    neg_adjustment: 'Negative Adjustment',
-    pos_adjustment: 'Positive Adjustment',
+    neg_adjustment: 'Negative Stock Adjustment Voucher',
+    pos_adjustment: 'Positive Stock Adjustment Voucher',
+    psav:           'Positive Stock Adjustment Voucher',
+    nsav:           'Negative Stock Adjustment Voucher',
     fresh_bazaar:   'Fresh Bazaar GRV',
     sales_import:   'Sales Import',
     cash_sale:      'Cash Sale',
     credit_sale:    'Credit Sale',
   };
   return labels[this.voucherType] ?? this.voucherType;
+});
+
+stockTransactionSchema.virtual('stateLabel').get(function () {
+  const states = {
+    pending:  'Prepared',
+    checked:  'Checked',
+    approved: 'Approved',
+    posted:   'Posted',
+    voided:   'Voided',
+  };
+  return states[this.status] ?? (this.status ? this.status.charAt(0).toUpperCase() + this.status.slice(1) : 'Prepared');
 });
 
 stockTransactionSchema.set('toJSON', { virtuals: true });

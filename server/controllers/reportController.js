@@ -28,6 +28,13 @@ const populateTxn = (q) =>
    .populate('performedBy', 'name')
    .sort({ date: -1 });
 
+const canonicalVt = (t) => {
+  const vt = t?.voucherType || (t?.type === 'in' ? 'pos_adjustment' : 'neg_adjustment');
+  if (vt === 'psav') return 'pos_adjustment';
+  if (vt === 'nsav') return 'neg_adjustment';
+  return vt;
+};
+
 // ── GET /api/reports/daily ────────────────────────────────────────────
 const getDailyReport = asyncHandler(async (req, res) => {
   const { start, end } = dayRange(req.query.date);
@@ -47,7 +54,7 @@ const getDailyReport = asyncHandler(async (req, res) => {
   // Breakdown by voucher type for the day
   const byVoucher = {};
   for (const t of transactions) {
-    const vt = t.voucherType || (t.type === 'in' ? 'pos_adjustment' : 'neg_adjustment');
+    const vt = canonicalVt(t);
     if (!byVoucher[vt]) byVoucher[vt] = { count: 0, totalAmount: 0, transactions: [] };
     byVoucher[vt].count++;
     byVoucher[vt].totalAmount += t.totalAmount || 0;
@@ -260,7 +267,7 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
 
   for (const txn of transactions) {
     const txnDate = new Date(txn.date);
-    const vt = txn.voucherType || (txn.type === 'in' ? 'pos_adjustment' : 'neg_adjustment');
+    const vt = canonicalVt(txn);
     const isOut = ['disposal', 'neg_adjustment', 'sales_import'].includes(vt) || txn.type === 'out';
 
     const items = txn.items && txn.items.length > 0
@@ -450,7 +457,7 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
   const ledgerEntries = [];
 
   for (const txn of transactions) {
-    const vt = txn.voucherType || (txn.type === 'in' ? 'pos_adjustment' : 'neg_adjustment');
+    const vt = canonicalVt(txn);
     const isOut = ['disposal', 'neg_adjustment', 'sales_import'].includes(vt) || txn.type === 'out';
 
     const items = txn.items?.length
@@ -560,7 +567,7 @@ const getMonthlyClosingReport = asyncHandler(async (req, res) => {
     const txnYear = txnDate.getFullYear();
     const txnMonth = txnDate.getMonth();
 
-    const vt = txn.voucherType || (txn.type === 'in' ? 'pos_adjustment' : 'neg_adjustment');
+    const vt = canonicalVt(txn);
     const isOut = ['disposal', 'neg_adjustment', 'sales_import'].includes(vt) || txn.type === 'out';
 
     const items = txn.items && txn.items.length > 0

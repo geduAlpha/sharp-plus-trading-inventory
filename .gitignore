@@ -38,3 +38,6 @@ Thumbs.db
 server/uploads/*
 !server/uploads/.gitkeep
 
+# Vite temporary timestamp files
+*.timestamp-*.mjs
+

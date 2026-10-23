@@ -198,11 +198,12 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched({ email: true, password: true });
-    if (!email.trim() || !password) return;
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) return;
     setServerError('');
     setLoading(true);
     try {
-      await login(email, password, otpToken || undefined);
+      await login(cleanEmail, password, otpToken || undefined);
       navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
       const msg = err.response?.data?.message ||

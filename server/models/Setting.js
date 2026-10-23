@@ -1,16 +1,16 @@
 const mongoose = require('mongoose');
 
 const DEFAULT_NAV_VISIBILITY = {
-  dashboard: { storekeeper: true, manager: true, admin: true },
-  Items: { storekeeper: true, manager: true, admin: true },
-  items: { storekeeper: true, manager: true, admin: true },
-  products: { storekeeper: true, manager: true, admin: true },
-  stockMovements: { storekeeper: true, manager: true, admin: true },
-  suppliers: { storekeeper: false, manager: true, admin: true },
-  consumption: { storekeeper: true, manager: true, admin: true },
-  reports: { storekeeper: false, manager: true, admin: true },
-  analytics: { storekeeper: false, manager: true, admin: true },
-  staffAccounts: { storekeeper: false, manager: false, admin: true },
+  dashboard: { employee: true, storekeeper: true, manager: true, admin: true },
+  Items: { employee: true, storekeeper: true, manager: true, admin: true },
+  items: { employee: true, storekeeper: true, manager: true, admin: true },
+  products: { employee: true, storekeeper: true, manager: true, admin: true },
+  stockMovements: { employee: true, storekeeper: true, manager: true, admin: true },
+  suppliers: { employee: false, storekeeper: false, manager: true, admin: true },
+  consumption: { employee: false, storekeeper: false, manager: false, admin: false },
+  reports: { employee: false, storekeeper: false, manager: true, admin: true },
+  analytics: { employee: false, storekeeper: false, manager: true, admin: true },
+  staffAccounts: { employee: false, storekeeper: false, manager: false, admin: true },
 };
 
 const settingSchema = new mongoose.Schema(
@@ -74,10 +74,187 @@ const settingSchema = new mongoose.Schema(
     rawMaterialPriceAdjustType: { type: String, default: 'percent', enum: ['percent', 'fixed'] },
     rawMaterialPriceAdjustValue: { type: Number, default: 0, min: 0 },
     // Product Selling Price Bulk Adjustment — percentage to add to ALL product selling prices
-    productSellingPriceAdjustPercent: { type: Number, default: 0, min: 0, max: 500 },
+    // ── Theme & Dynamic Sidebar Customization ────────────────────
+    themeConfig: {
+      type: Object,
+      default: () => ({ ...DEFAULT_THEME_CONFIG }),
+    },
+    sidebarConfig: {
+      type: Array,
+      default: () => JSON.parse(JSON.stringify(DEFAULT_SIDEBAR_CONFIG)),
+    },
+
+    // ── Dynamic System Modules Activation (System Owner & Developer Controlled) ──
+    modulesEnabled: {
+      type: Object,
+      default: () => ({ ...DEFAULT_MODULES_ENABLED }),
+    },
+
+    // ── System Owner & Developer Audit Trail ───────────────────────
+    auditLogs: {
+      type: Array,
+      default: () => [],
+    },
   },
   { timestamps: true }
 );
 
+const DEFAULT_MODULES_ENABLED = {
+  salesMarketing: true,
+  accounting: true,
+};
+
+const DEFAULT_THEME_CONFIG = {
+  theme: 'white', // 'navy' | 'white' | 'black' | 'gray' | 'emerald' | 'purple' | 'ocean' | 'warm' | 'teal' | 'burgundy' | 'glass' | 'adaptive' | 'nordic' | 'amber' | 'cyberpunk' | 'titanium'
+  displayMode: 'system', // 'light' | 'dark' | 'system'
+  accentColor: 'indigo', // 'indigo' | 'blue' | 'emerald' | 'amber' | 'purple' | 'cyan' | 'rose'
+  iconStyle: 'rounded', // 'rounded' | 'filled' | 'outlined' | 'sharp'
+  iconBadgeShape: 'squircle', // 'squircle' | 'circle' | 'rounded' | 'plain'
+  sidebarCompact: false,
+  sidebarStyle: 'standard', // 'standard' | 'floating' | 'rounded'
+  sidebarWidth: 'normal', // 'compact' | 'normal' | 'wide' | 'extra'
+  menuSpacing: 'comfortable', // 'compact' | 'comfortable' | 'spacious'
+  iconSize: 'medium', // 'small' | 'medium' | 'large' | 'xlarge'
+  colorfulIcons: false,
+  showSectionHeaders: true,
+  iconLibrary: 'material',
+};
+
+const DEFAULT_SIDEBAR_CONFIG = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    to: '/',
+    icon: 'DashboardRounded',
+    iconType: 'mui',
+    section: 'main',
+    navKey: 'dashboard',
+    order: 1,
+    visible: true,
+    exact: true,
+  },
+  {
+    id: 'allIds',
+    label: "All ID's",
+    icon: 'FolderRounded',
+    iconType: 'mui',
+    section: 'main',
+    isGroup: true,
+    order: 2,
+    visible: true,
+    children: [
+      { id: 'materials', label: 'Items', to: '/materials', icon: 'Inventory2Rounded', iconType: 'mui', navKey: 'items', order: 1, visible: true },
+      { id: 'products', label: 'Products', to: '/products', icon: 'RestaurantMenuRounded', iconType: 'mui', navKey: 'products', order: 2, visible: true },
+      { id: 'employees', label: 'Employees', to: '/employees', icon: 'BadgeRounded', iconType: 'mui', navKey: 'staffAccounts', order: 3, visible: true },
+      { id: 'suppliers', label: 'Suppliers', to: '/suppliers', icon: 'LocalShippingRounded', iconType: 'mui', navKey: 'suppliers', order: 4, visible: true },
+    ]
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics & P&L',
+    to: '/analytics',
+    icon: 'TrendingUpRounded',
+    iconType: 'mui',
+    section: 'main',
+    navKey: 'analytics',
+    order: 3,
+    visible: true,
+  },
+  {
+    id: 'storeOps',
+    label: 'Stock Management System',
+    icon: 'AllInboxRounded',
+    iconType: 'mui',
+    section: 'operations',
+    isGroup: true,
+    order: 4,
+    visible: true,
+    children: [
+      { id: 'movements_cash_grv', label: 'Cash Goods Receiving Voucher', to: '/transactions/cash-grv', icon: 'ShoppingBagRounded', iconType: 'mui', navKey: 'stockMovements', order: 1, visible: true },
+      { id: 'movements_credit_grv', label: 'Credit Goods Receiving Voucher', to: '/transactions/credit-grv', icon: 'CreditCardRounded', iconType: 'mui', navKey: 'stockMovements', order: 2, visible: true },
+      { id: 'movements_neg_adj', label: 'Negative Stock Adjustment Voucher', to: '/transactions/neg-adjustment', icon: 'RemoveCircleOutlineRounded', iconType: 'mui', navKey: 'stockMovements', order: 3, visible: true },
+      { id: 'movements_pos_adj', label: 'Positive Stock Adjustment Voucher', to: '/transactions/pos-adjustment', icon: 'AddCircleOutlineRounded', iconType: 'mui', navKey: 'stockMovements', order: 4, visible: true },
+      { id: 'report_inventory_count', label: 'Inventory Count', to: '/reports/inventory-count', icon: 'FactCheckRounded', iconType: 'mui', order: 5, visible: true },
+      { id: 'movements_all', label: 'All Documents', to: '/transactions', icon: 'SwapHorizRounded', iconType: 'mui', navKey: 'stockMovements', order: 6, visible: true, exact: true },
+      { id: 'movements_sales_import', label: 'Import Sales Report', to: '/sales-import', icon: 'CloudUploadRounded', iconType: 'mui', navKey: 'stockMovements', order: 7, visible: true },
+      { id: 'stock_requests', label: 'Stock Issue & Request', to: '/stock-requests', icon: 'CallSplitRounded', iconType: 'mui', order: 8, visible: true },
+    ]
+  },
+  {
+    id: 'salesMarketing',
+    label: 'Sales and Marketing MS',
+    icon: 'PointOfSaleRounded',
+    iconType: 'mui',
+    section: 'operations',
+    isGroup: true,
+    navKey: 'salesMarketing',
+    order: 5,
+    visible: true,
+    children: [
+      { id: 'sales_cash', label: 'Cash Sales', to: '/sales/cash', icon: 'PaymentsRounded', iconType: 'mui', order: 1, visible: true },
+      { id: 'sales_credit', label: 'Credit Sales', to: '/sales/credit', icon: 'ReceiptLongRounded', iconType: 'mui', order: 2, visible: true },
+    ]
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: 'AssessmentRounded',
+    iconType: 'mui',
+    section: 'operations',
+    isGroup: true,
+    navKey: 'reports',
+    order: 6,
+    visible: true,
+    children: [
+      { id: 'report_summary', label: 'Overview', to: '/reports/summary', icon: 'BarChartRounded', iconType: 'mui', order: 1, visible: true },
+      { id: 'report_balance', label: 'Stock Balance Sheet', to: '/reports/stock-balance', icon: 'BalanceRounded', iconType: 'mui', order: 2, visible: true },
+      { id: 'report_inventory_count', label: 'Inventory Count', to: '/reports/inventory-count', icon: 'FactCheckRounded', iconType: 'mui', order: 3, visible: true },
+      { id: 'report_daily', label: 'Daily Report', to: '/reports/daily', icon: 'TodayRounded', iconType: 'mui', order: 4, visible: true },
+      { id: 'report_cash_grv', label: 'Cash GRV Report', to: '/reports/cash-grv', icon: 'ShoppingBagRounded', iconType: 'mui', order: 5, visible: true },
+      { id: 'report_credit_grv', label: 'Credit GRV Report', to: '/reports/credit-grv', icon: 'CreditCardRounded', iconType: 'mui', order: 6, visible: true },
+      { id: 'report_pos_adj', label: '+ve Adjustment Report', to: '/reports/pos-adjustment', icon: 'TrendingUpRounded', iconType: 'mui', order: 7, visible: true },
+      { id: 'report_disposal', label: 'Disposal Report', to: '/reports/disposal', icon: 'LocalFireDepartmentRounded', iconType: 'mui', order: 8, visible: false },
+      { id: 'report_neg_adj', label: '−ve Adjustment Report', to: '/reports/neg-adjustment', icon: 'TrendingDownRounded', iconType: 'mui', order: 9, visible: true },
+      { id: 'report_levels', label: 'Stock Levels', to: '/reports/stock-levels', icon: 'AllInboxRounded', iconType: 'mui', order: 10, visible: true },
+      { id: 'report_purchases', label: 'Purchase History', to: '/reports/purchases', icon: 'ShoppingCartRounded', iconType: 'mui', order: 11, visible: true },
+    ]
+  },
+  {
+    id: 'staffAccounts',
+    label: 'Staff Accounts',
+    to: '/users',
+    icon: 'GroupRounded',
+    iconType: 'mui',
+    section: 'admin',
+    navKey: 'staffAccounts',
+    order: 7,
+    visible: true,
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    to: '/settings',
+    icon: 'SettingsRounded',
+    iconType: 'mui',
+    section: 'admin',
+    order: 8,
+    visible: true,
+  },
+  {
+    id: 'recycleBin',
+    label: 'Recycle Bin',
+    to: '/recycle-bin',
+    icon: 'DeleteOutlineRounded',
+    iconType: 'mui',
+    section: 'admin',
+    navKey: 'recycleBin',
+    order: 9,
+    visible: true,
+  }
+];
+
 module.exports = mongoose.model('Setting', settingSchema);
 module.exports.DEFAULT_NAV_VISIBILITY = DEFAULT_NAV_VISIBILITY;
+module.exports.DEFAULT_THEME_CONFIG = DEFAULT_THEME_CONFIG;
+module.exports.DEFAULT_SIDEBAR_CONFIG = DEFAULT_SIDEBAR_CONFIG;
+module.exports.DEFAULT_MODULES_ENABLED = DEFAULT_MODULES_ENABLED;

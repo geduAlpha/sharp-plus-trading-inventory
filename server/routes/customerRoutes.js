@@ -6,8 +6,10 @@ const {
   updateCustomer,
 } = require('../controllers/customerController');
 const { protect } = require('../middleware/authMiddleware');
+const { checkModuleEnabled } = require('../middleware/moduleGateMiddleware');
 
 router.use(protect);
+router.use(checkModuleEnabled('salesMarketing'));
 
 router.route('/')
   .get(getCustomers)

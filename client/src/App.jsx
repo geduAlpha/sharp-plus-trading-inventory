@@ -25,6 +25,7 @@ import CashSales from './pages/CashSales';
 import CreditSales from './pages/CreditSales';
 import RegisterCompany from './pages/RegisterCompany';
 import DeveloperConsole from './pages/DeveloperConsole';
+import ModuleGuard from './components/ModuleGuard';
 
 function App() {
   return (
@@ -54,9 +55,9 @@ function App() {
             <Route path="/transactions/pos-adjustment" element={<StockTransactions defaultVoucher="pos_adjustment" />} />
             <Route path="/transactions/disposal" element={<StockTransactions defaultVoucher="disposal" />} />
             <Route path="/transactions/neg-adjustment" element={<StockTransactions defaultVoucher="neg_adjustment" />} />
-            <Route path="/sales-import" element={<SalesImport />} />
-            <Route path="/sales/cash" element={<CashSales />} />
-            <Route path="/sales/credit" element={<CreditSales />} />
+            <Route path="/sales-import" element={<ModuleGuard moduleKey="salesMarketing"><SalesImport /></ModuleGuard>} />
+            <Route path="/sales/cash" element={<ModuleGuard moduleKey="salesMarketing"><CashSales /></ModuleGuard>} />
+            <Route path="/sales/credit" element={<ModuleGuard moduleKey="salesMarketing"><CreditSales /></ModuleGuard>} />
             <Route
               path="/stock-requests"
               element={
