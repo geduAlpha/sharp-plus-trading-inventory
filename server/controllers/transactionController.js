@@ -787,6 +787,23 @@ const updateTransaction = asyncHandler(async (req, res) => {
 
 // ── DELETE /api/transactions/:id ──────────────────────────────────────
 const deleteTransaction = asyncHandler(async (req, res) => {
+  // STRICT SECURITY: Only Developer and Admin can delete/void transactions.
+  // Admin must have explicit authority granted by the System Developer/Owner.
+  if (req.user?.role === 'developer') {
+    // Unrestricted developer access
+  } else if (req.user?.role === 'admin') {
+    const Setting = require('../models/Setting');
+    const settings = await Setting.findOne();
+    const adminAllowed = Boolean(settings?.allowAdminVoidDelete || settings?.rolePermissions?.voidTransactions?.admin);
+    if (!adminAllowed) {
+      res.status(403);
+      throw new Error('Access denied: System Developer/Owner has not granted Admin permission to void or delete transactions.');
+    }
+  } else {
+    res.status(403);
+    throw new Error('Access denied: Only Developer and authorized Admin can delete or void transactions.');
+  }
+
   const transaction = await StockTransaction.findById(req.params.id);
   if (!transaction) { res.status(404); throw new Error('Transaction not found'); }
 
@@ -817,6 +834,23 @@ const deleteTransaction = asyncHandler(async (req, res) => {
 });
 
 const bulkDeleteTransactions = asyncHandler(async (req, res) => {
+  // STRICT SECURITY: Only Developer and Admin can delete/void transactions.
+  // Admin must have explicit authority granted by the System Developer/Owner.
+  if (req.user?.role === 'developer') {
+    // Unrestricted developer access
+  } else if (req.user?.role === 'admin') {
+    const Setting = require('../models/Setting');
+    const settings = await Setting.findOne();
+    const adminAllowed = Boolean(settings?.allowAdminVoidDelete || settings?.rolePermissions?.voidTransactions?.admin);
+    if (!adminAllowed) {
+      res.status(403);
+      throw new Error('Access denied: System Developer/Owner has not granted Admin permission to void or delete transactions.');
+    }
+  } else {
+    res.status(403);
+    throw new Error('Access denied: Only Developer and authorized Admin can delete or void transactions.');
+  }
+
   const { ids } = req.body;
   if (!ids?.length) { res.status(400); throw new Error('No ids provided'); }
 
@@ -969,6 +1003,24 @@ const advanceTransaction = asyncHandler(async (req, res) => {
   if (!allowed) {
     res.status(403);
     throw new Error(`Your role (${actor.role}) does not have permission to "${action}" vouchers`);
+  }
+
+  // STRICT SECURITY: Voiding can only be performed by Developer and authorized Admin
+  if (action === 'void') {
+    if (actor.role === 'developer') {
+      // Unrestricted developer access
+    } else if (actor.role === 'admin') {
+      const Setting = require('../models/Setting');
+      const settings = await Setting.findOne();
+      const adminAllowed = Boolean(settings?.allowAdminVoidDelete || settings?.rolePermissions?.voidTransactions?.admin);
+      if (!adminAllowed) {
+        res.status(403);
+        throw new Error('Access denied: System Developer/Owner has not granted Admin permission to void transactions.');
+      }
+    } else {
+      res.status(403);
+      throw new Error('Access denied: Only Developer and authorized Admin can void transactions.');
+    }
   }
 
   // Anti-self-approval rule (Segregation of Duties)

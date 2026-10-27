@@ -93,7 +93,8 @@ const updateSettings = asyncHandler(async (req, res) => {
     req.body.themeConfig !== undefined ||
     req.body.sidebarConfig !== undefined ||
     req.body.modulesEnabled !== undefined ||
-    req.body.allowAdminManagePermissions !== undefined;
+    req.body.allowAdminManagePermissions !== undefined ||
+    req.body.allowAdminVoidDelete !== undefined;
 
   if (isPrivilegedSettingUpdate && req.user?.role !== 'developer') {
     res.status(403);
@@ -137,6 +138,19 @@ const updateSettings = asyncHandler(async (req, res) => {
     settings.auditLogs.unshift({
       action: 'ADMIN_DELEGATION_TOGGLED',
       details: `Administrator employee permission management authority set to ${settings.allowAdminManagePermissions ? 'ENABLED' : 'DISABLED'} by System Developer & Owner`,
+      actorId: req.user?._id,
+      actorName: req.user?.name || 'System Developer & Owner',
+      actorRole: 'developer',
+      timestamp: new Date(),
+    });
+  }
+
+  if (req.body.allowAdminVoidDelete !== undefined && req.user?.role === 'developer') {
+    settings.allowAdminVoidDelete = Boolean(req.body.allowAdminVoidDelete);
+    if (!Array.isArray(settings.auditLogs)) settings.auditLogs = [];
+    settings.auditLogs.unshift({
+      action: 'ADMIN_VOID_DELETE_DELEGATION_TOGGLED',
+      details: `Administrator transaction void & delete authority set to ${settings.allowAdminVoidDelete ? 'ENABLED' : 'DISABLED'} by System Developer & Owner`,
       actorId: req.user?._id,
       actorName: req.user?.name || 'System Developer & Owner',
       actorRole: 'developer',

@@ -173,6 +173,7 @@ export const AuthProvider = ({ children }) => {
   const [rolePermissions, setRolePermissions] = useState(DEFAULT_PERMISSIONS);
   const [navVisibility, setNavVisibility] = useState(DEFAULT_NAV_VISIBILITY);
   const [allowAdminManagePermissions, setAllowAdminManagePermissions] = useState(false);
+  const [allowAdminVoidDelete, setAllowAdminVoidDelete] = useState(false);
   const [modulesEnabled, setModulesEnabled] = useState(() => {
     try {
       const saved = localStorage.getItem('companyModulesEnabled');
@@ -206,6 +207,9 @@ export const AuthProvider = ({ children }) => {
       }
       if (res.data?.allowAdminManagePermissions !== undefined) {
         setAllowAdminManagePermissions(Boolean(res.data.allowAdminManagePermissions));
+      }
+      if (res.data?.allowAdminVoidDelete !== undefined) {
+        setAllowAdminVoidDelete(Boolean(res.data.allowAdminVoidDelete));
       }
       if (res.data?.modulesEnabled && typeof res.data.modulesEnabled === 'object') {
         setModulesEnabled(res.data.modulesEnabled);
@@ -409,8 +413,20 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
+    const isVoidOrDelete =
+      capability === 'voidTransactions' ||
+      (action && ['void', 'delete'].includes(action) && ['stockMovements', 'purchases', 'transactions'].includes(capability));
+
+    // ONLY Developer and Admin can ever void/delete transactions; all other roles are strictly prohibited
+    if (isVoidOrDelete && user.role !== 'developer' && user.role !== 'admin') {
+      return false;
+    }
+
     // 2. Admin role default
     if (user.role === 'admin') {
+      if (isVoidOrDelete) {
+        return Boolean(allowAdminVoidDelete || rolePermissions?.voidTransactions?.admin);
+      }
       if (action) {
         for (const ak of actionKeys) {
           if (rolePermissions?.[capability]?.[ak]?.admin === false) return false;
@@ -613,6 +629,7 @@ export const AuthProvider = ({ children }) => {
         modulesEnabled,
         setModulesEnabled,
         allowAdminManagePermissions,
+        allowAdminVoidDelete,
         companyInfo,
         setCompanyInfo,
         updateCompanyInfo,

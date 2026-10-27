@@ -193,7 +193,22 @@ const hasPermission = async (userOrRole, capability, action) => {
   // 2. Global Role Permissions
   const rolePermissions = await getCachedRolePermissions();
 
+  const isVoidOrDelete =
+    capability === 'voidTransactions' ||
+    (action && ['void', 'delete'].includes(action) && ['stockMovements', 'purchases', 'transactions'].includes(capability));
+
+  // ONLY Developer and Admin can ever void/delete transactions; all other roles are strictly prohibited
+  if (isVoidOrDelete && role !== 'developer' && role !== 'admin') {
+    return false;
+  }
+
   if (role === 'admin') {
+    // Admin access must be given by the System Developer/Owner to delete/void
+    if (isVoidOrDelete) {
+      const hasVoidAdminAuth = Boolean(cachedSettings?.allowAdminVoidDelete || rolePermissions?.voidTransactions?.admin);
+      if (!hasVoidAdminAuth) return false;
+    }
+
     // Admin has access unless specifically set to false for admin
     if (action) {
       for (const ak of actionKeys) {

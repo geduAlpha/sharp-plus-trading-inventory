@@ -46,6 +46,11 @@ const settingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Authority Delegation: Developer/Owner can grant System Admin authority to void and delete inventory transactions (GRVs, etc.)
+    allowAdminVoidDelete: {
+      type: Boolean,
+      default: false,
+    },
     // Telegram bot subscribers — array of { chatId, name, username, subscribedAt }
     telegramSubscribers: {
       type: Array,

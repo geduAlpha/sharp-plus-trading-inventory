@@ -1451,6 +1451,18 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                   </button>
                 )}
 
+                {editingTxn.status !== 'voided' && canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => openApproveModal(editingTxn, 'void')}
+                    className="flex items-center gap-1 px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition"
+                    title="Void this voucher and reverse stock automatically"
+                  >
+                    <Ban size={14} />
+                    <span>Void</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handleShowDetails(editingTxn)}
@@ -3159,6 +3171,19 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                 Print Voucher
               </Button>
               <div className="flex gap-2">
+                {detailTxn.status !== 'voided' && canDelete && (
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      setDetailOpen(false);
+                      openApproveModal(detailTxn, 'void');
+                    }}
+                    className="bg-rose-600 hover:bg-rose-700 text-white"
+                  >
+                    <Ban size={14} className="mr-1" />
+                    Void Voucher
+                  </Button>
+                )}
                 {detailTxn.status === 'pending' && canEdit && (
                   <Button variant="primary" onClick={() => { setDetailOpen(false); handleOpenEdit(detailTxn); }}>
                     Edit in Preparation

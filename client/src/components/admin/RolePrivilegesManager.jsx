@@ -246,6 +246,8 @@ export default function RolePrivilegesManager() {
   // Authority Delegation state
   const [allowAdminManage, setAllowAdminManage] = useState(false);
   const [togglingAdminAuth, setTogglingAdminAuth] = useState(false);
+  const [allowAdminVoidDelete, setAllowAdminVoidDelete] = useState(false);
+  const [togglingAdminVoidAuth, setTogglingAdminVoidAuth] = useState(false);
 
   // Company-Level Sales & Marketing Module Activation State (Developer Controlled)
   const [salesMarketingEnabled, setSalesMarketingEnabled] = useState(true);
@@ -303,6 +305,9 @@ export default function RolePrivilegesManager() {
       if (res.data?.allowAdminManagePermissions !== undefined) {
         setAllowAdminManage(Boolean(res.data.allowAdminManagePermissions));
       }
+      if (res.data?.allowAdminVoidDelete !== undefined) {
+        setAllowAdminVoidDelete(Boolean(res.data.allowAdminVoidDelete));
+      }
       if (res.data?.modulesEnabled?.salesMarketing !== undefined) {
         setSalesMarketingEnabled(Boolean(res.data.modulesEnabled.salesMarketing));
       }
@@ -352,6 +357,29 @@ export default function RolePrivilegesManager() {
       });
     } finally {
       setTogglingAdminAuth(false);
+    }
+  };
+
+  // Developer toggle to authorize System Admin to void and delete inventory transactions (GRVs, etc.)
+  const handleToggleAdminVoidDelete = async (enable) => {
+    if (!isDeveloper) return;
+    setTogglingAdminVoidAuth(true);
+    try {
+      await api.put('/settings', { allowAdminVoidDelete: enable });
+      setAllowAdminVoidDelete(enable);
+      await refreshPermissions();
+      setFeedback({
+        type: 'success',
+        message: `System Admin authority to Void & Delete transactions (GRVs, Sales, Adjustments) has been ${enable ? 'AUTHORIZED' : 'REVOKED'}.`,
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to update transaction void/delete delegation authority.',
+      });
+    } finally {
+      setTogglingAdminVoidAuth(false);
     }
   };
 
@@ -842,7 +870,7 @@ export default function RolePrivilegesManager() {
 
       {/* ── Developer Authority Delegation & System Master Controls (Exclusive to System Developer/Owner) ── */}
       {isDeveloper && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Card 1: System Admin Permission Delegation Authority */}
           <div className="rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-indigo-50/90 via-white to-blue-50/90 p-4 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -865,7 +893,6 @@ export default function RolePrivilegesManager() {
                   </div>
                   <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
                     Authorize the System Admin to assign or revoke module access and feature privileges for individual employees.
-                    As System Developer &amp; Owner, you retain ultimate authority at all times.
                   </p>
                 </div>
               </div>
@@ -893,7 +920,56 @@ export default function RolePrivilegesManager() {
             </div>
           </div>
 
-          {/* Card 2: Company Access to Sales & Marketing MS (Master Switch) */}
+          {/* Card 2: Admin Transaction Void & Delete Authority (Exclusive Developer Control) */}
+          <div className="rounded-2xl border border-rose-200/90 bg-gradient-to-r from-rose-50/90 via-white to-amber-50/90 p-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl p-2 bg-rose-600 text-white shadow-xs shrink-0 mt-0.5">
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Admin Void &amp; Delete Access
+                    </h4>
+                    <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                      allowAdminVoidDelete
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border-rose-300'
+                    }`}>
+                      {allowAdminVoidDelete ? 'ADMINS AUTHORIZED' : 'DEVELOPER EXCLUSIVE'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
+                    Grant System Admin authority to void or delete transactions (GRVs, Sales, Adjustments). When disabled, only the Developer can void/delete.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                <span className="text-xs font-bold text-slate-700">
+                  {allowAdminVoidDelete ? 'Active' : 'Disabled'}
+                </span>
+                <button
+                  type="button"
+                  disabled={togglingAdminVoidAuth}
+                  onClick={() => handleToggleAdminVoidDelete(!allowAdminVoidDelete)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    allowAdminVoidDelete ? 'bg-rose-600' : 'bg-slate-300'
+                  } ${togglingAdminVoidAuth ? 'opacity-60 cursor-wait' : ''}`}
+                  title="Toggle System Admin authority to void and delete inventory transactions"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      allowAdminVoidDelete ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Company Access to Sales & Marketing MS (Master Switch) */}
           <div className="rounded-2xl border border-violet-200/90 bg-gradient-to-r from-violet-50/90 via-white to-purple-50/90 p-4 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -903,18 +979,18 @@ export default function RolePrivilegesManager() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="text-sm font-bold text-slate-900">
-                      Company Access: Sales &amp; Marketing MS
+                      Company Access: Sales MS
                     </h4>
                     <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
                       salesMarketingEnabled
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                         : 'bg-rose-100 text-rose-800 border-rose-300'
                     }`}>
-                      {salesMarketingEnabled ? 'ACTIVE FOR COMPANY' : 'HIDDEN FROM SIDEBAR'}
+                      {salesMarketingEnabled ? 'ACTIVE' : 'HIDDEN'}
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
-                    Master ON/OFF gate for the Sales &amp; Marketing MS. When switched OFF by the Owner, all sales menus (Cash Sales, Credit Sales, Sales Import) cannot be shown in the sidebar to company staff. You retain full CRUD execution at all times.
+                    Master gate for Sales &amp; Marketing MS. When switched OFF by the Owner, all sales menus are hidden from company staff.
                   </p>
                 </div>
               </div>
