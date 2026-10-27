@@ -18,28 +18,61 @@ const updateUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) { res.status(404); throw new Error('User not found'); }
 
-  // Authority boundary: Only System Developer can assign or remove 'developer' role
-  if (req.body.role && req.body.role === 'developer' && req.user?.role !== 'developer') {
+  // Authority boundary: Only System Developer/Owner can assign Developer or Admin roles
+  if (req.body.role && ['developer', 'admin'].includes(req.body.role) && req.user?.role !== 'developer') {
     res.status(403);
-    throw new Error('Access denied: Only the System Developer/Owner can assign the Developer role.');
+    throw new Error('Access denied: Only the System Developer/Owner can assign Developer or Administrator roles.');
   }
 
-  // Authority boundary: Administrators cannot modify Developer accounts
-  if (user.role === 'developer' && req.user?.role !== 'developer') {
+  // Authority boundary: Administrators cannot modify Developer or Admin accounts
+  if (['developer', 'admin'].includes(user.role) && req.user?.role !== 'developer' && String(user._id) !== String(req.user?._id)) {
     res.status(403);
-    throw new Error('Access denied: You cannot modify a System Developer account without Developer privileges.');
+    throw new Error('Access denied: You cannot modify Developer or Administrator accounts without Developer privileges.');
   }
 
   // Authority boundary: Employees cannot modify other user accounts
-  if (req.user?.role === 'employee' || ['storekeeper', 'cashier'].includes(req.user?.role)) {
+  if (req.user?.role === 'employee' || ['storekeeper', 'cashier', 'manager'].includes(req.user?.role)) {
     res.status(403);
     throw new Error('Access denied: Employees cannot manage user accounts or permissions.');
   }
 
-  // Authority boundary: Only System Developer/Owner can configure custom user permissions
+  // Authority boundary: Permission delegation logic
+  // Only System Developer/Owner has full control; System Admin can manage employee permissions ONLY when authorized by Developer
   if (req.body.customPermissions !== undefined && req.user?.role !== 'developer') {
-    res.status(403);
-    throw new Error('Access denied: Only the authenticated System Developer & Owner can manage individual user permission overrides.');
+    const Setting = require('../models/Setting');
+    const currentSettings = await Setting.findOne();
+    const isAuthorizedAdmin = req.user?.role === 'admin' && Boolean(currentSettings?.allowAdminManagePermissions);
+
+    if (!isAuthorizedAdmin) {
+      res.status(403);
+      throw new Error('Access denied: Only the System Developer/Owner (or an authorized Administrator) can configure employee permissions.');
+    }
+
+    // Even when authorized by Developer, Admin CANNOT modify permissions for Developer or Admin accounts
+    if (['developer', 'admin'].includes(user.role)) {
+      res.status(403);
+      throw new Error('Access denied: Administrators cannot modify privileges for Developer or Administrator accounts.');
+    }
+
+    // Authority boundary: Administrators cannot grant or alter Sales and Marketing MS privileges for employees (Owner-exclusive)
+    const SALES_KEYS = ['salesMarketing', 'cashSales', 'creditSales', 'customers', 'sales_cash', 'sales_credit'];
+    const existingSalesPerms = {};
+    if (user.customPermissions && typeof user.customPermissions === 'object') {
+      SALES_KEYS.forEach(k => {
+        if (user.customPermissions[k] !== undefined) {
+          existingSalesPerms[k] = user.customPermissions[k];
+        }
+      });
+    }
+
+    if (req.body.customPermissions && typeof req.body.customPermissions === 'object') {
+      SALES_KEYS.forEach(k => {
+        delete req.body.customPermissions[k];
+        if (existingSalesPerms[k] !== undefined) {
+          req.body.customPermissions[k] = existingSalesPerms[k];
+        }
+      });
+    }
   }
 
   const wasActive = user.isActive;

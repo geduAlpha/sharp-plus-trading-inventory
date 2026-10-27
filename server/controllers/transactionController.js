@@ -843,11 +843,17 @@ const bulkDeleteTransactions = asyncHandler(async (req, res) => {
 });
 
 const restoreTransaction = asyncHandler(async (req, res) => {
+  // STRICT SECURITY: Only System Developer & Owner can restore transactions
+  if (req.user?.role !== 'developer') {
+    res.status(403);
+    throw new Error('Access denied: Only the System Developer & Owner can restore transactions from the Recycle Bin.');
+  }
+
   const transaction = await StockTransaction.findById(req.params.id);
   if (!transaction) { res.status(404); throw new Error('Transaction not found'); }
 
   const direction = transaction.type || VOUCHER_DIRECTION[transaction.voucherType];
-  if (!transaction.stockApplied && transaction.status !== 'voided') {
+  if (!transaction.stockApplied) {
     const items = transaction.items?.length
       ? transaction.items
       : [{ material: transaction.material, quantity: transaction.quantity, storeLocation: transaction.storeLocation }];
@@ -865,6 +871,19 @@ const restoreTransaction = asyncHandler(async (req, res) => {
       updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment'].includes(transaction.voucherType),
     });
     transaction.stockApplied = true;
+  }
+
+  // If status was voided, reset to pending
+  if (transaction.status === 'voided') {
+    transaction.status = 'pending';
+    transaction.trail = transaction.trail || [];
+    transaction.trail.push({
+      action: 'restored',
+      by: req.user._id,
+      byName: req.user.name,
+      byRole: req.user.role,
+      note: 'Restored from Recycle Bin by System Developer & Owner',
+    });
   }
 
   transaction.deletedAt   = null;
@@ -1013,6 +1032,10 @@ const advanceTransaction = asyncHandler(async (req, res) => {
       });
       txn.stockApplied = false;
     }
+    // Automatically move voided transaction to recycle bin
+    txn.deletedAt   = new Date();
+    txn.deletedBy   = actor.name || 'System';
+    txn.deletedFrom = 'transactions';
   }
 
   await txn.save();

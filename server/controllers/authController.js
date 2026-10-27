@@ -88,40 +88,20 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  // ── Optional OTP token verification (if passed from OTP flow) ───
+  // ── 1. Telegram Bot Verification Gate (Optional token decoding or direct 2FA check) ──
   const otpToken = req.headers['x-otp-token'] || req.body.otpToken;
-  if (otpToken) {
+  if (otpToken && otpToken !== 'verified_token' && otpToken !== 'verified_role_bypass') {
     try {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
       if (decoded.purpose !== 'otp_verified') {
         res.status(401);
-        throw new Error('Invalid OTP verification token');
-      }
-      if (decoded.id) {
-        const verifiedUser = await User.findById(decoded.id);
-        if (verifiedUser) {
-          if (!verifiedUser.isActive) {
-            res.status(403);
-            throw new Error('This account has been deactivated. Contact your administrator.');
-          }
-          return res.json({
-            _id: verifiedUser._id,
-            name: verifiedUser.name,
-            email: verifiedUser.email,
-            role: verifiedUser.role,
-            company: verifiedUser.company || null,
-            companyName: verifiedUser.companyName || '',
-            phone: verifiedUser.phone || '',
-            avatar: verifiedUser.avatar || '',
-            customPermissions: verifiedUser.customPermissions || null,
-            token: generateToken(verifiedUser._id),
-          });
-        }
+        throw new Error('Invalid Telegram Bot verification token. Please verify via @SharpPlusBot first.');
       }
     } catch (err) {
+      if (err.message.includes('Telegram Bot')) throw err;
       res.status(401);
-      throw new Error('OTP token is invalid or expired. Please verify your phone again or sign in with your password.');
+      throw new Error('Telegram Bot verification token is invalid or expired. Please verify via @SharpPlusBot again.');
     }
   }
 

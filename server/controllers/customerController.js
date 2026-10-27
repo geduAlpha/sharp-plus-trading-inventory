@@ -9,7 +9,7 @@ const getCustomers = asyncHandler(async (req, res) => {
   const { search } = req.query;
 
   // 1. Fetch registered customers
-  const query = { isActive: true };
+  const query = { isActive: true, deletedAt: null };
   if (search) {
     query.$or = [
       { name: { $regex: search, $options: 'i' } },
@@ -20,11 +20,13 @@ const getCustomers = asyncHandler(async (req, res) => {
 
   const registeredCustomers = await Customer.find(query).sort({ name: 1 }).lean();
 
-  // 2. Fetch unique historical/imported customers from transactions
+  // 2. Fetch unique historical/imported customers from non-deleted transactions
   const txnCustomers = await StockTransaction.aggregate([
     {
       $match: {
         customerName: { $exists: true, $ne: '', $nin: ['Walk-in Customer', null] },
+        deletedAt: null,
+        status: { $ne: 'voided' },
       },
     },
     {
@@ -154,8 +156,53 @@ const updateCustomer = asyncHandler(async (req, res) => {
   res.json({ ...customer.toObject(), source: 'registered' });
 });
 
+// @desc    Delete a customer (soft-delete to recycle bin)
+// @route   DELETE /api/customers/:id
+// @access  Private
+const deleteCustomer = asyncHandler(async (req, res) => {
+  const customer = await Customer.findById(req.params.id);
+  if (!customer) {
+    res.status(404);
+    throw new Error('Customer not found');
+  }
+
+  customer.isActive = false;
+  customer.deletedAt = new Date();
+  customer.deletedBy = req.user?.name || 'System';
+  customer.deletedFrom = 'customers';
+  await customer.save();
+
+  res.json({ message: 'Customer moved to recycle bin.' });
+});
+
+// @desc    Restore a customer (Developer only)
+// @route   POST /api/customers/:id/restore
+// @access  Private (Developer only)
+const restoreCustomer = asyncHandler(async (req, res) => {
+  if (req.user?.role !== 'developer') {
+    res.status(403);
+    throw new Error('Access denied: Only the System Developer & Owner can restore customers.');
+  }
+
+  const customer = await Customer.findById(req.params.id);
+  if (!customer) {
+    res.status(404);
+    throw new Error('Customer not found');
+  }
+
+  customer.isActive = true;
+  customer.deletedAt = null;
+  customer.deletedBy = null;
+  customer.deletedFrom = null;
+  await customer.save();
+
+  res.json({ message: 'Customer restored successfully.', customer });
+});
+
 module.exports = {
   getCustomers,
   createCustomer,
   updateCustomer,
+  deleteCustomer,
+  restoreCustomer,
 };

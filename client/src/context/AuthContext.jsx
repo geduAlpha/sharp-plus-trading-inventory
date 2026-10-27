@@ -172,6 +172,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [rolePermissions, setRolePermissions] = useState(DEFAULT_PERMISSIONS);
   const [navVisibility, setNavVisibility] = useState(DEFAULT_NAV_VISIBILITY);
+  const [allowAdminManagePermissions, setAllowAdminManagePermissions] = useState(false);
+  const [modulesEnabled, setModulesEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem('companyModulesEnabled');
+      return saved ? JSON.parse(saved) : { salesMarketing: true, accounting: true };
+    } catch {
+      return { salesMarketing: true, accounting: true };
+    }
+  });
   const [companyInfo, setCompanyInfo] = useState(() => {
     try {
       const saved = localStorage.getItem('companyProfileInfo');
@@ -194,6 +203,30 @@ export const AuthProvider = ({ children }) => {
       if (res.data?.navVisibility) {
         setNavVisibility(res.data.navVisibility);
         localStorage.setItem('companyStockNavVisibility', JSON.stringify(res.data.navVisibility));
+      }
+      if (res.data?.allowAdminManagePermissions !== undefined) {
+        setAllowAdminManagePermissions(Boolean(res.data.allowAdminManagePermissions));
+      }
+      if (res.data?.modulesEnabled && typeof res.data.modulesEnabled === 'object') {
+        setModulesEnabled(res.data.modulesEnabled);
+        localStorage.setItem('companyModulesEnabled', JSON.stringify(res.data.modulesEnabled));
+      }
+      // Sync fresh user custom permissions if session is active
+      try {
+        const stored = localStorage.getItem('companyStockAuth') || localStorage.getItem('hotelStockAuth');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.token) {
+            const meRes = await api.get('/auth/me');
+            if (meRes.data) {
+              const freshUser = { ...parsed, ...meRes.data, token: parsed.token };
+              setUser(freshUser);
+              localStorage.setItem('companyStockAuth', JSON.stringify(freshUser));
+            }
+          }
+        }
+      } catch (meErr) {
+        // Silent fallback to existing user session
       }
       if (res.data) {
         const info = {
@@ -224,8 +257,12 @@ export const AuthProvider = ({ children }) => {
       const cachedRP = localStorage.getItem('companyStockPermissions');
       const cachedNV = localStorage.getItem('companyStockNavVisibility');
       const cachedCI = localStorage.getItem('companyProfileInfo');
+      const cachedME = localStorage.getItem('companyModulesEnabled');
       if (cachedRP) setRolePermissions(JSON.parse(cachedRP));
       if (cachedNV) setNavVisibility(JSON.parse(cachedNV));
+      if (cachedME) {
+        try { setModulesEnabled(JSON.parse(cachedME)); } catch {}
+      }
       if (cachedCI) {
         try { setCompanyInfo(JSON.parse(cachedCI)); } catch {}
       }
@@ -428,29 +465,86 @@ export const AuthProvider = ({ children }) => {
     return user.role === 'admin' || can('approveGoods');
   };
 
-  /** Check whether a sidebar nav section is visible for this user's role */
+  /** Check whether a sidebar nav section is visible for this user's role and custom permissions */
   const canSeeNav = (navKey) => {
     if (!user) return false;
-    // Developer can access every single section
+    // Developer role has universal owner access to every single section
     if (user.role === 'developer') return true;
+    if (!navKey) return true;
 
+    // Company-level Sales & Marketing gate: Owner must have enabled it for company users to see it
+    const isSalesKey =
+      navKey === 'salesMarketing' ||
+      navKey === 'cashSales' ||
+      navKey === 'creditSales' ||
+      navKey === 'sales_cash' ||
+      navKey === 'sales_credit';
+
+    if (isSalesKey && modulesEnabled?.salesMarketing === false && user.role !== 'developer') {
+      return false;
+    }
+
+    // Special composite group checks
+    if (navKey === 'salesMarketing') {
+      return canSeeNav('cashSales') || canSeeNav('creditSales');
+    }
+    if (navKey === 'storeOps') {
+      return (
+        canSeeNav('purchases') ||
+        canSeeNav('stockMovements') ||
+        canSeeNav('stockRequests') ||
+        canSeeNav('inventoryCount')
+      );
+    }
+
+    // 1. Direct Employee Custom Permissions Override (Managed via Role Privileges)
+    if (user.customPermissions && typeof user.customPermissions === 'object') {
+      const custom = user.customPermissions;
+      const lower = navKey.toLowerCase();
+
+      // Check exact key
+      if (typeof custom[navKey] === 'boolean') return custom[navKey];
+      if (custom[navKey] && typeof custom[navKey] === 'object') {
+        if (typeof custom[navKey].view === 'boolean') return custom[navKey].view;
+        if (typeof custom[navKey].read === 'boolean') return custom[navKey].read;
+      }
+
+      // Check lowercase alias
+      if (typeof custom[lower] === 'boolean') return custom[lower];
+      if (custom[lower] && typeof custom[lower] === 'object') {
+        if (typeof custom[lower].view === 'boolean') return custom[lower].view;
+        if (typeof custom[lower].read === 'boolean') return custom[lower].read;
+      }
+    }
+
+    // 2. Role Permissions Matrix Check
+    if (rolePermissions) {
+      const capKey = rolePermissions[navKey] ? navKey : rolePermissions[navKey.toLowerCase()] ? navKey.toLowerCase() : null;
+      if (capKey) {
+        return can(capKey, 'view') || can(capKey, 'read') || can(capKey);
+      }
+    }
+
+    // 3. Fallback to navVisibility dictionary if defined
     const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
     const entry =
       nav[navKey] ||
       nav[navKey.toLowerCase()] ||
       (navKey.toLowerCase() === 'items' ? (nav['Items'] || nav['items'] || nav['rawMaterials']) : undefined);
-    if (!entry) return true;
-    if (entry[user.role] !== undefined) return Boolean(entry[user.role]);
+    if (entry && entry[user.role] !== undefined) {
+      return Boolean(entry[user.role]);
+    }
+
+    // 4. Default: Admin is allowed by default; employees check general capability
     if (user.role === 'admin') return true;
-    const def = DEFAULT_NAV_VISIBILITY[navKey] || DEFAULT_NAV_VISIBILITY[navKey.toLowerCase()];
-    if (def && def[user.role] !== undefined) return Boolean(def[user.role]);
-    return true;
+    return can(navKey, 'view') || can(navKey);
   };
 
   const refreshPermissions = async (newSettings) => {
     if (newSettings) {
       const rp = newSettings.rolePermissions ?? newSettings;
       const nv = newSettings.navVisibility ?? null;
+      const me = newSettings.modulesEnabled ?? null;
 
       setRolePermissions(rp);
       localStorage.setItem('companyStockPermissions', JSON.stringify(rp));
@@ -458,6 +552,10 @@ export const AuthProvider = ({ children }) => {
       if (nv) {
         setNavVisibility(nv);
         localStorage.setItem('companyStockNavVisibility', JSON.stringify(nv));
+      }
+      if (me) {
+        setModulesEnabled(me);
+        localStorage.setItem('companyModulesEnabled', JSON.stringify(me));
       }
       return newSettings;
     }
@@ -512,6 +610,9 @@ export const AuthProvider = ({ children }) => {
         canSeeNav,
         rolePermissions,
         navVisibility,
+        modulesEnabled,
+        setModulesEnabled,
+        allowAdminManagePermissions,
         companyInfo,
         setCompanyInfo,
         updateCompanyInfo,

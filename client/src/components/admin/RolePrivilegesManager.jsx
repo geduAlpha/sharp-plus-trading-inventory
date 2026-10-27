@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
+import { useThemeSidebar } from '../../context/ThemeSidebarContext';
 import {
   Shield,
   ShieldCheck,
@@ -237,11 +238,40 @@ export const MODULE_GROUPS = [
 
 export default function RolePrivilegesManager() {
   const { user, rolePermissions: contextRolePermissions, refreshPermissions } = useAuth();
+  const themeContext = useThemeSidebar();
+  const toggleModule = themeContext?.toggleModule;
   const isDeveloper = user?.role === 'developer';
+  const isAdmin = user?.role === 'admin';
+
+  // Authority Delegation state
+  const [allowAdminManage, setAllowAdminManage] = useState(false);
+  const [togglingAdminAuth, setTogglingAdminAuth] = useState(false);
+
+  // Company-Level Sales & Marketing Module Activation State (Developer Controlled)
+  const [salesMarketingEnabled, setSalesMarketingEnabled] = useState(true);
+  const [togglingSalesModule, setTogglingSalesModule] = useState(false);
 
   // Mode: 'role' (Access Roles) vs 'staff' (Individual Staff Member)
   const [activeTab, setActiveTab] = useState('role');
   const [selectedRole, setSelectedRole] = useState('manager');
+
+  // Authority check for managing individual employee permissions
+  const canManageStaff = isDeveloper || (isAdmin && allowAdminManage);
+
+  // Helper: check if a module belongs to Sales and Marketing MS (Developer/Owner exclusive)
+  const isSalesModule = (modKey) => {
+    return ['cashSales', 'creditSales', 'customers', 'salesMarketing', 'sales_cash', 'sales_credit'].includes(modKey);
+  };
+
+  // Specific authority check for a given module: Admin cannot manage Sales & Marketing MS
+  const canManageModuleForStaff = (modKey) => {
+    if (isDeveloper) return true;
+    if (isAdmin && allowAdminManage) {
+      if (isSalesModule(modKey)) return false;
+      return true;
+    }
+    return false;
+  };
 
   // Staff Mode State
   const [staffList, setStaffList] = useState([]);
@@ -270,6 +300,12 @@ export default function RolePrivilegesManager() {
       if (res.data?.rolePermissions) {
         setWorkingRolePermissions(JSON.parse(JSON.stringify(res.data.rolePermissions)));
       }
+      if (res.data?.allowAdminManagePermissions !== undefined) {
+        setAllowAdminManage(Boolean(res.data.allowAdminManagePermissions));
+      }
+      if (res.data?.modulesEnabled?.salesMarketing !== undefined) {
+        setSalesMarketingEnabled(Boolean(res.data.modulesEnabled.salesMarketing));
+      }
     } catch (err) {
       console.error('Failed to load settings:', err);
     }
@@ -279,25 +315,84 @@ export default function RolePrivilegesManager() {
       const res = await api.get('/users');
       const users = Array.isArray(res.data) ? res.data : [];
       setStaffList(users);
-      if (users.length > 0 && !selectedStaffId) {
-        setSelectedStaffId(users[0]._id);
-        setWorkingStaffPermissions(users[0].customPermissions ? JSON.parse(JSON.stringify(users[0].customPermissions)) : {});
+
+      const availableStaff = isDeveloper ? users : users.filter(s => s.role !== 'developer' && s.role !== 'admin');
+      if (availableStaff.length > 0 && !selectedStaffId) {
+        setSelectedStaffId(availableStaff[0]._id);
+        setWorkingStaffPermissions(availableStaff[0].customPermissions ? JSON.parse(JSON.stringify(availableStaff[0].customPermissions)) : {});
       }
     } catch (err) {
       console.error('Failed to load staff list:', err);
     } finally {
       setStaffLoading(false);
     }
-  }, [selectedStaffId]);
+  }, [selectedStaffId, isDeveloper]);
 
   useEffect(() => {
     loadInitialData();
   }, []);
 
+  // Developer toggle to authorize System Admin to manage employee permissions
+  const handleToggleAdminManage = async (enable) => {
+    if (!isDeveloper) return;
+    setTogglingAdminAuth(true);
+    try {
+      await api.put('/settings', { allowAdminManagePermissions: enable });
+      setAllowAdminManage(enable);
+      await refreshPermissions();
+      setFeedback({
+        type: 'success',
+        message: `System Admin authority to configure employee privileges has been ${enable ? 'AUTHORIZED' : 'REVOKED'}.`,
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to update admin delegation authority.',
+      });
+    } finally {
+      setTogglingAdminAuth(false);
+    }
+  };
+
+  // Developer Master Toggle: Turn Sales & Marketing MS ON or OFF for Company
+  const handleToggleSalesMarketing = async (enable) => {
+    if (!isDeveloper) return;
+    setTogglingSalesModule(true);
+    try {
+      await api.put('/settings', {
+        modulesEnabled: { salesMarketing: enable },
+      });
+      setSalesMarketingEnabled(enable);
+      if (toggleModule) {
+        await toggleModule('salesMarketing', enable);
+      }
+      await refreshPermissions();
+      setFeedback({
+        type: 'success',
+        message: `Sales and Marketing MS has been ${enable ? 'ACTIVATED' : 'DEACTIVATED'} for the company. Sidebar menus are now ${enable ? 'VISIBLE to authorized employees' : 'HIDDEN from all company staff'}.`,
+      });
+      setTimeout(() => setFeedback(null), 4500);
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to update Sales & Marketing module status.',
+      });
+    } finally {
+      setTogglingSalesModule(false);
+    }
+  };
+
+  // Filter staff list: Admins can only see and manage employee accounts
+  const displayedStaffList = useMemo(() => {
+    if (isDeveloper) return staffList;
+    return staffList.filter(s => s.role !== 'developer' && s.role !== 'admin');
+  }, [staffList, isDeveloper]);
+
   // Sync working staff permissions when selected staff changes
   const selectedStaff = useMemo(() => {
-    return staffList.find(s => s._id === selectedStaffId) || null;
-  }, [staffList, selectedStaffId]);
+    return displayedStaffList.find(s => s._id === selectedStaffId) || null;
+  }, [displayedStaffList, selectedStaffId]);
 
   useEffect(() => {
     if (selectedStaff) {
@@ -404,6 +499,17 @@ export default function RolePrivilegesManager() {
 
   // Helper: Cycle staff permission: Inherited -> Override Granted -> Override Denied -> Inherited
   const toggleStaffPermission = (moduleKey, actionKey) => {
+    if (!canManageModuleForStaff(moduleKey) || !selectedStaffId) {
+      if (!isDeveloper && isSalesModule(moduleKey)) {
+        setFeedback({
+          type: 'error',
+          message: 'Sales & Marketing MS privileges are reserved exclusively for the System Developer & Owner. Administrators cannot assign or modify access to this module.',
+        });
+        setTimeout(() => setFeedback(null), 4000);
+      }
+      return;
+    }
+
     const current = getStaffPermissionStatus(moduleKey, actionKey);
 
     setWorkingStaffPermissions(prev => {
@@ -529,13 +635,24 @@ export default function RolePrivilegesManager() {
 
   // Clear Staff Overrides
   const handleClearStaffOverrides = () => {
-    if (!selectedStaff) return;
+    if (!canManageStaff || !selectedStaff) return;
     setConfirmModal({
       open: true,
       title: `Reset All Custom Overrides for ${selectedStaff.name}?`,
       message: `This will remove all individual permissions overrides for ${selectedStaff.name}. They will immediately inherit the standard permissions of their "${selectedStaff.role}" role.`,
       onConfirm: () => {
-        setWorkingStaffPermissions({});
+        if (isDeveloper) {
+          setWorkingStaffPermissions({});
+        } else {
+          // Admin can only clear non-sales overrides; retain sales module overrides
+          setWorkingStaffPermissions(prev => {
+            const next = {};
+            ['cashSales', 'creditSales', 'customers', 'salesMarketing'].forEach(k => {
+              if (prev?.[k] !== undefined) next[k] = prev[k];
+            });
+            return next;
+          });
+        }
         setConfirmModal({ open: false });
       },
     });
@@ -565,7 +682,7 @@ export default function RolePrivilegesManager() {
 
   // Save Staff Permissions
   const handleSaveStaffPermissions = async () => {
-    if (!selectedStaffId) return;
+    if (!canManageStaff || !selectedStaffId) return;
     setSaving(true);
     setFeedback(null);
     try {
@@ -668,12 +785,20 @@ export default function RolePrivilegesManager() {
       <div className={`rounded-2xl p-4.5 border transition shadow-sm ${
         isDeveloper
           ? 'bg-slate-900 border-indigo-900/60 text-white'
-          : 'bg-amber-50 border-amber-200 text-amber-900'
+          : canManageStaff
+            ? 'bg-emerald-950/90 border-emerald-800 text-white'
+            : 'bg-amber-50 border-amber-200 text-amber-900'
       }`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`rounded-xl p-2.5 ${isDeveloper ? 'bg-indigo-600 text-white' : 'bg-amber-200 text-amber-800'}`}>
-              {isDeveloper ? <ShieldCheck size={24} /> : <ShieldAlert size={24} />}
+            <div className={`rounded-xl p-2.5 ${
+              isDeveloper
+                ? 'bg-indigo-600 text-white'
+                : canManageStaff
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-amber-200 text-amber-800'
+            }`}>
+              {isDeveloper || canManageStaff ? <ShieldCheck size={24} /> : <ShieldAlert size={24} />}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -683,16 +808,26 @@ export default function RolePrivilegesManager() {
                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                   isDeveloper
                     ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                    : canManageStaff
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-amber-100 text-amber-800 border-amber-300'
                 }`}>
                   <Sparkles size={11} />
-                  {isDeveloper ? 'System Developer & Owner Mode' : 'Read-Only Mode'}
+                  {isDeveloper
+                    ? 'System Developer & Owner Mode'
+                    : canManageStaff
+                      ? 'Admin Mode (Authorized by Developer)'
+                      : 'Read-Only Mode'}
                 </span>
               </div>
-              <p className={`text-xs mt-0.5 ${isDeveloper ? 'text-slate-300' : 'text-amber-700'}`}>
+              <p className={`text-xs mt-0.5 ${
+                isDeveloper || canManageStaff ? 'text-slate-300' : 'text-amber-700'
+              }`}>
                 {isDeveloper
-                  ? 'You have unrestricted authority to manage role permissions and configure individual employee overrides.'
-                  : 'Role Privileges are managed exclusively by the System Developer & Owner. Modifications are locked.'}
+                  ? 'You have unrestricted authority over all user roles, module access, employee permissions, and administrative privileges.'
+                  : canManageStaff
+                    ? 'You are authorized by the System Developer & Owner to assign or revoke module access and permissions for individual employees (Sales & Marketing MS is reserved exclusively for the Owner).'
+                    : 'Role Privileges and Employee Permissions are managed exclusively by the System Developer & Owner. Modifications are locked.'}
               </p>
             </div>
           </div>
@@ -704,6 +839,110 @@ export default function RolePrivilegesManager() {
           </div>
         </div>
       </div>
+
+      {/* ── Developer Authority Delegation & System Master Controls (Exclusive to System Developer/Owner) ── */}
+      {isDeveloper && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Card 1: System Admin Permission Delegation Authority */}
+          <div className="rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-indigo-50/90 via-white to-blue-50/90 p-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl p-2 bg-indigo-600 text-white shadow-xs shrink-0 mt-0.5">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Admin Permission Delegation
+                    </h4>
+                    <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                      allowAdminManage
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-slate-100 text-slate-700 border-slate-300'
+                    }`}>
+                      {allowAdminManage ? 'ADMINS AUTHORIZED' : 'DEVELOPER EXCLUSIVE'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
+                    Authorize the System Admin to assign or revoke module access and feature privileges for individual employees.
+                    As System Developer &amp; Owner, you retain ultimate authority at all times.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                <span className="text-xs font-bold text-slate-700">
+                  {allowAdminManage ? 'Active' : 'Disabled'}
+                </span>
+                <button
+                  type="button"
+                  disabled={togglingAdminAuth}
+                  onClick={() => handleToggleAdminManage(!allowAdminManage)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    allowAdminManage ? 'bg-indigo-600' : 'bg-slate-300'
+                  } ${togglingAdminAuth ? 'opacity-60 cursor-wait' : ''}`}
+                  title="Toggle System Admin authority to manage employee permissions"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      allowAdminManage ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Company Access to Sales & Marketing MS (Master Switch) */}
+          <div className="rounded-2xl border border-violet-200/90 bg-gradient-to-r from-violet-50/90 via-white to-purple-50/90 p-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl p-2 bg-violet-600 text-white shadow-xs shrink-0 mt-0.5">
+                  <ShoppingBag size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Company Access: Sales &amp; Marketing MS
+                    </h4>
+                    <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                      salesMarketingEnabled
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border-rose-300'
+                    }`}>
+                      {salesMarketingEnabled ? 'ACTIVE FOR COMPANY' : 'HIDDEN FROM SIDEBAR'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
+                    Master ON/OFF gate for the Sales &amp; Marketing MS. When switched OFF by the Owner, all sales menus (Cash Sales, Credit Sales, Sales Import) cannot be shown in the sidebar to company staff. You retain full CRUD execution at all times.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                <span className="text-xs font-bold text-slate-700">
+                  {salesMarketingEnabled ? 'Active' : 'Disabled'}
+                </span>
+                <button
+                  type="button"
+                  disabled={togglingSalesModule}
+                  onClick={() => handleToggleSalesMarketing(!salesMarketingEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    salesMarketingEnabled ? 'bg-violet-600' : 'bg-slate-300'
+                  } ${togglingSalesModule ? 'opacity-60 cursor-wait' : ''}`}
+                  title="Toggle Company Access to Sales & Marketing MS"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      salesMarketingEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main Tab Navigation (By Access Role vs By User / Staff Member) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-1">
@@ -738,7 +977,7 @@ export default function RolePrivilegesManager() {
             type="button"
             variant="ghost"
             onClick={handleReset}
-            disabled={saving || !isDeveloper}
+            disabled={saving || (activeTab === 'role' ? !isDeveloper : !canManageStaff)}
             className="text-xs text-slate-600 hover:bg-slate-100"
           >
             <RotateCcw size={14} /> Reset
@@ -748,7 +987,7 @@ export default function RolePrivilegesManager() {
             type="button"
             variant="brass"
             onClick={activeTab === 'role' ? handleSaveRolePermissions : handleSaveStaffPermissions}
-            disabled={saving || !isDeveloper}
+            disabled={saving || (activeTab === 'role' ? !isDeveloper : !canManageStaff)}
             className="shadow-sm font-semibold"
           >
             <Save size={15} />
@@ -864,7 +1103,7 @@ export default function RolePrivilegesManager() {
                 onChange={(e) => setSelectedStaffId(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition"
               >
-                {staffList.map(s => {
+                {displayedStaffList.map(s => {
                   const overrideCount = s.customPermissions ? Object.keys(s.customPermissions).length : 0;
                   return (
                     <option key={s._id} value={s._id}>
@@ -879,8 +1118,8 @@ export default function RolePrivilegesManager() {
               <div className="flex items-center flex-wrap gap-2 pt-2 lg:pt-0">
                 <button
                   type="button"
-                  onClick={() => isDeveloper && handleClearStaffOverrides()}
-                  disabled={!isDeveloper || Object.keys(workingStaffPermissions).length === 0}
+                  onClick={() => canManageStaff && handleClearStaffOverrides()}
+                  disabled={!canManageStaff || Object.keys(workingStaffPermissions).length === 0}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-200 transition disabled:opacity-50"
                   title="Remove all custom overrides for this user and revert to role default"
                 >
@@ -1032,6 +1271,16 @@ export default function RolePrivilegesManager() {
                               <span className="ml-1 text-[11px] font-normal text-slate-500">
                                 ({group.modules.length} modules)
                               </span>
+                              {group.group === 'Sales & Commercial Operations' && !salesMarketingEnabled && (
+                                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                  <Lock size={10} /> Disabled for Company (Hidden from Sidebar)
+                                </span>
+                              )}
+                              {group.group === 'Sales & Commercial Operations' && !isDeveloper && (
+                                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300" title="Sales & Marketing MS privileges are reserved exclusively for the Owner">
+                                  <Lock size={10} /> Sales &amp; Marketing MS: Developer/Owner Only
+                                </span>
+                              )}
                             </div>
                             <span className="text-[10px] font-semibold text-slate-500">
                               {isCollapsed ? 'Click to expand' : 'Click to collapse'}
@@ -1054,9 +1303,16 @@ export default function RolePrivilegesManager() {
                                   <Icon size={16} />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-bold text-slate-900 text-xs leading-tight">
-                                    {mod.label}
-                                  </p>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-bold text-slate-900 text-xs leading-tight">
+                                      {mod.label}
+                                    </p>
+                                    {!isDeveloper && isSalesModule(mod.key) && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200" title="Reserved for Developer/Owner only">
+                                        <Lock size={9} /> Owner Only
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
                                     {mod.description}
                                   </p>
@@ -1095,17 +1351,19 @@ export default function RolePrivilegesManager() {
                                   ) : (
                                     (() => {
                                       const s = getStaffPermissionStatus(mod.key, null);
+                                      const isModAllowed = canManageModuleForStaff(mod.key);
                                       return (
                                         <div className="inline-flex items-center gap-2">
                                           <button
                                             type="button"
-                                            disabled={!isDeveloper}
-                                            onClick={() => isDeveloper && toggleStaffPermission(mod.key, null)}
+                                            disabled={!isModAllowed}
+                                            onClick={() => isModAllowed && toggleStaffPermission(mod.key, null)}
                                             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                                               s.value
                                                 ? s.state === 'override_granted' ? 'bg-emerald-600 ring-2 ring-emerald-300' : 'bg-purple-600'
                                                 : s.state === 'override_denied' ? 'bg-rose-600 ring-2 ring-rose-300' : 'bg-slate-300'
-                                            } ${!isDeveloper ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                            } ${!isModAllowed ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                            title={!isModAllowed ? 'Sales & Marketing MS privileges are reserved for Developer/Owner only' : `Click to toggle override: Current: ${s.state}`}
                                           >
                                             <span
                                               className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
@@ -1156,12 +1414,13 @@ export default function RolePrivilegesManager() {
                                       // Staff Mode with Overrides
                                       (() => {
                                         const s = getStaffPermissionStatus(mod.key, action.key);
+                                        const isModAllowed = canManageModuleForStaff(mod.key);
                                         return (
                                           <div className="flex flex-col items-center justify-center gap-0.5">
                                             <button
                                               type="button"
-                                              disabled={!isDeveloper}
-                                              onClick={() => isDeveloper && toggleStaffPermission(mod.key, action.key)}
+                                              disabled={!isModAllowed}
+                                              onClick={() => isModAllowed && toggleStaffPermission(mod.key, action.key)}
                                               className={`h-5 w-5 rounded-md border flex items-center justify-center transition shadow-2xs ${
                                                 s.state === 'override_granted'
                                                   ? 'bg-emerald-600 border-emerald-700 text-white ring-2 ring-emerald-300'
@@ -1170,8 +1429,8 @@ export default function RolePrivilegesManager() {
                                                     : s.value
                                                       ? 'bg-blue-600 border-blue-700 text-white'
                                                       : 'bg-white border-slate-300 text-transparent'
-                                              } ${!isDeveloper ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:scale-105'}`}
-                                              title={`Click to cycle override: Current: ${s.state} (${s.value ? 'Allowed' : 'Denied'})`}
+                                              } ${!isModAllowed ? 'cursor-not-allowed opacity-30 bg-slate-100' : 'cursor-pointer hover:scale-105'}`}
+                                              title={!isModAllowed ? 'Sales & Marketing MS privileges are reserved for Developer/Owner only' : `Click to cycle override: Current: ${s.state} (${s.value ? 'Allowed' : 'Denied'})`}
                                             >
                                               {s.state === 'override_denied' ? <X size={12} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />}
                                             </button>

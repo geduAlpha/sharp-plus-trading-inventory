@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Lock, Building2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,18 @@ const isAvoidedNavItem = (it) => {
   if (INACTIVE_AVOIDED_SIDEBAR_IDS.includes(it.id)) return true;
   if (it.to === '/transactions/disposal' || it.to === '/consumption' || it.to === '/reports/disposal') return true;
   return false;
+};
+
+/* ── Fallback resolver to map legacy / custom sidebar items to Role Privilege module keys ── */
+const resolveItemNavKey = (item) => {
+  if (!item) return null;
+  if (item.navKey) return item.navKey;
+  if (item.id === 'sales_cash' || item.to === '/sales/cash') return 'cashSales';
+  if (item.id === 'sales_credit' || item.to === '/sales/credit') return 'creditSales';
+  if (item.id === 'stock_requests' || item.to === '/stock-requests') return 'stockRequests';
+  if (item.to === '/reports/inventory-count') return 'inventoryCount';
+  if (item.id === 'movements_cash_grv' || item.id === 'movements_credit_grv') return 'purchases';
+  return null;
 };
 
 /* ── Section label ── */
@@ -116,8 +128,9 @@ const DynamicCollapsibleNav = ({
 
 /* ── Dynamic Sidebar ── */
 export default function Sidebar({ open, onClose, collapsed = false }) {
-  const { user, canSeeNav, companyInfo } = useAuth();
-  const { activeTheme, activeSidebar, modulesEnabled } = useThemeSidebar();
+  const { user, canSeeNav, companyInfo, modulesEnabled: authModulesEnabled } = useAuth();
+  const { activeTheme, activeSidebar, modulesEnabled: themeModulesEnabled } = useThemeSidebar();
+  const modulesEnabled = themeModulesEnabled || authModulesEnabled;
   const location = useLocation();
 
   const themeMode = activeTheme?.theme || 'white';
@@ -249,19 +262,45 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     return [...(activeSidebar || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [activeSidebar]);
 
-  // Group items by section — respect modulesEnabled for salesMarketing
+  // Helper to test if a leaf nav item is allowed for current user based on Role Privileges and Company Module Activation
+  const canDisplayItem = useCallback((item) => {
+    if (!item) return false;
+    if (isAvoidedNavItem(item)) return false;
+    if (item.visible === false) return false;
+
+    // Company-level Sales & Marketing gate: Owner must have enabled it for company users to see it
+    const isSales =
+      item.id === 'salesMarketing' ||
+      item.navKey === 'salesMarketing' ||
+      item.navKey === 'cashSales' ||
+      item.navKey === 'creditSales' ||
+      item.id === 'sales_cash' ||
+      item.id === 'sales_credit' ||
+      (typeof item.to === 'string' && (item.to.startsWith('/sales') || item.to === '/sales-import'));
+
+    if (isSales && modulesEnabled?.salesMarketing === false && user?.role !== 'developer') {
+      return false;
+    }
+
+    const resolvedKey = resolveItemNavKey(item);
+    if (resolvedKey && !canSeeNav(resolvedKey)) return false;
+    return true;
+  }, [canSeeNav, modulesEnabled?.salesMarketing, user?.role]);
+
+  // Group items by section — respect modulesEnabled and role privileges
   const sections = useMemo(() => {
     const main = [];
     const operations = [];
     const admin = [];
 
     sortedSidebar.forEach((item) => {
-      // Avoid inactive Goods Disposal and Consumptions
-      if (isAvoidedNavItem(item)) return;
-      // Respect user navigation permission if navKey is specified
-      if (item.navKey && !canSeeNav(item.navKey)) return;
-      // Respect visibility toggle from settings
-      if (item.visible === false) return;
+      if (!canDisplayItem(item)) return;
+
+      // If group, verify it has at least one accessible child
+      if (item.isGroup) {
+        const visibleKids = (item.children || []).filter(canDisplayItem);
+        if (visibleKids.length === 0) return;
+      }
 
       // If salesMarketing module is disabled, hide the salesMarketing sidebar section
       if (item.id === 'salesMarketing' || item.navKey === 'salesMarketing') {
@@ -275,7 +314,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     });
 
     return { main, operations, admin };
-  }, [sortedSidebar, canSeeNav, modulesEnabled, user?.role]);
+  }, [sortedSidebar, canDisplayItem, modulesEnabled, user?.role]);
 
   // Check if a group currently has an active child
   const isGroupActive = (item) => {
@@ -363,12 +402,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     const isOpen = openMenu === group.id;
     const groupColor = getItemAccent(group);
     const visibleChildren = (group.children || [])
-      .filter((c) => {
-        if (isAvoidedNavItem(c)) return false;
-        if (c.navKey && !canSeeNav(c.navKey)) return false;
-        if (c.visible === false) return false;
-        return true;
-      })
+      .filter(canDisplayItem)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
 
     if (visibleChildren.length === 0) return null;

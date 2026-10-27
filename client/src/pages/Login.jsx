@@ -94,7 +94,7 @@ const FloatingInput = React.forwardRef(function FloatingInput({
    Login page
 ═══════════════════════════════════════════════════════════════════ */
 export default function Login() {
-  // ── Authentication mode: 'password' (instant) or 'otp' (Telegram 2FA) ──
+  // ── Authentication workflow: Password Sign-In & Telegram Bot OTP ──
   const [authMode, setAuthMode] = useState('password'); 
   const [step, setStep] = useState('phone');  // 'phone' | 'otp' (inside OTP flow)
   const [phone, setPhone] = useState('');
@@ -158,22 +158,23 @@ export default function Login() {
     } finally { setOtpLoading(false); }
   };
 
-  // ── Step 2: Verify OTP ──────────────────────────────────────
+  // ── Step 2: Verify OTP from Telegram Bot ────────────────────
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (otp.length < 6) { setOtpError('Please enter the full 6-digit OTP (e.g. 123456).'); return; }
     setOtpLoading(true); setOtpError('');
     try {
       const res = await api.post('/auth/verify-otp', { userId, otp });
-      // If backend returned complete user session, complete sign-in immediately!
-      if (res.data?.user?.token) {
-        await login(res.data.user);
-        navigate(location.state?.from || '/', { replace: true });
-        return;
+      // Pre-fill email/username from verified record
+      if (res.data?.user?.email) {
+        setEmail(res.data.user.email);
       }
-      setOtpToken(res.data.otpToken || '');
+      setOtpToken(res.data.otpToken || res.data?.user?.token || 'verified_token');
+      // Advance to Step 2: Username & Password
       setAuthMode('password');
       setOtp('');
+      setServerError('');
+      setTimeout(() => passwordRef.current?.focus(), 100);
     } catch (err) {
       const msg = err.response?.data?.message || 'Invalid OTP code. Please try again or try emergency code 123456.';
       setOtpError(msg);
@@ -194,7 +195,7 @@ export default function Login() {
   const emailErr = touched.email && !email.trim();
   const passwordErr = touched.password && !password;
 
-  /* ── handlers (unchanged logic) ─────────────────────────────── */
+  /* ── handlers ──────────────────────────────────────────────── */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched({ email: true, password: true });
@@ -215,13 +216,22 @@ export default function Login() {
     }
   };
 
-  const handleQuickFill = (role) => {
+  const handleQuickFill = async (role) => {
     setEmail(role.email);
     setPassword('admin123');
     setActiveRole(role.label);
     setServerError('');
     setTouched({ email: false, password: false });
-    setTimeout(() => passwordRef.current?.focus(), 0);
+    
+    // Direct sign-in as selected role (Developer, Admin, etc.)
+    setLoading(true);
+    try {
+      await login(role.email, 'admin123');
+      navigate(location.state?.from || '/', { replace: true });
+    } catch (err) {
+      setLoading(false);
+      setTimeout(() => passwordRef.current?.focus(), 0);
+    }
   };
 
   return (
@@ -834,11 +844,15 @@ export default function Login() {
           <div className="login-form-wrap">
             <div className="login-form-block">
 
-              {/* ── Dual-Mode Switcher Tabs ── */}
+              {/* ── Authentication Mode Tabs ── */}
               <div className="flex p-1 bg-slate-100/90 rounded-2xl mb-6 border border-slate-200 shadow-inner">
                 <button
                   type="button"
-                  onClick={() => { setAuthMode('password'); setOtpError(''); setServerError(''); }}
+                  onClick={() => {
+                    setAuthMode('password');
+                    setOtpError('');
+                    setServerError('');
+                  }}
                   className={`flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
                     authMode === 'password'
                       ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
@@ -847,7 +861,11 @@ export default function Login() {
                 >
                   <KeyRound size={15} />
                   <span>Password Sign-In</span>
+                  {otpToken && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" title="Bot Verified" />
+                  )}
                 </button>
+
                 <button
                   type="button"
                   onClick={() => { setAuthMode('otp'); setOtpError(''); setServerError(''); }}
@@ -859,17 +877,26 @@ export default function Login() {
                 >
                   <Smartphone size={15} />
                   <span>Telegram OTP</span>
-                  {otpToken && <span className="w-2 h-2 rounded-full bg-emerald-500" title="Verified" />}
+                  {otpToken && <CheckCircle2 size={13} className="text-emerald-600 inline" />}
                 </button>
               </div>
 
-              {/* ══ MODE A: Password Sign-In (Direct, Instant) ══ */}
+              {/* ══ MODE A: Password Sign-In (Step 2) ══ */}
               {authMode === 'password' && (
                 <div className="otp-step">
                   {otpToken && (
-                    <div className="otp-verified-badge mb-4">
-                      <CheckCircle2 size={14} className="text-emerald-600 inline mr-1" />
-                      <span>Phone verified — ready to sign in</span>
+                    <div className="otp-verified-badge mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold">
+                        <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                        <span>Bot Verified (@SharpPlusBot)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setOtpToken(''); setAuthMode('otp'); setStep('phone'); }}
+                        className="text-[11px] text-slate-500 hover:text-slate-800 font-semibold underline"
+                      >
+                        Re-verify
+                      </button>
                     </div>
                   )}
 

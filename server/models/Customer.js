@@ -15,6 +15,9 @@ const customerSchema = new mongoose.Schema(
     notes: { type: String, default: '' },
     creditLimit: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: String, default: null },
+    deletedFrom: { type: String, default: 'customers' },
   },
   { timestamps: true }
 );
@@ -22,5 +25,6 @@ const customerSchema = new mongoose.Schema(
 customerSchema.index({ name: 1 });
 customerSchema.index({ phone: 1 });
 customerSchema.index({ isActive: 1 });
+customerSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model('Customer', customerSchema);

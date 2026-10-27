@@ -214,6 +214,9 @@ const voidConsumption = asyncHandler(async (req, res) => {
   }
 
   record.status = 'voided';
+  // Move voided consumption to recycle bin
+  record.deletedAt = new Date();
+  record.deletedBy = req.user?.name || 'System';
   record.trail.push({ action: 'voided', by: req.user._id, byName: req.user.name, byRole: req.user.role, note });
   await record.save();
 
@@ -236,6 +239,32 @@ const deleteConsumption = asyncHandler(async (req, res) => {
   tg.notifyConsumptionDeleted(record, req.user);
   notify.push({ type: 'consumption', title: 'Consumption Deleted', message: `${req.user.name} deleted voucher ${record.voucherNo}`, icon: '🗑️', link: '/consumption', severity: 'warning', userId: req.user._id });
   res.json({ message: 'Moved to recycle bin.' });
+});
+
+// ── POST /api/consumption/:id/restore (Developer only) ────────────
+const restoreConsumption = asyncHandler(async (req, res) => {
+  if (req.user?.role !== 'developer') {
+    res.status(403);
+    throw new Error('Access denied: Only the System Developer & Owner can restore consumption records.');
+  }
+  const record = await Consumption.findById(req.params.id);
+  if (!record) { res.status(404); throw new Error('Record not found'); }
+  record.deletedAt = null;
+  record.deletedBy = null;
+  if (record.status === 'voided') {
+    record.status = 'pending';
+  }
+  record.trail = record.trail || [];
+  record.trail.push({
+    action: 'restored',
+    by: req.user._id,
+    byName: req.user.name,
+    byRole: req.user.role,
+    note: 'Restored from Recycle Bin by Developer & Owner',
+  });
+  await record.save();
+  invalidateDashboardCache();
+  res.json({ message: 'Consumption record restored.', record });
 });
 
 // ── GET /api/consumption/summary ─────────────────────────────────
@@ -283,5 +312,6 @@ module.exports = {
   approveConsumption,
   voidConsumption,
   deleteConsumption,
+  restoreConsumption,
   getConsumptionSummary,
 };

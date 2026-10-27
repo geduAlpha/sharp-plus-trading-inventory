@@ -31,7 +31,7 @@ router.delete('/bulk', authorizePermission('voidTransactions'), bulkDeleteTransa
 router.put('/:id/payment', checkModuleEnabled('salesMarketing'), authorizePermission('recordGoods'), recordSalePayment);
 router.put('/:id', authorizePermission('recordGoods'), updateTransaction);
 router.post('/:id/advance', advanceTransaction);
-router.post('/:id/restore', authorizePermission('voidTransactions'), restoreTransaction);
+router.post('/:id/restore', authorize('developer'), restoreTransaction);
 router.delete('/:id/permanent', authorizePermission('voidTransactions'), permanentDeleteTransaction);
 router.delete('/:id', authorizePermission('voidTransactions'), deleteTransaction);
 

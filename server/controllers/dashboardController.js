@@ -30,6 +30,7 @@ const getSummary = asyncHandler(async (req, res) => {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
   // Parallel database execution with targeted projection for high speed
+  // NOTE: Strictly excludes any soft-deleted (deletedAt != null) or voided/cancelled records
   const [
     materials,
     totalSuppliers,
@@ -39,14 +40,29 @@ const getSummary = asyncHandler(async (req, res) => {
     recentTransactions,
     salesTransactions,
   ] = await Promise.all([
-    RawMaterial.find({ isActive: true })
+    RawMaterial.find({ isActive: true, deletedAt: null })
       .select('name category unit currentStock reorderLevel unitCost')
       .lean(),
-    Supplier.countDocuments({ isActive: true }),
-    Purchase.countDocuments({ purchaseDate: { $gte: startOfToday } }),
-    Purchase.find({ purchaseDate: { $gte: startOfMonth } }).select('totalAmount').lean(),
-    StockTransaction.find({ date: { $gte: sevenDaysAgo } }).select('date type quantity items').lean(),
-    StockTransaction.find({})
+    Supplier.countDocuments({ isActive: true, deletedAt: null }),
+    Purchase.countDocuments({
+      purchaseDate: { $gte: startOfToday },
+      deletedAt: null,
+      status: { $nin: ['cancelled', 'voided'] },
+    }),
+    Purchase.find({
+      purchaseDate: { $gte: startOfMonth },
+      deletedAt: null,
+      status: { $nin: ['cancelled', 'voided'] },
+    }).select('totalAmount').lean(),
+    StockTransaction.find({
+      date: { $gte: sevenDaysAgo },
+      deletedAt: null,
+      status: { $ne: 'voided' },
+    }).select('date type quantity items').lean(),
+    StockTransaction.find({
+      deletedAt: null,
+      status: { $ne: 'voided' },
+    })
       .select('voucherType voucherNo type quantity totalAmount date createdAt material items supplier customerName performedBy')
       .populate('material', 'name unit')
       .populate('items.material', 'name unit')
@@ -56,7 +72,9 @@ const getSummary = asyncHandler(async (req, res) => {
       .limit(8)
       .lean(),
     StockTransaction.find({
-      voucherType: { $in: ['cash_sale', 'cash_sales', 'credit_sale', 'credit_sales', 'sales_import'] }
+      voucherType: { $in: ['cash_sale', 'cash_sales', 'credit_sale', 'credit_sales', 'sales_import'] },
+      deletedAt: null,
+      status: { $ne: 'voided' },
     }).select('voucherType totalAmount date customerName items').lean(),
   ]);
 

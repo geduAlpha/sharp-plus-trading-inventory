@@ -87,16 +87,17 @@ const updateSettings = asyncHandler(async (req, res) => {
     settings = new Setting();
   }
 
-  // Restrict global theme, sidebar, module activation, and role permissions configuration exclusively to System Owner/Developer
+  // Restrict global theme, sidebar, module activation, admin delegation, and role permissions configuration exclusively to System Owner/Developer
   const isPrivilegedSettingUpdate =
     req.body.rolePermissions !== undefined ||
     req.body.themeConfig !== undefined ||
     req.body.sidebarConfig !== undefined ||
-    req.body.modulesEnabled !== undefined;
+    req.body.modulesEnabled !== undefined ||
+    req.body.allowAdminManagePermissions !== undefined;
 
   if (isPrivilegedSettingUpdate && req.user?.role !== 'developer') {
     res.status(403);
-    throw new Error('Access denied: Only the authenticated System Developer & Owner can manage role permissions, global appearance, or system module activation.');
+    throw new Error('Access denied: Only the authenticated System Developer & Owner can manage role permissions, administrator authority delegation, global appearance, or system module activation.');
   }
 
   const stringFields = [
@@ -128,6 +129,20 @@ const updateSettings = asyncHandler(async (req, res) => {
       settings[field] = Boolean(req.body[field]);
     }
   });
+
+  if (req.body.allowAdminManagePermissions !== undefined && req.user?.role === 'developer') {
+    const prevAuth = settings.allowAdminManagePermissions;
+    settings.allowAdminManagePermissions = Boolean(req.body.allowAdminManagePermissions);
+    if (!Array.isArray(settings.auditLogs)) settings.auditLogs = [];
+    settings.auditLogs.unshift({
+      action: 'ADMIN_DELEGATION_TOGGLED',
+      details: `Administrator employee permission management authority set to ${settings.allowAdminManagePermissions ? 'ENABLED' : 'DISABLED'} by System Developer & Owner`,
+      actorId: req.user?._id,
+      actorName: req.user?.name || 'System Developer & Owner',
+      actorRole: 'developer',
+      timestamp: new Date(),
+    });
+  }
 
   if (req.body.currency !== undefined && req.body.currency !== null) {
     settings.currency = String(req.body.currency).trim();

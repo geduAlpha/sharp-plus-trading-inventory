@@ -86,4 +86,21 @@ const deleteEmployee = asyncHandler(async (req, res) => {
   res.json({ message: 'Employee removed.' });
 });
 
-module.exports = { getEmployees, getDepartments, createEmployee, updateEmployee, deleteEmployee };
+// ── POST /api/employees/:id/restore  (Developer only) ─────────────
+const restoreEmployee = asyncHandler(async (req, res) => {
+  if (req.user?.role !== 'developer') {
+    res.status(403);
+    throw new Error('Access denied: Only the System Developer & Owner can restore employees.');
+  }
+  const emp = await Employee.findById(req.params.id);
+  if (!emp) { res.status(404); throw new Error('Employee not found'); }
+
+  emp.deletedAt = null;
+  emp.deletedBy = null;
+  await emp.save();
+
+  tg.notifyEmployeeUpdated(emp, req.user);
+  res.json({ message: 'Employee restored.', employee: emp });
+});
+
+module.exports = { getEmployees, getDepartments, createEmployee, updateEmployee, deleteEmployee, restoreEmployee };

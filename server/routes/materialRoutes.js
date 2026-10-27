@@ -30,7 +30,7 @@ router.get('/next-code', authorize('admin', 'manager'), getNextCode);
 
 // Bulk + restore (before /:id)
 router.delete('/bulk',          authorize('admin', 'manager'), bulkDeleteMaterials);
-router.post('/:id/restore',     authorize('admin', 'manager'), restoreMaterial);
+router.post('/:id/restore',     authorize('developer'), restoreMaterial);
 router.delete('/:id/permanent', authorize('admin'), permanentDeleteMaterial);
 
 // Activate / Deactivate status toggle

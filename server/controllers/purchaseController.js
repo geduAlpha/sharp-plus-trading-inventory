@@ -48,7 +48,7 @@ const verifyUserPassword = async (userId, password) => {
 
 // ── GET /api/purchases ────────────────────────────────────────────────
 const getPurchases = asyncHandler(async (req, res) => {
-  const purchases = await Purchase.find({})
+  const purchases = await Purchase.find({ deletedAt: null })
     .populate('supplier', 'name')
     .populate('items.material', 'name unit')
     .populate('recordedBy', 'name role')
@@ -167,6 +167,13 @@ const advancePurchase = asyncHandler(async (req, res) => {
   if (action === 'approve') { purchase.approvedBy = actor._id; purchase.approvedAt = new Date(); }
   if (action === 'receive') { purchase.receivedBy = actor._id; purchase.receivedAt = new Date(); }
 
+  // When cancelled/voided, move to recycle bin
+  if (action === 'cancel') {
+    purchase.deletedAt   = new Date();
+    purchase.deletedBy   = actor.name || 'System';
+    purchase.deletedFrom = 'purchases';
+  }
+
   await purchase.save();
   invalidateDashboardCache();
 
@@ -187,7 +194,7 @@ const advancePurchase = asyncHandler(async (req, res) => {
   notify.push({ type: 'purchase', title: `Purchase ${actionLabels[action] || action}`, message: `${actor.name} ${actionLabels[action] || action} PO for ${populated.supplier?.name || 'supplier'}`, icon: action === 'receive' ? '📦' : action === 'cancel' ? '🔴' : '✅', link: '/purchases', severity: sev, userId: actor._id });
 });
 
-// ── DELETE /api/purchases/:id ─────────────────────────────────────────
+// ── DELETE /api/purchases/:id (soft delete to recycle bin) ─────────────
 const deletePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findById(req.params.id);
   if (!purchase) { res.status(404); throw new Error('Purchase not found'); }
@@ -195,17 +202,51 @@ const deletePurchase = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('Cannot delete a received purchase. Cancel it first if needed.');
   }
-  await purchase.deleteOne();
+
+  // Soft delete — move to recycle bin
+  purchase.deletedAt   = new Date();
+  purchase.deletedBy   = req.user?.name || 'System';
+  purchase.deletedFrom = 'purchases';
+  await purchase.save();
+
   invalidateDashboardCache();
   tg.notifyPurchaseDeleted(purchase, req.user);
-  notify.push({ type: 'purchase', title: 'Purchase Order Deleted', message: `${req.user.name} deleted PO for ${purchase.supplier?.name || 'supplier'}`, icon: '🗑️', link: '/purchases', severity: 'warning', userId: req.user._id });
-  res.json({ message: 'Purchase deleted' });
+  notify.push({ type: 'purchase', title: 'Purchase Order Moved to Recycle Bin', message: `${req.user.name} moved PO for ${purchase.supplier?.name || 'supplier'} to recycle bin`, icon: '🗑️', link: '/recycle-bin', severity: 'warning', userId: req.user._id });
+  res.json({ message: 'Purchase moved to recycle bin' });
 });
 
+// ── POST /api/purchases/:id/restore (Developer only) ──────────────────
+const restorePurchase = asyncHandler(async (req, res) => {
+  if (req.user?.role !== 'developer') {
+    res.status(403);
+    throw new Error('Access denied: Only the System Developer & Owner can restore purchases from the Recycle Bin.');
+  }
+  const purchase = await Purchase.findById(req.params.id);
+  if (!purchase) { res.status(404); throw new Error('Purchase not found'); }
+
+  purchase.deletedAt   = null;
+  purchase.deletedBy   = null;
+  purchase.deletedFrom = null;
+  if (purchase.status === 'cancelled') {
+    purchase.status = 'draft';
+  }
+  purchase.trail = purchase.trail || [];
+  purchase.trail.push({
+    action: 'restored',
+    by: req.user._id,
+    byName: req.user.name,
+    byRole: req.user.role,
+    note: 'Restored from Recycle Bin by System Developer & Owner',
+  });
+  await purchase.save();
+
+  invalidateDashboardCache();
+  res.json({ message: 'Purchase restored successfully.', purchase });
+});
 
 // kept for backward compat
 const updatePurchaseStatus = asyncHandler(async (req, res) => {
   res.status(400).json({ message: 'Use POST /api/purchases/:id/advance instead' });
 });
 
-module.exports = { getPurchases, getPurchaseById, createPurchase, advancePurchase, updatePurchaseStatus, deletePurchase };
+module.exports = { getPurchases, getPurchaseById, createPurchase, advancePurchase, updatePurchaseStatus, deletePurchase, restorePurchase };

@@ -14,7 +14,7 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 router.use(protect);
 router.delete('/bulk',          authorize('admin', 'manager'), bulkDeleteSuppliers);
-router.post('/:id/restore',     authorize('admin', 'manager'), restoreSupplier);
+router.post('/:id/restore',     authorize('developer'), restoreSupplier);
 router.delete('/:id/permanent', authorize('admin'), permanentDeleteSupplier);
 router.get('/', getSuppliers);
 router.get('/:id', getSupplierById);

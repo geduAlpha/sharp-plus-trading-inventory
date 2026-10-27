@@ -58,6 +58,11 @@ const purchaseSchema = new mongoose.Schema(
 
     recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     notes:      { type: String, trim: true },
+
+    // Recycle bin & soft delete fields
+    deletedAt:   { type: Date, default: null },
+    deletedBy:   { type: String, default: null },
+    deletedFrom: { type: String, default: 'purchases' },
   },
   { timestamps: true }
 );
@@ -66,6 +71,7 @@ purchaseSchema.index({ purchaseDate: -1 });
 purchaseSchema.index({ createdAt: -1 });
 purchaseSchema.index({ status: 1 });
 purchaseSchema.index({ supplier: 1 });
+purchaseSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model('Purchase', purchaseSchema);
 

@@ -41,6 +41,11 @@ const settingSchema = new mongoose.Schema(
       type: Object,
       default: DEFAULT_NAV_VISIBILITY,
     },
+    // Authority Delegation: Developer/Owner can grant System Admin authority to manage employee permissions
+    allowAdminManagePermissions: {
+      type: Boolean,
+      default: false,
+    },
     // Telegram bot subscribers — array of { chatId, name, username, subscribedAt }
     telegramSubscribers: {
       type: Array,
@@ -170,14 +175,14 @@ const DEFAULT_SIDEBAR_CONFIG = [
     order: 4,
     visible: true,
     children: [
-      { id: 'movements_cash_grv', label: 'Cash Goods Receiving Voucher', to: '/transactions/cash-grv', icon: 'ShoppingBagRounded', iconType: 'mui', navKey: 'stockMovements', order: 1, visible: true },
-      { id: 'movements_credit_grv', label: 'Credit Goods Receiving Voucher', to: '/transactions/credit-grv', icon: 'CreditCardRounded', iconType: 'mui', navKey: 'stockMovements', order: 2, visible: true },
+      { id: 'movements_cash_grv', label: 'Cash Goods Receiving Voucher', to: '/transactions/cash-grv', icon: 'ShoppingBagRounded', iconType: 'mui', navKey: 'purchases', order: 1, visible: true },
+      { id: 'movements_credit_grv', label: 'Credit Goods Receiving Voucher', to: '/transactions/credit-grv', icon: 'CreditCardRounded', iconType: 'mui', navKey: 'purchases', order: 2, visible: true },
       { id: 'movements_neg_adj', label: 'Negative Stock Adjustment Voucher', to: '/transactions/neg-adjustment', icon: 'RemoveCircleOutlineRounded', iconType: 'mui', navKey: 'stockMovements', order: 3, visible: true },
       { id: 'movements_pos_adj', label: 'Positive Stock Adjustment Voucher', to: '/transactions/pos-adjustment', icon: 'AddCircleOutlineRounded', iconType: 'mui', navKey: 'stockMovements', order: 4, visible: true },
-      { id: 'report_inventory_count', label: 'Inventory Count', to: '/reports/inventory-count', icon: 'FactCheckRounded', iconType: 'mui', order: 5, visible: true },
+      { id: 'report_inventory_count', label: 'Inventory Count', to: '/reports/inventory-count', icon: 'FactCheckRounded', iconType: 'mui', navKey: 'inventoryCount', order: 5, visible: true },
       { id: 'movements_all', label: 'All Documents', to: '/transactions', icon: 'SwapHorizRounded', iconType: 'mui', navKey: 'stockMovements', order: 6, visible: true, exact: true },
       { id: 'movements_sales_import', label: 'Import Sales Report', to: '/sales-import', icon: 'CloudUploadRounded', iconType: 'mui', navKey: 'stockMovements', order: 7, visible: true },
-      { id: 'stock_requests', label: 'Stock Issue & Request', to: '/stock-requests', icon: 'CallSplitRounded', iconType: 'mui', order: 8, visible: true },
+      { id: 'stock_requests', label: 'Stock Issue & Request', to: '/stock-requests', icon: 'CallSplitRounded', iconType: 'mui', navKey: 'stockRequests', order: 8, visible: true },
     ]
   },
   {
@@ -191,8 +196,8 @@ const DEFAULT_SIDEBAR_CONFIG = [
     order: 5,
     visible: true,
     children: [
-      { id: 'sales_cash', label: 'Cash Sales', to: '/sales/cash', icon: 'PaymentsRounded', iconType: 'mui', order: 1, visible: true },
-      { id: 'sales_credit', label: 'Credit Sales', to: '/sales/credit', icon: 'ReceiptLongRounded', iconType: 'mui', order: 2, visible: true },
+      { id: 'sales_cash', label: 'Cash Sales', to: '/sales/cash', icon: 'PaymentsRounded', iconType: 'mui', navKey: 'cashSales', order: 1, visible: true },
+      { id: 'sales_credit', label: 'Credit Sales', to: '/sales/credit', icon: 'ReceiptLongRounded', iconType: 'mui', navKey: 'creditSales', order: 2, visible: true },
     ]
   },
   {

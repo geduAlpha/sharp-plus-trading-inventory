@@ -29,7 +29,7 @@ router.post('/import/recipes',        authorize('admin', 'manager'), upload.sing
 
 // Bulk + restore — must be before /:id
 router.delete('/bulk',          authorize('admin', 'manager'), bulkDeleteProducts);
-router.post('/:id/restore',     authorize('admin', 'manager'), restoreProduct);
+router.post('/:id/restore',     authorize('developer'), restoreProduct);
 router.delete('/:id/permanent', authorize('admin'), permanentDeleteProduct);
 
 router.get('/', getProducts);

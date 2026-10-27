@@ -8,6 +8,7 @@ const {
   approveConsumption,
   voidConsumption,
   deleteConsumption,
+  restoreConsumption,
   getConsumptionSummary,
 } = require('../controllers/consumptionController');
 const { protect, authorize, authorizePermission } = require('../middleware/authMiddleware');
@@ -22,6 +23,7 @@ router.post('/',              authorizePermission('recordGoods'), createConsumpt
 router.put('/:id',            authorizePermission('recordGoods'), updateConsumption);
 router.post('/:id/approve',   authorizePermission('approveGoods'), approveConsumption);
 router.post('/:id/void',      authorizePermission('voidTransactions'), voidConsumption);
+router.post('/:id/restore',   authorize('developer'), restoreConsumption);
 router.delete('/:id',         authorizePermission('voidTransactions'), deleteConsumption);
 
 module.exports = router;
