@@ -128,6 +128,28 @@ export default function Login() {
     return () => clearTimeout(t);
   }, [resendTimer]);
 
+  // ── Live Backend Connectivity Monitor ────────────────────────
+  const [backendStatus, setBackendStatus] = useState('checking'); // 'online' | 'offline' | 'checking'
+
+  const checkBackendHealth = React.useCallback(async () => {
+    try {
+      const res = await api.get('/health', { timeout: 4000 });
+      if (res.status === 200) {
+        setBackendStatus('online');
+        return true;
+      }
+    } catch {
+      setBackendStatus('offline');
+      return false;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    checkBackendHealth();
+    const interval = setInterval(checkBackendHealth, 15000);
+    return () => clearInterval(interval);
+  }, [checkBackendHealth]);
+
   // ── Step 1: Request OTP ─────────────────────────────────────
   const handleRequestOtp = async (e) => {
     e.preventDefault();
@@ -135,6 +157,7 @@ export default function Login() {
     setOtpLoading(true); setOtpError('');
     try {
       const res = await api.post('/auth/request-otp', { phone: phone.trim() });
+      setBackendStatus('online');
       setUserId(res.data.userId || '');
       setMaskedName(res.data.maskedName || '');
       if (res.data.otpCode) {
@@ -149,9 +172,10 @@ export default function Login() {
       if (serverMsg) {
         setOtpError(serverMsg);
       } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setOtpError('Request timed out. Please try again or sign in with your password.');
+        setOtpError('Request timed out. Please check that the server is active or sign in directly with password.');
       } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
-        setOtpError('Backend server connection issue. Please use direct Password Sign-in below.');
+        setBackendStatus('offline');
+        setOtpError('Backend server connection issue. Please ensure the backend is running on port 5000, or use Password Sign-in below.');
       } else {
         setOtpError('Failed to send OTP. Please check your phone number or sign in with password.');
       }
@@ -165,6 +189,7 @@ export default function Login() {
     setOtpLoading(true); setOtpError('');
     try {
       const res = await api.post('/auth/verify-otp', { userId, otp });
+      setBackendStatus('online');
       // Pre-fill email/username from verified record
       if (res.data?.user?.email) {
         setEmail(res.data.user.email);
@@ -205,12 +230,20 @@ export default function Login() {
     setLoading(true);
     try {
       await login(cleanEmail, password, otpToken || undefined);
+      setBackendStatus('online');
       navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
-      const msg = err.response?.data?.message ||
-        (typeof err.response?.data === 'string' ? err.response.data : null) ||
-        'Invalid credentials. Please verify your email and password.';
-      setServerError(msg);
+      const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
+      if (serverMsg) {
+        setServerError(serverMsg);
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setServerError('Connection timed out. Please check that the backend server is running on port 5000.');
+      } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
+        setBackendStatus('offline');
+        setServerError('Backend server connection issue. Please make sure the backend server is running with "npm run dev:server" on port 5000.');
+      } else {
+        setServerError('Invalid credentials. Please verify your email and password.');
+      }
     } finally {
       setLoading(false);
     }
@@ -227,9 +260,19 @@ export default function Login() {
     setLoading(true);
     try {
       await login(role.email, 'admin123');
+      setBackendStatus('online');
       navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
       setLoading(false);
+      const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
+      if (serverMsg) {
+        setServerError(serverMsg);
+      } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
+        setBackendStatus('offline');
+        setServerError('Backend server connection issue. Please make sure the backend server is running on port 5000 with "npm run dev:server".');
+      } else {
+        setServerError(`Unable to sign in as ${role.label}. Please verify your credentials or server connection.`);
+      }
       setTimeout(() => passwordRef.current?.focus(), 0);
     }
   };
@@ -833,10 +876,29 @@ export default function Login() {
                 <span>Register Company</span>
                 <ArrowRight size={13} />
               </Link>
-              <div className="login-status hidden sm:flex" aria-live="polite">
-                <span className="login-status__dot" aria-hidden="true" />
-                System online
-              </div>
+              {backendStatus === 'online' ? (
+                <div className="login-status hidden sm:flex" aria-live="polite">
+                  <span className="login-status__dot" aria-hidden="true" />
+                  System online
+                </div>
+              ) : backendStatus === 'offline' ? (
+                <div className="login-status hidden sm:flex border-rose-200 bg-rose-50/90 text-rose-700 font-semibold" aria-live="polite">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" aria-hidden="true" />
+                  <span>Backend offline (Port 5000)</span>
+                  <button
+                    type="button"
+                    onClick={checkBackendHealth}
+                    className="ml-1 text-[11px] font-bold underline text-rose-800 hover:text-rose-950 cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <div className="login-status hidden sm:flex border-amber-200 bg-amber-50/90 text-amber-700 font-semibold" aria-live="polite">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" aria-hidden="true" />
+                  <span>Connecting…</span>
+                </div>
+              )}
             </div>
           </div>
 
