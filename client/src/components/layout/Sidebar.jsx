@@ -12,10 +12,24 @@ const INACTIVE_AVOIDED_SIDEBAR_IDS = [
   'report_disposal',
 ];
 
+/* ── Held / Inactive Navigation Items ── */
+const DEFAULT_HELD_SIDEBAR_IDS = [
+  'report_inventory_count',
+  'movements_all',
+  'stock_requests',
+];
+
 const isAvoidedNavItem = (it) => {
   if (!it) return false;
   if (INACTIVE_AVOIDED_SIDEBAR_IDS.includes(it.id)) return true;
   if (it.to === '/transactions/disposal' || it.to === '/consumption' || it.to === '/reports/disposal') return true;
+  return false;
+};
+
+const isItemOnHold = (it) => {
+  if (!it) return false;
+  if (it.onHold === true || it.disabled === true || it.status === 'on_hold' || it.status === 'inactive') return true;
+  if (DEFAULT_HELD_SIDEBAR_IDS.includes(it.id)) return true;
   return false;
 };
 
@@ -321,8 +335,10 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     if (!item.children) return false;
     return item.children.some(
       (c) =>
-        location.pathname === c.to ||
-        (c.to !== '/' && location.pathname.startsWith(c.to))
+        !isItemOnHold(c) && (
+          location.pathname === c.to ||
+          (c.to !== '/' && location.pathname.startsWith(c.to))
+        )
     );
   };
 
@@ -361,7 +377,41 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
 
   // Render a single leaf navigation link
   const renderNavLink = (item) => {
+    const isHeld = isItemOnHold(item);
     const itemColor = getItemAccent(item);
+
+    if (isHeld) {
+      return (
+        <div
+          key={item.id}
+          title={`${item.label} — Feature on hold / inactive`}
+          className={`group flex items-center justify-between gap-2.5 rounded-xl ${spacingClass} text-xs select-none cursor-not-allowed opacity-50 transition-all ${
+            collapsed ? 'justify-center' : ''
+          } ${
+            isDark ? 'text-slate-400 bg-white/[0.02]' : 'text-slate-400 bg-slate-100/50'
+          }`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <span className={getIconBadgeClasses(false)}>
+            <MuiIconResolver name={item.icon} size={resolvedIconSize} />
+          </span>
+          {!collapsed && (
+            <>
+              <span className="text-[13px] tracking-tight truncate flex-1 font-semibold">
+                {item.label}
+              </span>
+              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/25">
+                Hold
+              </span>
+            </>
+          )}
+        </div>
+      );
+    }
+
     return (
       <NavLink
         key={item.id}
@@ -408,10 +458,11 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     if (visibleChildren.length === 0) return null;
 
     if (collapsed) {
+      const firstActiveChild = visibleChildren.find((c) => !isItemOnHold(c)) || visibleChildren[0];
       return (
         <NavLink
           key={group.id}
-          to={visibleChildren[0]?.to || '/'}
+          to={firstActiveChild?.to || '/'}
           onClick={onClose}
           title={group.label}
           className={({ isActive }) => getLinkClasses(isActive || active)}
@@ -441,42 +492,77 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
         badgeRadius={badgeRadius}
         accentHex={groupColor}
       >
-        {visibleChildren.map((sub) => (
-          <NavLink
-            key={sub.id}
-            to={sub.to}
-            end={Boolean(sub.exact)}
-            onClick={onClose}
-            className={({ isActive }) =>
-              `group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-all duration-150 sidebar-nav-link ${
-                isActive
-                  ? isDark
-                    ? 'bg-white/15 text-white font-bold'
-                    : 'bg-indigo-50 text-indigo-700 font-bold'
-                  : isDark
-                  ? 'text-slate-400 hover:bg-white/5 hover:text-white font-medium'
-                  : 'text-slate-500 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <span
-                  className={`h-1.5 w-1.5 rounded-full transition-colors shrink-0 ${
-                    isActive
-                      ? 'bg-indigo-500'
-                      : isDark
-                      ? 'bg-slate-600 group-hover:bg-slate-400'
-                      : 'bg-slate-300 group-hover:bg-indigo-500'
-                  }`}
-                  style={isActive ? { backgroundColor: groupColor } : undefined}
-                />
-                <MuiIconResolver name={sub.icon} size={Math.max(12, resolvedIconSize - 3)} className="shrink-0" />
-                <span className="truncate">{sub.label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
+        {visibleChildren.map((sub) => {
+          const isHeld = isItemOnHold(sub);
+
+          if (isHeld) {
+            return (
+              <div
+                key={sub.id}
+                title={`${sub.label} — Feature on hold / inactive`}
+                className={`group flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs select-none cursor-not-allowed opacity-55 transition-all ${
+                  isDark
+                    ? 'text-slate-400 bg-white/[0.02]'
+                    : 'text-slate-400 bg-slate-100/50'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-amber-500/70" />
+                  <MuiIconResolver
+                    name={sub.icon}
+                    size={Math.max(12, resolvedIconSize - 3)}
+                    className="shrink-0 opacity-60 text-slate-400"
+                  />
+                  <span className="truncate">{sub.label}</span>
+                </div>
+                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/25">
+                  Hold
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <NavLink
+              key={sub.id}
+              to={sub.to}
+              end={Boolean(sub.exact)}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-all duration-150 sidebar-nav-link ${
+                  isActive
+                    ? isDark
+                      ? 'bg-white/15 text-white font-bold'
+                      : 'bg-indigo-50 text-indigo-700 font-bold'
+                    : isDark
+                    ? 'text-slate-400 hover:bg-white/5 hover:text-white font-medium'
+                    : 'text-slate-500 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full transition-colors shrink-0 ${
+                      isActive
+                        ? 'bg-indigo-500'
+                        : isDark
+                        ? 'bg-slate-600 group-hover:bg-slate-400'
+                        : 'bg-slate-300 group-hover:bg-indigo-500'
+                    }`}
+                    style={isActive ? { backgroundColor: groupColor } : undefined}
+                  />
+                  <MuiIconResolver name={sub.icon} size={Math.max(12, resolvedIconSize - 3)} className="shrink-0" />
+                  <span className="truncate">{sub.label}</span>
+                </>
+              )}
+            </NavLink>
+          );
+        })}
       </DynamicCollapsibleNav>
     );
   };
@@ -655,17 +741,18 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
           </NavLink>
           {!collapsed && (
             <>
-              <NavLink
-                to="/stock-requests"
-                title="Issues & Requests"
-                className={`p-1.5 rounded-lg transition ${
-                  isDark
-                    ? 'hover:bg-white/10 hover:text-white'
-                    : 'hover:bg-slate-100 hover:text-slate-700'
+              <div
+                title="Stock Issue & Request (On Hold)"
+                className={`p-1.5 rounded-lg select-none cursor-not-allowed opacity-40 transition ${
+                  isDark ? 'text-slate-500' : 'text-slate-400'
                 }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
               >
                 <MuiIconResolver name="CallSplitRounded" size={17} />
-              </NavLink>
+              </div>
               <NavLink
                 to="/settings?tab=security"
                 title="Security & Passwords"

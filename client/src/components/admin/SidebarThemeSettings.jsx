@@ -152,6 +152,32 @@ export default function SidebarThemeSettings() {
     }
   };
 
+  // Hold / Inactive status toggle
+  const toggleHold = (id, parentId = null) => {
+    if (!isOwnerOrDev) return;
+    if (parentId) {
+      const updated = localSidebar.map((parent) => {
+        if (parent.id !== parentId || !parent.children) return parent;
+        return {
+          ...parent,
+          children: parent.children.map((child) => {
+            if (child.id !== id) return child;
+            const newHold = !child.onHold;
+            return { ...child, onHold: newHold, disabled: newHold };
+          }),
+        };
+      });
+      handleSidebarChange(updated);
+    } else {
+      const updated = localSidebar.map((item) => {
+        if (item.id !== id) return item;
+        const newHold = !item.onHold;
+        return { ...item, onHold: newHold, disabled: newHold };
+      });
+      handleSidebarChange(updated);
+    }
+  };
+
   // Open Icon Modal
   const openIconPicker = (itemId, currentIcon, parentId = null) => {
     if (!isOwnerOrDev) return;
@@ -882,7 +908,7 @@ export default function SidebarThemeSettings() {
                 <th className="py-3 px-4 w-16 text-center">Icon</th>
                 <th className="py-3 px-4">Menu Label</th>
                 <th className="py-3 px-4">Target Route / Type</th>
-                <th className="py-3 px-4 w-28 text-center">Visibility</th>
+                <th className="py-3 px-4 w-44 text-center">Visibility &amp; Status</th>
                 <th className="py-3 px-4 w-32 text-center">Reorder</th>
                 <th className="py-3 px-4 w-24 text-center">Actions</th>
               </tr>
@@ -947,20 +973,36 @@ export default function SidebarThemeSettings() {
                         )}
                       </td>
 
-                      {/* Visibility Toggle */}
+                      {/* Visibility & Status Toggle */}
                       <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleVisibility(item.id)}
-                          disabled={!isOwnerOrDev}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition ${isVisible
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-slate-100 text-slate-400 border border-slate-200'
-                            }`}
-                        >
-                          {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
-                          {isVisible ? 'Visible' : 'Hidden'}
-                        </button>
+                        <div className="inline-flex items-center gap-1.5 justify-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleVisibility(item.id)}
+                            disabled={!isOwnerOrDev}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition ${isVisible
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200'
+                              }`}
+                          >
+                            {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+                            {isVisible ? 'Visible' : 'Hidden'}
+                          </button>
+                          {!isGroup && (
+                            <button
+                              type="button"
+                              onClick={() => toggleHold(item.id)}
+                              disabled={!isOwnerOrDev}
+                              title={item.onHold ? 'Currently On Hold. Click to activate' : 'Click to put on hold'}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition ${item.onHold
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                            >
+                              {item.onHold ? 'On Hold' : 'Active'}
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* Reorder Up/Down */}
@@ -1042,18 +1084,32 @@ export default function SidebarThemeSettings() {
                             </td>
 
                             <td className="py-2.5 px-4 text-center">
-                              <button
-                                type="button"
-                                onClick={() => toggleVisibility(child.id, item.id)}
-                                disabled={!isOwnerOrDev}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition ${childVisible
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-slate-100 text-slate-400'
-                                  }`}
-                              >
-                                {childVisible ? <Eye size={10} /> : <EyeOff size={10} />}
-                                {childVisible ? 'Visible' : 'Hidden'}
-                              </button>
+                              <div className="inline-flex items-center gap-1.5 justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleVisibility(child.id, item.id)}
+                                  disabled={!isOwnerOrDev}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition ${childVisible
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-slate-100 text-slate-400'
+                                    }`}
+                                >
+                                  {childVisible ? <Eye size={10} /> : <EyeOff size={10} />}
+                                  {childVisible ? 'Visible' : 'Hidden'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleHold(child.id, item.id)}
+                                  disabled={!isOwnerOrDev}
+                                  title={child.onHold ? 'Currently On Hold. Click to activate' : 'Click to put on hold'}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition ${child.onHold
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    }`}
+                                >
+                                  {child.onHold ? 'On Hold' : 'Active'}
+                                </button>
+                              </div>
                             </td>
 
                             <td className="py-2.5 px-4 text-center">

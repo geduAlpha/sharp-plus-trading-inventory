@@ -184,10 +184,10 @@ const DEFAULT_SIDEBAR_CONFIG = [
       { id: 'movements_credit_grv', label: 'Credit Goods Receiving Voucher', to: '/transactions/credit-grv', icon: 'CreditCardRounded', iconType: 'mui', navKey: 'purchases', order: 2, visible: true },
       { id: 'movements_neg_adj', label: 'Negative Stock Adjustment Voucher', to: '/transactions/neg-adjustment', icon: 'RemoveCircleOutlineRounded', iconType: 'mui', navKey: 'stockMovements', order: 3, visible: true },
       { id: 'movements_pos_adj', label: 'Positive Stock Adjustment Voucher', to: '/transactions/pos-adjustment', icon: 'AddCircleOutlineRounded', iconType: 'mui', navKey: 'stockMovements', order: 4, visible: true },
-      { id: 'report_inventory_count', label: 'Inventory Count', to: '/reports/inventory-count', icon: 'FactCheckRounded', iconType: 'mui', navKey: 'inventoryCount', order: 5, visible: true },
-      { id: 'movements_all', label: 'All Documents', to: '/transactions', icon: 'SwapHorizRounded', iconType: 'mui', navKey: 'stockMovements', order: 6, visible: true, exact: true },
+      { id: 'report_inventory_count', label: 'Inventory Count', to: '/reports/inventory-count', icon: 'FactCheckRounded', iconType: 'mui', navKey: 'inventoryCount', order: 5, visible: true, onHold: true, disabled: true },
+      { id: 'movements_all', label: 'All Documents', to: '/transactions', icon: 'SwapHorizRounded', iconType: 'mui', navKey: 'stockMovements', order: 6, visible: true, exact: true, onHold: true, disabled: true },
       { id: 'movements_sales_import', label: 'Import Sales Report', to: '/sales-import', icon: 'CloudUploadRounded', iconType: 'mui', navKey: 'stockMovements', order: 7, visible: true },
-      { id: 'stock_requests', label: 'Stock Issue & Request', to: '/stock-requests', icon: 'CallSplitRounded', iconType: 'mui', navKey: 'stockRequests', order: 8, visible: true },
+      { id: 'stock_requests', label: 'Stock Issue & Request', to: '/stock-requests', icon: 'CallSplitRounded', iconType: 'mui', navKey: 'stockRequests', order: 8, visible: true, onHold: true, disabled: true },
     ]
   },
   {
