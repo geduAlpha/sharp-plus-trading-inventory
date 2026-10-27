@@ -6,6 +6,7 @@ const DataTable = ({
   data,
   emptyMessage = 'No records found.',
   defaultPageSize = 10,
+  showPagination = true,
 }) => {
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
@@ -14,7 +15,9 @@ const DataTable = ({
   useEffect(() => { setPage(1); }, [data.length]);
 
   const total     = data.length;
-  const paginated = data.slice((page - 1) * pageSize, page * pageSize);
+  const paginated = showPagination
+    ? data.slice((page - 1) * pageSize, page * pageSize)
+    : data;
 
   return (
     <div className="overflow-hidden rounded-xl border border-blue-200/70 bg-white shadow-soft">
@@ -61,13 +64,15 @@ const DataTable = ({
       </div>
 
       {/* ── Pagination footer ── */}
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        onPage={setPage}
-        onPageSize={(s) => { setPageSize(s); setPage(1); }}
-      />
+      {showPagination && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPage={setPage}
+          onPageSize={(s) => { setPageSize(s); setPage(1); }}
+        />
+      )}
     </div>
   );
 };

@@ -409,6 +409,18 @@ const Items = () => {
     return categories.filter(c => c.name.toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q));
   }, [categories, categorySearch]);
 
+  // Unique sorted list of categories from both Category collection and items (preventing duplicate category entries)
+  const categoryOptions = useMemo(() => {
+    const set = new Set();
+    categories.forEach(c => {
+      if (c.name && c.name.trim()) set.add(c.name.trim());
+    });
+    materials.forEach(m => {
+      if (m.category && m.category.trim()) set.add(m.category.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [categories, materials]);
+
   const handleExport = async () => {
     try {
       const res = await api.get('/materials/export/excel', { responseType: 'blob' });
@@ -787,9 +799,9 @@ const Items = () => {
             onChange={(e) => { setSelectedCategory(e.target.value); setPage(1); }}
             className="rounded-lg border border-ink-200 bg-ink-50/50 px-2.5 py-1.5 text-xs text-ink-700 outline-none focus:border-blue-400"
           >
-            <option value="all">All Categories ({categories.length})</option>
-            {categories.map(c => (
-              <option key={c._id} value={c.name}>{c.name}</option>
+            <option value="all">All Categories ({categoryOptions.length})</option>
+            {categoryOptions.map(catName => (
+              <option key={catName} value={catName}>{catName}</option>
             ))}
           </select>
 
@@ -864,6 +876,7 @@ const Items = () => {
         <DataTable
           columns={columns}
           data={paginatedData}
+          showPagination={false}
           emptyMessage={loading ? 'Loading inventory items…' : 'No items match your criteria. Add a new item or adjust filters.'}
           title="Items & Raw Materials Catalog"
           icon={<Boxes size={18} />}
@@ -991,8 +1004,8 @@ const Items = () => {
                   className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white"
                 >
                   <option value="">Select category…</option>
-                  {categories.map(c => (
-                    <option key={c._id} value={c.name}>{c.name}</option>
+                  {categoryOptions.map(catName => (
+                    <option key={catName} value={catName}>{catName}</option>
                   ))}
                 </select>
               </div>
