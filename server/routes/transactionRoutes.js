@@ -15,7 +15,7 @@ const {
   importSales,
   recordSalePayment,
 } = require('../controllers/transactionController');
-const { protect, authorizePermission } = require('../middleware/authMiddleware');
+const { protect, authorize, authorizePermission } = require('../middleware/authMiddleware');
 const { checkModuleEnabled } = require('../middleware/moduleGateMiddleware');
 
 router.use(protect);

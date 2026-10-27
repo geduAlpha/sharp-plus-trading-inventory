@@ -18,6 +18,7 @@ import ExportDropdown from '../components/ui/ExportDropdown';
 import AttachmentUploader, { AttachmentViewer } from '../components/ui/AttachmentUploader';
 import Pagination from '../components/ui/Pagination';
 import { useAuth } from '../context/AuthContext';
+import { useThemeSidebar } from '../context/ThemeSidebarContext';
 
 // ── Voucher configurations ────────────────────────────────────────────
 const VOUCHERS = [
@@ -166,6 +167,14 @@ export default function StockTransactions({ defaultVoucher } = {}) {
   const isAdmin   = hasRole('admin') || user?.role === 'developer';
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const { navItems } = useThemeSidebar();
+  const parentCategory = useMemo(() => {
+    const group = (navItems || []).find(
+      (n) => n.id === 'storeOps' || (n.children && n.children.some((c) => c.to?.startsWith('/transactions')))
+    );
+    return group?.label || 'Stock Management System';
+  }, [navItems]);
+
   const activeVoucherKey = defaultVoucher ?? searchParams.get('voucherType') ?? 'cash_grv';
   const currentVoucherConfig = voucherByKey[activeVoucherKey] || voucherByKey['cash_grv'];
   const isAdjustmentVoucher = currentVoucherConfig.isAdjustment === true;
@@ -1302,20 +1311,26 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       {viewMode === 'preparation' && form && (
         <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
 
-          {/* 1A. Top Breadcrumb & List Toggle */}
+          {/* 1A. Top Breadcrumb & List Toggle: Home >> parent category >> sublist >> then task */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-500 flex items-center gap-1 font-medium hover:text-blue-600 cursor-pointer" onClick={() => setViewMode('list')}>
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <span className="text-slate-500 flex items-center gap-1 font-medium hover:text-blue-600 cursor-pointer" onClick={() => navigate('/')}>
                 🏠 Home
               </span>
               <ChevronRight size={13} className="text-slate-400" />
-              <span className="text-slate-500 font-medium">Subsystems</span>
-              <ChevronRight size={13} className="text-slate-400" />
-              <span className="text-blue-900 font-bold">
-                {currentVoucherConfig.fullLabel}
+              <span className="text-slate-600 font-bold hover:text-blue-600 cursor-pointer" onClick={() => navigate('/transactions')}>
+                {parentCategory}
               </span>
-              <span className="text-slate-500 font-semibold text-xs ml-1 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                [ Preparation ]
+              <ChevronRight size={13} className="text-slate-400" />
+              <span className="text-slate-600 font-semibold hover:text-blue-600 cursor-pointer" onClick={() => setViewMode('list')}>
+                Documents
+              </span>
+              <ChevronRight size={13} className="text-slate-400" />
+              <span className="text-blue-900 font-bold flex items-center gap-1.5">
+                {currentVoucherConfig.fullLabel}
+                <span className="text-blue-600 font-bold text-xs ml-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  Task: Preparation
+                </span>
               </span>
             </div>
 
@@ -2188,17 +2203,24 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       {viewMode === 'list' && (
         <div className="space-y-4">
 
-          {/* 2A. Breadcrumb Bar */}
+          {/* 2A. Breadcrumb Bar: Home >> parent category >> sublist >> then task */}
           <div className="flex flex-wrap items-center justify-between gap-2 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 font-medium hover:text-blue-600 cursor-pointer" onClick={() => navigate('/')}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-slate-500 font-medium hover:text-blue-600 cursor-pointer flex items-center gap-1" onClick={() => navigate('/')}>
                 🏠 Home
               </span>
               <ChevronRight size={13} className="text-slate-400" />
-              <span className="text-slate-500">Subsystems</span>
+              <span className="text-slate-600 font-bold hover:text-blue-600 cursor-pointer" onClick={() => navigate('/transactions')}>
+                {parentCategory}
+              </span>
               <ChevronRight size={13} className="text-slate-400" />
-              <span className="text-blue-900 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                Documents - {currentVoucherConfig.fullLabel}
+              <span className="text-slate-600 font-semibold hover:text-blue-600 cursor-pointer" onClick={() => navigate('/transactions')}>
+                Documents
+              </span>
+              <ChevronRight size={13} className="text-slate-400" />
+              <span className="text-blue-900 font-bold bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200 flex items-center gap-1.5">
+                <span className="text-blue-600 text-[10px] font-black uppercase tracking-wider bg-blue-100 px-1.5 py-0.2 rounded">Task</span>
+                {currentVoucherConfig.fullLabel}
               </span>
             </div>
 
