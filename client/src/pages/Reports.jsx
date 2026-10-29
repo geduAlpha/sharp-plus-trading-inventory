@@ -1237,6 +1237,51 @@ export default function Reports({ defaultTab } = {}) {
     }));
   }, [data, tab, balanceViewMode, balanceTxnsData]);
 
+  // ── Available filter options from loaded data ─────────────────────────
+  const categoryOptions = useMemo(() => {
+    return (data?.categories || []).filter(c => c && c !== 'all');
+  }, [data?.categories]);
+
+  const storeOptions = useMemo(() => {
+    return (data?.stores || ['Main store']).filter(Boolean);
+  }, [data?.stores]);
+
+  const articleOptions = useMemo(() => {
+    return data?.articles || (data?.items || []).map(i => ({ _id: i._id, code: i.code, name: i.name, category: i.category, unit: i.unit }));
+  }, [data?.articles, data?.items]);
+
+  // ── Client-side filtered items for Stock Balance tabs ─────────────────
+  const filteredStockItems = useMemo(() => {
+    if (!data?.items) return [];
+    let list = [...data.items];
+
+    // Search query filter (Article Code, Name, Category, UOM, Store)
+    if (stockSearch.trim()) {
+      const q = stockSearch.toLowerCase().trim();
+      list = list.filter(item =>
+        (item.code && item.code.toLowerCase().includes(q)) ||
+        (item.name && item.name.toLowerCase().includes(q)) ||
+        (item.category && item.category.toLowerCase().includes(q)) ||
+        (item.unit && item.unit.toLowerCase().includes(q)) ||
+        (item.storeLocation && item.storeLocation.toLowerCase().includes(q))
+      );
+    }
+
+    // Remove zero balance items filter
+    if (removeZeroBalance) {
+      list = list.filter(item => Number(item.closingStock || 0) > 0);
+    }
+
+    // Active articles filter
+    if (activeArticles === 'A') {
+      list = list.filter(item => item.isActive !== false);
+    } else if (activeArticles === 'I') {
+      list = list.filter(item => item.isActive === false);
+    }
+
+    return list;
+  }, [data?.items, stockSearch, removeZeroBalance, activeArticles]);
+
   // ── Category Grouped Items for BinCard Summary (matching reference image) ──
   const categoryGroupedStock = useMemo(() => {
     const groups = {};
@@ -1283,51 +1328,6 @@ export default function Reports({ defaultTab } = {}) {
       );
     });
   }, [serialBinCardData?.articles, stockSearch]);
-
-  // ── Available filter options from loaded data ─────────────────────────
-  const categoryOptions = useMemo(() => {
-    return (data?.categories || []).filter(c => c && c !== 'all');
-  }, [data?.categories]);
-
-  const storeOptions = useMemo(() => {
-    return (data?.stores || ['Main store']).filter(Boolean);
-  }, [data?.stores]);
-
-  const articleOptions = useMemo(() => {
-    return data?.articles || (data?.items || []).map(i => ({ _id: i._id, code: i.code, name: i.name, category: i.category, unit: i.unit }));
-  }, [data?.articles, data?.items]);
-
-  // ── Client-side filtered items for Stock Balance tabs ─────────────────
-  const filteredStockItems = useMemo(() => {
-    if (!data?.items) return [];
-    let list = [...data.items];
-
-    // Search query filter (Article Code, Name, Category, UOM, Store)
-    if (stockSearch.trim()) {
-      const q = stockSearch.toLowerCase().trim();
-      list = list.filter(item =>
-        (item.code && item.code.toLowerCase().includes(q)) ||
-        (item.name && item.name.toLowerCase().includes(q)) ||
-        (item.category && item.category.toLowerCase().includes(q)) ||
-        (item.unit && item.unit.toLowerCase().includes(q)) ||
-        (item.storeLocation && item.storeLocation.toLowerCase().includes(q))
-      );
-    }
-
-    // Remove zero balance items filter
-    if (removeZeroBalance) {
-      list = list.filter(item => Number(item.closingStock || 0) > 0);
-    }
-
-    // Active articles filter
-    if (activeArticles === 'A') {
-      list = list.filter(item => item.isActive !== false);
-    } else if (activeArticles === 'I') {
-      list = list.filter(item => item.isActive === false);
-    }
-
-    return list;
-  }, [data?.items, stockSearch, removeZeroBalance, activeArticles]);
 
   // ── Derived datasets for specialized tabs ────────────────────────────
   const minStockItems = useMemo(() => {
