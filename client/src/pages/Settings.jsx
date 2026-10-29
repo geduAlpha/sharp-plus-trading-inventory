@@ -956,12 +956,12 @@ export default function Settings() {
             <div className="mb-6 rounded-2xl bg-gradient-to-r from-indigo-900/10 via-slate-900/5 to-indigo-900/10 border border-indigo-200/60 p-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white font-black text-lg shadow-sm">
-                    {systemForm.companyLogo ? (
-                      <img src={systemForm.companyLogo} alt={systemForm.companyName} className="h-full w-full object-contain rounded-2xl" />
-                    ) : (
-                      (systemForm.companyName || 'CO').slice(0, 2).toUpperCase()
-                    )}
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white border border-slate-200 p-1 text-white font-black text-lg shadow-sm overflow-hidden">
+                    <img
+                      src={systemForm.companyLogo || '/logo.png'}
+                      alt={systemForm.companyName || 'Company Logo'}
+                      className="h-full w-full object-contain rounded-xl"
+                    />
                   </div>
                   <div>
                     <h3 className="text-base font-black text-ink-900">{systemForm.companyName}</h3>

@@ -597,20 +597,11 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
             onClick={onClose}
             className="flex items-center gap-3 hover:opacity-90 transition-opacity min-w-0"
           >
-            {companyInfo?.companyLogo ? (
-              <img
-                src={companyInfo.companyLogo}
-                alt={companyInfo.companyName}
-                className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shadow-sm"
-              />
-            ) : (
-              <div
-                className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-black text-sm shadow-sm"
-                style={{ backgroundColor: accentHex }}
-              >
-                {(companyInfo?.companyName || 'SP').slice(0, 2).toUpperCase()}
-              </div>
-            )}
+            <img
+              src={companyInfo?.companyLogo || '/logo.png'}
+              alt={companyInfo?.companyName || 'Sharp Plus'}
+              className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shadow-sm"
+            />
             {!collapsed && (
               <div className="min-w-0">
                 <p className="text-[14px] font-black leading-tight sidebar-brand-title tracking-tight truncate max-w-[170px]">

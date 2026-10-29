@@ -156,7 +156,7 @@ export const DEFAULT_COMPANY_INFO = {
   city: 'Addis Ababa',
   country: 'Ethiopia',
   tinNumber: '',
-  companyLogo: '',
+  companyLogo: '/logo.png',
   taxRate: 15,
   ownerName: 'System Owner',
   isConfigured: false,
@@ -243,7 +243,7 @@ export const AuthProvider = ({ children }) => {
           country: res.data.country || 'Ethiopia',
           currency: res.data.currency || 'ETB',
           currencySymbol: res.data.currencySymbol || res.data.currency || 'ETB',
-          companyLogo: res.data.companyLogo || '',
+          companyLogo: res.data.companyLogo || '/logo.png',
           tinNumber: res.data.tinNumber || '',
           taxRate: res.data.taxRate !== undefined ? res.data.taxRate : 15,
           ownerName: res.data.ownerName || '',
@@ -311,6 +311,17 @@ export const AuthProvider = ({ children }) => {
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
+
+  // Synchronize document title and browser tab favicon dynamically
+  useEffect(() => {
+    const brand = companyInfo?.companyName || 'Sharp Plus';
+    document.title = `${brand} — Inventory & Stock Management`;
+    const iconUrl = companyInfo?.companyLogo || '/favicon.png';
+    const favicons = document.querySelectorAll("link[rel*='icon']");
+    favicons.forEach(el => {
+      el.href = iconUrl;
+    });
+  }, [companyInfo]);
 
   /**
    * Login can be called two ways:

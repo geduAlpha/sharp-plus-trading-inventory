@@ -61,7 +61,7 @@ const settingSchema = new mongoose.Schema(
     // ── Company Profile & System Ownership ───────────────────────
     tradeName: { type: String, default: '' },
     tinNumber: { type: String, default: '' },
-    companyLogo: { type: String, default: '' },
+    companyLogo: { type: String, default: '/logo.png' },
     website: { type: String, default: '' },
     city: { type: String, default: 'Addis Ababa' },
     country: { type: String, default: 'Ethiopia' },
