@@ -12,15 +12,11 @@ export const formatNumber = (num, decimals = 2) => {
 };
 
 /**
- * Format string with carets between every letter: "DIRE" -> "^D^I^R^E^"
+ * Format string cleanly without carets
  */
 export const toCaretSpaced = (str = '') => {
   if (!str) return '';
-  return str
-    .trim()
-    .split('')
-    .map((char) => (char === ' ' ? ' ' : `^${char.toUpperCase()}`))
-    .join('') + '^';
+  return String(str).trim().replace(/\^/g, '');
 };
 
 /**
@@ -31,15 +27,10 @@ export const toAsteriskAmount = (num, decimals = 2) => {
 };
 
 /**
- * Format total with caret characters like in thermal POS:
- * 1739.16 -> "^*1^,^7^3^9^.^1^6"
+ * Format total amount without carets
  */
 export const toCaretTotal = (num) => {
-  const str = `*${formatNumber(num, 2)}`;
-  return str
-    .split('')
-    .map((c) => `^${c}`)
-    .join('');
+  return toAsteriskAmount(num, 2);
 };
 
 /**
@@ -68,8 +59,8 @@ export const generateThermalReceiptText = (sale, config = {}) => {
 
   const tin = config.tinNumber || sale?.customer?.tinNumber || '0089234125';
   const companyLines = config.companyLines || [
-    '^S^H^A^R^P^ ^P^L^U^S^',
-    '^T^R^A^D^I^N^G^ ^P^L^C^',
+    'SHARP PLUS',
+    'TRADING PLC',
   ];
   const addressLine1 = config.addressLine1 || 'ADDIS ABABA, BOLE MEDHANIALEM';
   const addressLine2 = config.addressLine2 || 'COMMERCIAL CENTER 4TH FLOOR';
@@ -146,7 +137,7 @@ export const generateThermalReceiptText = (sale, config = {}) => {
   txt += `TIN: ${tin}\n`;
   txt += `${divider}\n`;
 
-  companyLines.forEach((l) => {
+  companyLines.map((l) => String(l || "").replace(/\^/g, "")).forEach((l) => {
     txt += `${l}\n`;
   });
 
@@ -179,20 +170,20 @@ export const generateThermalReceiptText = (sale, config = {}) => {
   txt += `TXBL1                       ${toAsteriskAmount(taxable, 2).padStart(18, ' ')}\n`;
   txt += `TAX1 ${taxRate}%                     ${toAsteriskAmount(taxAmount, 2).padStart(18, ' ')}\n`;
   txt += `${divider}\n`;
-  txt += `^T^O^T^A^L                  ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
+  txt += `TOTAL                       ${toAsteriskAmount(totalRevenue, 2).padStart(18, ' ')}\n`;
   txt += `${divider}\n`;
 
   if (isCredit) {
     const paid = Number(sale?.amountPaid || 0);
     const balance = Math.max(0, totalRevenue - paid);
-    txt += `^C^R^E^D^I^T                ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
+    txt += `CREDIT                      ${toAsteriskAmount(totalRevenue, 2).padStart(18, ' ')}\n`;
     txt += `PAID                        ${toAsteriskAmount(paid, 2).padStart(18, ' ')}\n`;
     txt += `BALANCE DUE                 ${toAsteriskAmount(balance, 2).padStart(18, ' ')}\n`;
     if (sale?.dueDate) {
       txt += `DUE DATE:                   ${new Date(sale.dueDate).toLocaleDateString('en-GB')}\n`;
     }
   } else {
-    txt += `^C^A^S^H                    ${toCaretTotal(totalRevenue).padStart(18, ' ')}\n`;
+    txt += `CASH                        ${toAsteriskAmount(totalRevenue, 2).padStart(18, ' ')}\n`;
   }
 
   txt += `ITEM#                               ${String(processedItems.length).padStart(4, ' ')}\n`;

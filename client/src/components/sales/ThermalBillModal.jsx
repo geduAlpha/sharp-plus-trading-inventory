@@ -30,8 +30,8 @@ const PRESETS = {
     name: 'Sharp Plus Trading PLC',
     tinNumber: '0089234125',
     companyLines: [
-      '^S^H^A^R^P^ ^P^L^U^S^',
-      '^T^R^A^D^I^N^G^ ^P^L^C^',
+      'SHARP PLUS',
+      'TRADING PLC',
     ],
     addressLine1: 'ADDIS ABABA, BOLE MEDHANIALEM',
     addressLine2: 'COMMERCIAL CENTER 4TH FLOOR',
@@ -383,9 +383,9 @@ export default function ThermalBillModal({ open, onClose, sale }) {
 
               {/* Caret Organization Lines */}
               <div className="text-center font-bold tracking-widest text-[13px] leading-tight my-1 text-slate-950">
-                {config.companyLines.map((line, idx) => (
+                {(config.companyLines || []).map((line, idx) => (
                   <div key={idx} className="whitespace-nowrap">
-                    {line}
+                    {String(line || "").replace(/\^/g, "")}
                   </div>
                 ))}
               </div>
@@ -467,7 +467,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
 
               {/* TOTAL */}
               <div className="flex justify-between font-bold text-[13px] py-0.5 text-slate-950">
-                <span>^T^O^T^A^L</span>
+                <span>TOTAL</span>
                 <span className="font-mono">{toCaretTotal(totalRevenue)}</span>
               </div>
 
@@ -478,7 +478,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 {isCredit ? (
                   <>
                     <div className="flex justify-between font-bold text-slate-950">
-                      <span>^C^R^E^D^I^T</span>
+                      <span>CREDIT</span>
                       <span className="font-mono">{toCaretTotal(totalRevenue)}</span>
                     </div>
                     <div className="flex justify-between">
@@ -505,7 +505,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   </>
                 ) : (
                   <div className="flex justify-between font-bold text-slate-950">
-                    <span>^C^A^S^H</span>
+                    <span>CASH</span>
                     <span className="font-mono">{toCaretTotal(totalRevenue)}</span>
                   </div>
                 )}
