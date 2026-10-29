@@ -131,7 +131,7 @@ const getTransactions = asyncHandler(async (req, res) => {
     user: filterUser, code, voucherCode,
   } = req.query;
 
-  const filter = {};
+  const filter = { deletedAt: null };
   const isSalesQuery = voucherType === 'sales' || ['cash_sale', 'credit_sale', 'cash_sales', 'credit_sales', 'sales_import'].includes(voucherType);
   if (req.user?.role !== 'developer') {
     const { getCachedModules } = require('../middleware/moduleGateMiddleware');
@@ -160,6 +160,9 @@ const getTransactions = asyncHandler(async (req, res) => {
     } else {
       filter.status = requestedStatus;
     }
+  } else {
+    // By default, voided vouchers are excluded from active origin views (visible in Recycle Bin)
+    filter.status = { $ne: 'voided' };
   }
 
   // ConsigneeUnit / Store Location
@@ -827,6 +830,7 @@ const deleteTransaction = asyncHandler(async (req, res) => {
   }
 
   // Soft delete — move to recycle bin
+  transaction.status      = 'voided';
   transaction.deletedAt   = new Date();
   transaction.deletedBy   = req.user?.name || 'System';
   transaction.deletedFrom = 'transactions';
@@ -871,6 +875,7 @@ const bulkDeleteTransactions = asyncHandler(async (req, res) => {
       });
       transaction.stockApplied = false;
     }
+    transaction.status      = 'voided';
     transaction.deletedAt   = new Date();
     transaction.deletedBy   = req.user?.name || 'System';
     transaction.deletedFrom = 'transactions';

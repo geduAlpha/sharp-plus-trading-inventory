@@ -14,8 +14,8 @@ router.use(protect);
 // Viewing Recycle Bin: admin, manager, developer
 router.get('/', authorize('admin', 'manager', 'developer'), getRecycleBin);
 
-// STRICT SECURITY REQUIREMENT: Only System Developer & Owner can restore items from Recycle Bin
-router.post('/:type/:id/restore', authorize('developer'), restoreItem);
+// Restore: developer and admin (controller checks explicit owner-delegated authority)
+router.post('/:type/:id/restore', authorize('admin', 'developer'), restoreItem);
 
 // Bulk move all operational data to recycle bin: Admin & Developer
 router.post('/delete-all-data', authorize('admin', 'developer'), deleteAllData);

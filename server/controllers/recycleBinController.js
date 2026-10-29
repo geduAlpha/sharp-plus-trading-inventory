@@ -14,6 +14,30 @@ const tg = require('../utils/telegramNotifier');
 const notify = require('../utils/notificationHelper');
 const { logAudit } = require('../utils/auditLogger');
 
+// ── Privilege Check Helper ──────────────────────────────────────────
+// Developer/Owner has unrestricted authority.
+// Admin is only authorized if Developer/Owner has granted explicit privilege in Settings.
+const checkOwnerOrAdminPrivilege = async (user, actionDesc = 'perform this action') => {
+  if (user?.role === 'developer') return true;
+  if (user?.role === 'admin') {
+    const Setting = require('../models/Setting');
+    const settings = await Setting.findOne().lean();
+    const adminAllowed = Boolean(
+      settings?.allowAdminVoidDelete ||
+      settings?.rolePermissions?.voidTransactions?.admin
+    );
+    if (adminAllowed) return true;
+    const err = new Error(
+      `Access denied: System Developer & Owner has not granted Admin permission to ${actionDesc}. Please contact the Developer/Owner to enable Admin void/delete/restore privileges.`
+    );
+    err.statusCode = 403;
+    throw err;
+  }
+  const err = new Error(`Access denied: Only System Developer & Owner or authorized Admin can ${actionDesc}.`);
+  err.statusCode = 403;
+  throw err;
+};
+
 // ── GET /api/recycle-bin ─────────────────────────────────────────────
 // Returns all soft-deleted and voided records across all system collections
 const getRecycleBin = asyncHandler(async (req, res) => {
@@ -145,12 +169,9 @@ const getRecycleBin = asyncHandler(async (req, res) => {
 });
 
 // ── POST /api/recycle-bin/:type/:id/restore ──────────────────────────
-// STRICT SECURITY REQUIREMENT: Only the System Developer & Owner can restore records
+// Privilege check: System Developer & Owner or Admin with Owner Privileges granted
 const restoreItem = asyncHandler(async (req, res) => {
-  if (req.user?.role !== 'developer') {
-    res.status(403);
-    throw new Error('Access denied: Only the System Developer & Owner can restore items from the Recycle Bin.');
-  }
+  await checkOwnerOrAdminPrivilege(req.user, 'restore items from the Recycle Bin');
 
   const { type, id } = req.params;
 
@@ -229,7 +250,7 @@ const restoreItem = asyncHandler(async (req, res) => {
       by: req.user._id,
       byName: req.user.name,
       byRole: req.user.role,
-      note: 'Restored from Recycle Bin by System Developer & Owner',
+      note: `Restored from Recycle Bin by ${req.user.name} (${req.user.role})`,
     });
     await doc.save();
 
@@ -255,7 +276,7 @@ const restoreItem = asyncHandler(async (req, res) => {
       by: req.user._id,
       byName: req.user.name,
       byRole: req.user.role,
-      note: 'Restored from Recycle Bin by System Developer & Owner',
+      note: `Restored from Recycle Bin by ${req.user.name} (${req.user.role})`,
     });
     await doc.save();
 
@@ -279,7 +300,7 @@ const restoreItem = asyncHandler(async (req, res) => {
       by: req.user._id,
       byName: req.user.name,
       byRole: req.user.role,
-      note: 'Restored from Recycle Bin by System Developer & Owner',
+      note: `Restored from Recycle Bin by ${req.user.name} (${req.user.role})`,
     });
     await doc.save();
 
@@ -338,6 +359,7 @@ const restoreItem = asyncHandler(async (req, res) => {
 
 // ── DELETE /api/recycle-bin/:type/:id (permanent delete) ─────────────
 const permanentDelete = asyncHandler(async (req, res) => {
+  await checkOwnerOrAdminPrivilege(req.user, 'permanently delete items from the database');
   const { type, id } = req.params;
 
   const modelMap = {
@@ -378,6 +400,8 @@ const permanentDelete = asyncHandler(async (req, res) => {
 
 // ── DELETE /api/recycle-bin/empty (empty the entire bin) ─────────────
 const emptyRecycleBin = asyncHandler(async (req, res) => {
+  await checkOwnerOrAdminPrivilege(req.user, 'empty the entire Recycle Bin');
+
   await Promise.all([
     RawMaterial.deleteMany({ $or: [{ isActive: false }, { deletedAt: { $ne: null } }] }),
     Supplier.deleteMany({ $or: [{ isActive: false }, { deletedAt: { $ne: null } }] }),
@@ -397,9 +421,11 @@ const emptyRecycleBin = asyncHandler(async (req, res) => {
 });
 
 // ── POST /api/recycle-bin/delete-all-data ─────────────────────────────
-// Moves all operational records (transactions, purchases, consumptions, etc.) to the recycle bin
-// NOTE: Admin and Developer only. No data is destroyed!
+// Moves all operational records and master entities to the recycle bin
+// NOTE: Admin with owner-delegated privilege or Developer only. Safe: no permanent destruction!
 const deleteAllData = asyncHandler(async (req, res) => {
+  await checkOwnerOrAdminPrivilege(req.user, 'void and move all system data to the Recycle Bin');
+
   const actorName = req.user?.name || 'Administrator';
   const now = new Date();
 
@@ -484,23 +510,92 @@ const deleteAllData = asyncHandler(async (req, res) => {
     }
   );
 
+  // 5. Soft-delete active Raw Materials / Articles
+  const activeMaterials = await RawMaterial.updateMany(
+    { deletedAt: null },
+    {
+      $set: {
+        isActive: false,
+        deletedAt: now,
+        deletedBy: actorName,
+        deletedFrom: 'bulk_system_cleanup',
+      },
+    }
+  );
+
+  // 6. Soft-delete active Products
+  const activeProducts = await Product.updateMany(
+    { deletedAt: null },
+    {
+      $set: {
+        isActive: false,
+        deletedAt: now,
+        deletedBy: actorName,
+        deletedFrom: 'bulk_system_cleanup',
+      },
+    }
+  );
+
+  // 7. Soft-delete active Suppliers
+  const activeSuppliers = await Supplier.updateMany(
+    { deletedAt: null },
+    {
+      $set: {
+        isActive: false,
+        deletedAt: now,
+        deletedBy: actorName,
+        deletedFrom: 'bulk_system_cleanup',
+      },
+    }
+  );
+
+  // 8. Soft-delete active Customers
+  const activeCustomers = await Customer.updateMany(
+    { deletedAt: null },
+    {
+      $set: {
+        isActive: false,
+        deletedAt: now,
+        deletedBy: actorName,
+        deletedFrom: 'bulk_system_cleanup',
+      },
+    }
+  );
+
+  // 9. Soft-delete active Employees
+  const activeEmployees = await Employee.updateMany(
+    { deletedAt: null },
+    {
+      $set: {
+        deletedAt: now,
+        deletedBy: actorName,
+        deletedFrom: 'bulk_system_cleanup',
+      },
+    }
+  );
+
   invalidateDashboardCache();
 
   await logAudit({
     req,
     action: 'BULK_MOVE_TO_RECYCLE_BIN',
     module: 'system',
-    resourceName: 'All Operational Data',
+    resourceName: 'All Operational and Master Data',
     details: {
       transactionsMoved: activeTxns.length,
       consumptionsMoved: activeConsumptions.length,
+      materialsRecycled: activeMaterials.modifiedCount,
+      productsRecycled: activeProducts.modifiedCount,
+      suppliersRecycled: activeSuppliers.modifiedCount,
+      customersRecycled: activeCustomers.modifiedCount,
+      employeesRecycled: activeEmployees.modifiedCount,
     },
   });
 
   notify.push({
     type: 'system',
-    title: 'All Operational Data Moved to Recycle Bin',
-    message: `${actorName} moved all operational data to the Recycle Bin. Dashboard metrics reset. Only the Developer & Owner can restore.`,
+    title: 'All System Data Moved to Recycle Bin',
+    message: `${actorName} moved all operational & master data to the Recycle Bin. Dashboard metrics reset. Recoverable from Recycle Bin.`,
     icon: '🗑️',
     link: '/recycle-bin',
     severity: 'warning',
@@ -509,7 +604,7 @@ const deleteAllData = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message: `${activeTxns.length} transaction(s) and operational records moved to Recycle Bin. Only the System Developer & Owner can restore them.`,
+    message: `All system operational records (${activeTxns.length} transactions, purchases, consumptions) and master records safely moved to Recycle Bin. Only the Developer/Owner or authorized Admin can restore them.`,
   });
 });
 

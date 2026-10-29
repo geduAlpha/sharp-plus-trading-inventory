@@ -4,9 +4,13 @@ const tg = require('../utils/telegramNotifier');
 
 const getSuppliers = asyncHandler(async (req, res) => {
   const { search } = req.query;
-  const filter = search
-    ? { name: { $regex: search, $options: 'i' } }
-    : {};
+  const filter = {
+    deletedAt: null,
+    $or: [{ isActive: true }, { isActive: { $exists: false } }],
+  };
+  if (search) {
+    filter.name = { $regex: search, $options: 'i' };
+  }
   const suppliers = await Supplier.find(filter).sort({ createdAt: -1 }).lean();
   res.json(suppliers);
 });

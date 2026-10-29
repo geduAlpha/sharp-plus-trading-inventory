@@ -43,10 +43,10 @@ const getDailyReport = asyncHandler(async (req, res) => {
   const { start, end } = dayRange(req.query.date);
 
   const transactions = await populateTxn(
-    StockTransaction.find({ date: { $gte: start, $lt: end } })
+    StockTransaction.find({ date: { $gte: start, $lt: end }, deletedAt: null, status: { $ne: 'voided' } })
   );
 
-  const purchases = await Purchase.find({ purchaseDate: { $gte: start, $lt: end } })
+  const purchases = await Purchase.find({ purchaseDate: { $gte: start, $lt: end }, deletedAt: null, status: { $ne: 'cancelled' } })
     .populate('supplier', 'name')
     .populate('items.material', 'name unit');
 
@@ -73,7 +73,7 @@ const getDailyReport = asyncHandler(async (req, res) => {
 const getVoucherReport = asyncHandler(async (req, res) => {
   const { voucherType, from, to } = req.query;
 
-  const filter = {};
+  const filter = { deletedAt: null, status: { $ne: 'voided' } };
   if (voucherType) filter.voucherType = voucherType;
   const df = rangeFilter(from, to);
   if (df) filter.date = df;
@@ -236,7 +236,7 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     }
   }
 
-  const matFilter = {};
+  const matFilter = { deletedAt: null };
   // Active Articles filter: 'A' (active), 'I' (inactive), 'All' (both)
   if (activeArticles === 'I' || activeArticles === 'inactive') {
     matFilter.isActive = false;
@@ -333,7 +333,7 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
   let endDate = to ? new Date(to) : null;
   if (endDate) endDate.setHours(23, 59, 59, 999);
 
-  const txnQuery = { status: { $ne: 'voided' } };
+  const txnQuery = { status: { $ne: 'voided' }, deletedAt: null };
   if (startDate) {
     txnQuery.date = { $gte: startDate };
   }
@@ -550,6 +550,7 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
 
   const filter = {
     status: { $ne: 'voided' },
+    deletedAt: null,
     $or: [
       { material: materialId },
       { 'items.material': materialId },
@@ -632,7 +633,7 @@ const getStockBalanceTransactions = asyncHandler(async (req, res) => {
     selectedMonthLabel = firstDay.toLocaleString('en-US', { month: 'long', year: 'numeric' });
   }
 
-  const filter = {};
+  const filter = { deletedAt: null };
   if (status && status !== 'all') {
     filter.status = status;
   } else {
@@ -738,7 +739,7 @@ const getMonthlyClosingReport = asyncHandler(async (req, res) => {
   const currentYear = now.getFullYear();
   const currentMonthIdx = now.getMonth();
 
-  const materials = await RawMaterial.find({ isActive: true }).lean();
+  const materials = await RawMaterial.find({ isActive: true, deletedAt: null }).lean();
   const materialMap = {};
   materials.forEach(m => {
     materialMap[m._id.toString()] = {
@@ -750,7 +751,7 @@ const getMonthlyClosingReport = asyncHandler(async (req, res) => {
     };
   });
 
-  const transactions = await StockTransaction.find({ status: { $ne: 'voided' } }).lean();
+  const transactions = await StockTransaction.find({ status: { $ne: 'voided' }, deletedAt: null }).lean();
 
   const monthData = [];
   for (let m = 0; m < 12; m++) {
@@ -954,7 +955,7 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
   }
 
   // Build article filter
-  const matFilter = {};
+  const matFilter = { deletedAt: null };
   if (activeArticles === 'I' || activeArticles === 'inactive') {
     matFilter.isActive = false;
   } else if (activeArticles === 'All' || activeArticles === 'all') {
@@ -1017,7 +1018,7 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
   });
 
   // Query transactions up to endDate
-  const txnQuery = { status: { $ne: 'voided' } };
+  const txnQuery = { status: { $ne: 'voided' }, deletedAt: null };
   if (startDate && endDate) {
     txnQuery.date = { $gte: startDate, $lte: endDate };
   } else if (endDate) {

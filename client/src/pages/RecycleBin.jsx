@@ -47,9 +47,12 @@ const itemName = (item) =>
   `${item._typeLabel} #${item._id?.slice(-6)}`;
 
 export default function RecycleBin() {
-  const { user, isDeveloper, hasRole, can } = useAuth();
+  const { user, isDeveloper, hasRole, can, allowAdminVoidDelete } = useAuth();
   const isDev = Boolean(isDeveloper || user?.role === 'developer');
+  const hasOwnerPrivilege = isDev || Boolean(allowAdminVoidDelete || can('voidTransactions'));
   const isAdmin = Boolean(hasRole('admin') || isDev);
+  const canRestore = hasOwnerPrivilege;
+  const canDeleteOrEmpty = hasOwnerPrivilege;
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -114,10 +117,10 @@ export default function RecycleBin() {
       return n;
     });
 
-  /* ── single restore (Developer Only) ── */
+  /* ── single restore (Developer & Authorized Admin) ── */
   const handleRestore = async (item) => {
-    if (!isDev) {
-      showToast('Permission Denied: Only the System Developer & Owner can restore records.', 'error');
+    if (!canRestore) {
+      showToast('Permission Denied: System Developer & Owner has not granted Admin permission to restore records.', 'error');
       return;
     }
     setWorking(true);
@@ -135,8 +138,8 @@ export default function RecycleBin() {
 
   /* ── single permanent delete ── */
   const handlePermanent = async (item) => {
-    if (!isAdmin) {
-      showToast('Permission Denied: Administrator role required to permanently delete items.', 'error');
+    if (!canDeleteOrEmpty) {
+      showToast('Permission Denied: Owner authority required to permanently delete items.', 'error');
       return;
     }
     if (!window.confirm(`Permanently delete "${itemName(item)}"? This will wipe it from the database forever.`)) return;
@@ -157,10 +160,10 @@ export default function RecycleBin() {
     }
   };
 
-  /* ── bulk restore (Developer Only) ── */
+  /* ── bulk restore (Developer & Authorized Admin) ── */
   const handleBulkRestore = async () => {
-    if (!isDev) {
-      showToast('Permission Denied: Only the System Developer & Owner can restore records.', 'error');
+    if (!canRestore) {
+      showToast('Permission Denied: System Developer & Owner has not granted Admin permission to restore records.', 'error');
       return;
     }
     const toRestore = items.filter((i) => selected.has(i._id));
@@ -183,8 +186,8 @@ export default function RecycleBin() {
 
   /* ── bulk permanent delete ── */
   const handleBulkPermanent = async () => {
-    if (!isAdmin) {
-      showToast('Permission Denied: Administrator role required.', 'error');
+    if (!canDeleteOrEmpty) {
+      showToast('Permission Denied: Owner authority required.', 'error');
       return;
     }
     const toDelete = items.filter((i) => selected.has(i._id));
@@ -208,7 +211,10 @@ export default function RecycleBin() {
 
   /* ── empty bin ── */
   const handleEmptyBin = async () => {
-    if (!isAdmin) return;
+    if (!canDeleteOrEmpty) {
+      showToast('Permission Denied: Owner authority required to empty bin.', 'error');
+      return;
+    }
     if (
       !window.confirm(
         'Empty the entire recycle bin? All items across all collections will be PERMANENTLY deleted and cannot be recovered!'
@@ -227,8 +233,12 @@ export default function RecycleBin() {
     }
   };
 
-  /* ── Move all operational data to recycle bin ── */
+  /* ── Move all operational & master data to recycle bin ── */
   const handleExecuteDeleteAllData = async () => {
+    if (!hasOwnerPrivilege) {
+      showToast('Permission Denied: Developer/Owner authority required to void/delete all system data.', 'error');
+      return;
+    }
     if (confirmPhrase !== 'MOVE ALL TO RECYCLE BIN') {
       showToast('Please type the exact confirmation phrase.', 'warning');
       return;
@@ -236,7 +246,7 @@ export default function RecycleBin() {
     setCleanLoading(true);
     try {
       const res = await api.post('/recycle-bin/delete-all-data');
-      showToast(res.data?.message || 'Operational data moved to Recycle Bin safely.');
+      showToast(res.data?.message || 'System data safely moved to Recycle Bin.');
       setShowDeleteAllModal(false);
       setConfirmPhrase('');
       load();
@@ -303,19 +313,43 @@ export default function RecycleBin() {
 
           {isAdmin && (
             <button
-              onClick={() => setShowDeleteAllModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 px-3.5 py-2 text-xs font-bold text-amber-900 transition shadow-2xs"
-              title="Move all active transactions and operational data to Recycle Bin safely"
+              onClick={() => {
+                if (!hasOwnerPrivilege) {
+                  showToast('Access Denied: System Developer & Owner has not granted Admin permission to void/delete all data.', 'error');
+                  return;
+                }
+                setShowDeleteAllModal(true);
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition shadow-2xs ${
+                hasOwnerPrivilege
+                  ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 cursor-pointer'
+                  : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
+              }`}
+              title={
+                hasOwnerPrivilege
+                  ? 'Move all active transactions and operational data to Recycle Bin safely'
+                  : 'Requires System Developer/Owner privilege'
+              }
             >
-              <AlertTriangle size={14} className="text-amber-600" /> Void &amp; Move All Data to Bin
+              <AlertTriangle size={14} className={hasOwnerPrivilege ? 'text-amber-600' : 'text-slate-400'} /> Void &amp; Move All Data to Bin
             </button>
           )}
 
           {isAdmin && items.length > 0 && (
             <button
-              onClick={handleEmptyBin}
-              disabled={working}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-2 text-xs font-bold text-white transition shadow-2xs disabled:opacity-50"
+              onClick={() => {
+                if (!canDeleteOrEmpty) {
+                  showToast('Access Denied: Owner privileges required to empty the Recycle Bin.', 'error');
+                  return;
+                }
+                handleEmptyBin();
+              }}
+              disabled={working || !canDeleteOrEmpty}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition shadow-2xs ${
+                canDeleteOrEmpty
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-75'
+              }`}
             >
               <Trash size={14} /> Empty Bin
             </button>
@@ -326,14 +360,14 @@ export default function RecycleBin() {
       {/* ── Security Policy Notification Card ── */}
       <div
         className={`rounded-2xl border p-4 shadow-2xs transition-all ${
-          isDev
+          hasOwnerPrivilege
             ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
             : 'border-amber-200 bg-amber-50/70 text-amber-950'
         }`}
       >
         <div className="flex items-start gap-3">
           <div className="mt-0.5 shrink-0">
-            {isDev ? (
+            {hasOwnerPrivilege ? (
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white">
                 <ShieldCheck size={18} />
               </div>
@@ -351,9 +385,16 @@ export default function RecycleBin() {
                 </p>
                 <p className="text-emerald-800 mt-0.5">
                   You are logged in with <strong>System Developer &amp; Owner</strong> privileges. You have exclusive
-                  rights to restore any soft-deleted or voided transaction, inventory item, purchase order, or customer
-                  back to the active database. Restored transactions automatically re-synchronize stock movements and
-                  audit trails.
+                  rights to void/delete all system data, restore any soft-deleted records back to the active database, or empty the bin. Restored records automatically re-synchronize stock movements and origin views.
+                </p>
+              </>
+            ) : hasOwnerPrivilege ? (
+              <>
+                <p className="font-extrabold text-sm text-emerald-900">
+                  Admin Authorized — Operating Under Owner-Granted Privileges
+                </p>
+                <p className="text-emerald-800 mt-0.5">
+                  The System Developer &amp; Owner has granted you administrative authority to void transactions, move system data to the Recycle Bin, and restore records back to origin.
                 </p>
               </>
             ) : (
@@ -362,10 +403,8 @@ export default function RecycleBin() {
                   Access Restricted — Restoration Reserved for Developer/Owner
                 </p>
                 <p className="text-amber-800 mt-0.5">
-                  When administrators delete or void data, records are safely moved here and excluded from all Dashboard
-                  KPIs, cash/credit sales, and inventory balances. Under system policy,{' '}
-                  <strong className="underline">only the System Developer &amp; Owner</strong> has authorization to restore
-                  records from the Recycle Bin.
+                  When administrators delete or void data, records are safely moved here and excluded from all active origin views and reports. Under system policy,{' '}
+                  <strong className="underline">only the System Developer &amp; Owner (or Admin with owner privileges)</strong> has authorization to restore records from the Recycle Bin.
                 </p>
               </>
             )}
@@ -406,7 +445,7 @@ export default function RecycleBin() {
             {selected.size} record{selected.size !== 1 ? 's' : ''} selected
           </span>
 
-          {isDev ? (
+          {canRestore ? (
             <button
               onClick={handleBulkRestore}
               disabled={working}
@@ -417,9 +456,9 @@ export default function RecycleBin() {
           ) : (
             <span
               className="inline-flex items-center gap-1 rounded-xl bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 cursor-not-allowed"
-              title="Only System Developer & Owner can restore items"
+              title="Requires System Developer/Owner privilege to restore items"
             >
-              <Lock size={12} /> Restore (Developer Only)
+              <Lock size={12} /> Restore (Owner Privileged)
             </span>
           )}
 
@@ -608,7 +647,7 @@ export default function RecycleBin() {
                       {/* Actions */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {isDev ? (
+                          {canRestore ? (
                             <button
                               onClick={() => handleRestore(item)}
                               disabled={working}
@@ -620,10 +659,10 @@ export default function RecycleBin() {
                           ) : (
                             <button
                               disabled
-                              title="Only the System Developer & Owner can restore records"
+                              title="Requires System Developer/Owner privilege to restore records"
                               className="inline-flex items-center gap-1 rounded-lg bg-slate-100 text-slate-400 border border-slate-200 px-2.5 py-1 text-xs font-bold cursor-not-allowed opacity-80"
                             >
-                              <Lock size={11} className="text-slate-400" /> Developer Only
+                              <Lock size={11} className="text-slate-400" /> Owner Only
                             </button>
                           )}
 
@@ -674,9 +713,10 @@ export default function RecycleBin() {
             <div className="space-y-3 text-xs text-slate-600 bg-amber-50/60 border border-amber-200 rounded-xl p-4 leading-relaxed">
               <p className="font-bold text-amber-900">What happens when you proceed:</p>
               <ul className="list-disc pl-4 space-y-1 text-amber-800">
-                <li>All active transactions and sales imports will be voided and moved to the Recycle Bin.</li>
+                <li>All active transactions and sales vouchers will be voided and moved to the Recycle Bin.</li>
+                <li>All master records (items/materials, products, suppliers, customers, employees) will be safely archived into the Recycle Bin.</li>
                 <li>All stock movements applied to inventory will be safely reversed.</li>
-                <li>Purchases, consumptions, and stock requests will be moved to the Recycle Bin.</li>
+                <li>All voided/deleted entities are immediately erased from origin list views and reports.</li>
                 <li>
                   <strong>Dashboard metrics will immediately reset to zero</strong> for transactions/sales.
                 </li>
@@ -684,7 +724,7 @@ export default function RecycleBin() {
                   <strong>No data is permanently destroyed.</strong> Everything remains stored in the Recycle Bin.
                 </li>
                 <li className="font-extrabold text-amber-950">
-                  Only the System Developer &amp; Owner can restore any of these records!
+                  Only the System Developer &amp; Owner (or Admin with granted owner privileges) can restore any of these records!
                 </li>
               </ul>
             </div>

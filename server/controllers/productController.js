@@ -65,7 +65,7 @@ function calcRecipeCostBreakdown(ingredients, settings = {}) {
 // GET /api/products
 const getProducts = asyncHandler(async (req, res) => {
   const { search } = req.query;
-  const filter = { isActive: true };
+  const filter = { isActive: true, deletedAt: null };
   if (search) filter.name = { $regex: search, $options: 'i' };
 
   const [products, settings] = await Promise.all([
