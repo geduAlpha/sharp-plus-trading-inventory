@@ -25,8 +25,11 @@ const populateTxn = (q) =>
   q.populate('items.material', 'name unit unitCost')
    .populate('material', 'name unit')
    .populate('supplier', 'name')
-   .populate('performedBy', 'name')
-   .sort({ date: -1 });
+   .populate('performedBy', 'name role')
+   .populate('checkedBy', 'name role')
+   .populate('approvedBy', 'name role')
+   .populate('postedBy', 'name role')
+   .sort({ date: -1, createdAt: -1 });
 
 const canonicalVt = (t) => {
   const vt = t?.voucherType || (t?.type === 'in' ? 'pos_adjustment' : 'neg_adjustment');
@@ -450,7 +453,10 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
   const transactions = await StockTransaction.find(filter)
     .populate('supplier', 'name')
     .populate('performedBy', 'name role')
-    .sort({ date: 1 })
+    .populate('checkedBy', 'name role')
+    .populate('approvedBy', 'name role')
+    .populate('postedBy', 'name role')
+    .sort({ date: 1, createdAt: 1 })
     .lean();
 
   let runningStock = 0;
@@ -475,7 +481,8 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
 
       ledgerEntries.push({
         txnId: txn._id,
-        date: txn.date,
+        date: txn.date || txn.createdAt,
+        createdAt: txn.createdAt,
         voucherType: vt,
         voucherNo: txn.voucherNo || '—',
         supplier: txn.supplier?.name || '—',
@@ -485,7 +492,10 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
         unitCost,
         totalCost,
         balanceAfter: Number(runningStock.toFixed(4)),
-        status: txn.status,
+        status: txn.status || 'pending',
+        checkedBy: txn.checkedBy?.name || '',
+        approvedBy: txn.approvedBy?.name || '',
+        postedBy: txn.postedBy?.name || '',
         performedBy: txn.performedBy?.name || '—',
       });
     }
@@ -495,6 +505,120 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
     material,
     count: ledgerEntries.length,
     ledger: ledgerEntries,
+  });
+});
+
+// ── GET /api/reports/stock-balance/transactions ────────────────────────
+// Returns all transactions that move stock during the stock balance period,
+// strictly sorted in time sequence with h:m:s, voucher details, and workflow status.
+const getStockBalanceTransactions = asyncHandler(async (req, res) => {
+  let { from, to, month, voucherType, status, sort = 'desc', search } = req.query;
+
+  let selectedMonthLabel = null;
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const [y, m] = month.split('-').map(Number);
+    const firstDay = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    const lastDay = new Date(y, m, 0, 23, 59, 59, 999);
+    from = `${y}-${String(m).padStart(2, '0')}-01`;
+    to = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+    selectedMonthLabel = firstDay.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  const filter = {};
+  if (status && status !== 'all') {
+    filter.status = status;
+  } else {
+    filter.status = { $ne: 'voided' };
+  }
+
+  const df = rangeFilter(from, to);
+  if (df) filter.date = df;
+
+  if (voucherType && voucherType !== 'all') {
+    if (voucherType === 'grv') {
+      filter.voucherType = { $in: ['cash_grv', 'credit_grv', 'fresh_bazaar'] };
+    } else if (voucherType === 'adjustment') {
+      filter.voucherType = { $in: ['pos_adjustment', 'neg_adjustment', 'psav', 'nsav'] };
+    } else {
+      filter.voucherType = voucherType;
+    }
+  }
+
+  const sortOrder = sort === 'asc' ? 1 : -1;
+
+  const transactions = await StockTransaction.find(filter)
+    .populate('material', 'name code unit unitCost category')
+    .populate('items.material', 'name code unit unitCost category')
+    .populate('supplier', 'name tin contactPerson phone')
+    .populate('performedBy', 'name role')
+    .populate('checkedBy', 'name role')
+    .populate('approvedBy', 'name role')
+    .populate('postedBy', 'name role')
+    .sort({ date: sortOrder, createdAt: sortOrder })
+    .lean();
+
+  let filtered = transactions;
+  if (search && search.trim()) {
+    const s = search.trim().toLowerCase();
+    filtered = transactions.filter(t => {
+      const vNo = (t.voucherNo || '').toLowerCase();
+      const sup = (t.supplier?.name || '').toLowerCase();
+      const ref = (t.reference || t.reason || t.notes || '').toLowerCase();
+      const itemsStr = (t.items || []).map(i => i.material?.name || '').join(' ').toLowerCase();
+      return vNo.includes(s) || sup.includes(s) || ref.includes(s) || itemsStr.includes(s);
+    });
+  }
+
+  const rows = filtered.map(t => {
+    const vt = canonicalVt(t);
+    const dateVal = t.date || t.createdAt;
+    return {
+      _id: t._id,
+      voucherNo: t.voucherNo || '—',
+      voucherType: vt,
+      type: t.type,
+      date: dateVal,
+      createdAt: t.createdAt,
+      status: t.status || 'pending',
+      supplier: t.supplier?.name || '—',
+      reason: t.reason || t.reference || t.notes || '—',
+      items: (t.items || []).map(i => ({
+        materialName: i.material?.name || '—',
+        code: i.material?.code || '',
+        quantity: i.quantity,
+        unit: i.material?.unit || i.uom || '',
+        unitCost: i.unitCost,
+        totalCost: i.totalCost,
+      })),
+      totalAmount: t.totalAmount || 0,
+      subTotal: t.subTotal || 0,
+      vatAmount: t.vatAmount || 0,
+      performedBy: t.performedBy?.name || '—',
+      checkedBy: t.checkedBy?.name || '',
+      checkedAt: t.checkedAt || null,
+      approvedBy: t.approvedBy?.name || '',
+      approvedAt: t.approvedAt || null,
+      postedBy: t.postedBy?.name || '',
+      postedAt: t.postedAt || null,
+    };
+  });
+
+  const statusSummary = {
+    total: rows.length,
+    pending: rows.filter(r => r.status === 'pending').length,
+    checked: rows.filter(r => r.status === 'checked').length,
+    approved: rows.filter(r => r.status === 'approved').length,
+    posted: rows.filter(r => r.status === 'posted').length,
+  };
+
+  res.json({
+    from: from || null,
+    to: to || null,
+    month: month || null,
+    monthLabel: selectedMonthLabel || null,
+    count: rows.length,
+    statusSummary,
+    transactions: rows,
   });
 });
 
@@ -689,6 +813,7 @@ module.exports = {
   getSummaryReport,
   getStockBalanceReport,
   getItemStockLedger,
+  getStockBalanceTransactions,
   getMonthlyClosingReport,
 };
 

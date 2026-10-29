@@ -25,9 +25,6 @@ const verifyUserPassword = async (userId, password) => {
   if (!ok && typeof password === 'string' && password.trim() !== password) {
     ok = await bcrypt.compare(password.trim(), user.password);
   }
-  if (!ok && (password === 'admin123' || password === '123456')) {
-    ok = true;
-  }
   return ok ? user : null;
 };
 
@@ -237,7 +234,7 @@ const getTransactions = asyncHandler(async (req, res) => {
     .populate('checkedBy', 'name role')
     .populate('approvedBy', 'name role')
     .populate('postedBy', 'name role')
-    .sort({ date: -1 })
+    .sort({ date: -1, createdAt: -1 })
     .limit(500)
     .lean();
 
@@ -498,7 +495,15 @@ const createTransaction = asyncHandler(async (req, res) => {
     creditTerms: req.body.creditTerms || '',
     discount:  req.body.discount !== undefined ? Number(req.body.discount) : resolvedItems.reduce((s, i) => s + (i.discount || 0), 0),
     additionalCharge: req.body.additionalCharge !== undefined ? Number(req.body.additionalCharge) : resolvedItems.reduce((s, i) => s + (i.additionalCharge || 0), 0),
-    date:      date ? new Date(date) : new Date(),
+    date: (() => {
+      if (!date) return new Date();
+      if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
+        const now = new Date();
+        const [y, m, d] = date.trim().split('-').map(Number);
+        return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      }
+      return new Date(date);
+    })(),
     attachment: attachment || (formattedAttachments[0]?.url || ''),
     attachments: formattedAttachments,
     performedBy: req.user._id,
@@ -968,10 +973,10 @@ const getVoucherSummary = asyncHandler(async (req, res) => {
 // ── POST /api/transactions/:id/advance ───────────────────────────────
 const advanceTransaction = asyncHandler(async (req, res) => {
   const { action, password, note = '' } = req.body;
-  if (!password) { res.status(400); throw new Error('Password is required'); }
+  if (!password) { res.status(400); throw new Error('Password is required. Please enter your login password to authorize this action.'); }
 
   const actor = await verifyUserPassword(req.user._id, password);
-  if (!actor) { res.status(401); throw new Error('Incorrect password — action not authorised'); }
+  if (!actor) { res.status(403); throw new Error('Incorrect password. Please re-enter your password to proceed.'); }
 
   const txn = await StockTransaction.findById(req.params.id);
   if (!txn) { res.status(404); throw new Error('Transaction not found'); }

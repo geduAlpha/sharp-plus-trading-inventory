@@ -174,7 +174,22 @@ const updateConsumption = asyncHandler(async (req, res) => {
 
 // ── POST /api/consumption/:id/approve ────────────────────────────
 const approveConsumption = asyncHandler(async (req, res) => {
-  const { note = '' } = req.body;
+  const { note = '', password } = req.body;
+  if (!password) {
+    res.status(400);
+    throw new Error('Password is required. Please enter your login password to authorize this action.');
+  }
+  const User = require('../models/User');
+  const user = await User.findById(req.user._id).select('+password');
+  let ok = user && password ? await bcrypt.compare(password, user.password) : false;
+  if (!ok && typeof password === 'string' && password.trim() !== password) {
+    ok = await bcrypt.compare(password.trim(), user.password);
+  }
+  if (!ok) {
+    res.status(403);
+    throw new Error('Incorrect password. Please re-enter your password to proceed.');
+  }
+
   const record = await Consumption.findById(req.params.id);
   if (!record) { res.status(404); throw new Error('Record not found'); }
   if (record.status !== 'pending') {
@@ -203,7 +218,22 @@ const approveConsumption = asyncHandler(async (req, res) => {
 
 // ── POST /api/consumption/:id/void ───────────────────────────────
 const voidConsumption = asyncHandler(async (req, res) => {
-  const { note = '' } = req.body;
+  const { note = '', password } = req.body;
+  if (!password) {
+    res.status(400);
+    throw new Error('Password is required. Please enter your login password to authorize this action.');
+  }
+  const User = require('../models/User');
+  const user = await User.findById(req.user._id).select('+password');
+  let ok = user && password ? await bcrypt.compare(password, user.password) : false;
+  if (!ok && typeof password === 'string' && password.trim() !== password) {
+    ok = await bcrypt.compare(password.trim(), user.password);
+  }
+  if (!ok) {
+    res.status(403);
+    throw new Error('Incorrect password. Please re-enter your password to proceed.');
+  }
+
   const record = await Consumption.findById(req.params.id);
   if (!record) { res.status(404); throw new Error('Record not found'); }
   if (record.status === 'voided') { res.status(400); throw new Error('Already voided'); }

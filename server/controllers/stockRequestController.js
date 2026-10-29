@@ -1,4 +1,6 @@
 const asyncHandler        = require('express-async-handler');
+const bcrypt              = require('bcryptjs');
+const User                = require('../models/User');
 const StockRequest        = require('../models/StockRequest');
 const RawMaterial         = require('../models/RawMaterial');
 const { DEPARTMENTS }     = require('../models/StockRequest');
@@ -220,7 +222,22 @@ const updateStockRequest = asyncHandler(async (req, res) => {
 // ── POST /api/stock-requests/:id/approve ─────────────────────────
 // Manager or Admin approves the request
 const approveStockRequest = asyncHandler(async (req, res) => {
-  const { note = '' } = req.body;
+  const { note = '', password } = req.body;
+  if (!password) {
+    res.status(400);
+    throw new Error('Password is required. Please enter your login password to approve this request.');
+  }
+
+  const user = await User.findById(req.user._id).select('+password');
+  let ok = user && password ? await bcrypt.compare(password, user.password) : false;
+  if (!ok && typeof password === 'string' && password.trim() !== password) {
+    ok = await bcrypt.compare(password.trim(), user.password);
+  }
+  if (!ok) {
+    res.status(403);
+    throw new Error('Incorrect password. Please re-enter your password to proceed.');
+  }
+
   const request = await StockRequest.findById(req.params.id);
   if (!request || request.deletedAt) {
     res.status(404); throw new Error('Stock request not found');

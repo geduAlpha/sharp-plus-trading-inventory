@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
-  Plus, Search, Trash2, Eye, X, CheckCircle, Ban,
+  Plus, Search, Trash2, Eye, EyeOff, Lock, AlertTriangle, X, CheckCircle, Ban,
   UtensilsCrossed, Users, Briefcase, BookOpen, Gift, FileText,
   RefreshCw, Pencil,
 } from 'lucide-react';
@@ -66,6 +66,9 @@ export default function Consumption() {
   const [actionNote, setActionNote] = useState('');
   const [actionWorking, setActionWorking] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [actionPassword, setActionPassword] = useState('');
+  const [showActionPw, setShowActionPw] = useState(false);
+  const pwInputRef = useRef(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -174,17 +177,26 @@ export default function Consumption() {
   /* ── approve / void ── */
   const openAction = (record, type) => {
     setActionRecord(record); setActionType(type);
-    setActionNote(''); setActionError(''); setActionOpen(true);
+    setActionNote(''); setActionPassword(''); setActionError(''); setShowActionPw(false); setActionOpen(true);
+    setTimeout(() => pwInputRef.current?.focus(), 150);
   };
 
-  const handleAction = async () => {
+  const handleAction = async (e) => {
+    if (e) e.preventDefault();
+    if (!actionPassword) {
+      setActionError('Please enter your login password.');
+      pwInputRef.current?.focus();
+      return;
+    }
     setActionWorking(true); setActionError('');
     try {
-      await api.post(`/consumption/${actionRecord._id}/${actionType}`, { note: actionNote });
+      await api.post(`/consumption/${actionRecord._id}/${actionType}`, { note: actionNote, password: actionPassword });
       setActionOpen(false);
       load();
     } catch (err) {
-      setActionError(err.response?.data?.message || 'Action failed.');
+      setActionError(err.response?.data?.message || 'Action failed. Please re-enter your password.');
+      setActionPassword('');
+      setTimeout(() => pwInputRef.current?.focus(), 100);
     } finally { setActionWorking(false); }
   };
 
@@ -643,8 +655,8 @@ export default function Consumption() {
       {/* ══ Approve / Void Confirmation Modal ══ */}
       <Modal open={actionOpen} onClose={() => setActionOpen(false)}
         title={actionType === 'approve' ? '✅ Approve Consumption' : '🔴 Void Consumption'}
-        width="max-w-sm">
-        <div className="space-y-3">
+        width="max-w-md">
+        <form onSubmit={handleAction} className="space-y-3">
           <p className="text-sm text-ink-600">
             {actionType === 'approve'
               ? `Approve "${actionRecord?.voucherNo}" and deduct Items from stock?`
@@ -652,26 +664,63 @@ export default function Consumption() {
             }
           </p>
           <div>
+            <label className="block text-xs font-semibold text-ink-700 mb-1">
+              Your Password <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+              <input
+                ref={pwInputRef}
+                type={showActionPw ? 'text' : 'password'}
+                name="consumptionApprovalPassword"
+                autoComplete="new-password"
+                data-lpignore="true"
+                required
+                value={actionPassword}
+                onChange={e => setActionPassword(e.target.value)}
+                placeholder="Enter your login password…"
+                className={`w-full rounded-lg border py-2 pl-9 pr-10 text-sm outline-none transition ${
+                  actionError ? 'border-red-400 bg-red-50/40 ring-1 ring-red-300' : 'border-ink-200 focus:border-blue-500'
+                }`}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowActionPw(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600"
+              >
+                {showActionPw ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+
+          <div>
             <label className="block text-xs font-semibold text-ink-700 mb-1">Note (optional)</label>
             <input value={actionNote} onChange={e => setActionNote(e.target.value)}
               placeholder="Add a note…"
               className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
           </div>
           {actionError && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{actionError}</p>
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <AlertTriangle size={15} className="flex-shrink-0 mt-0.5 text-red-600" />
+              <div>
+                <p className="font-semibold text-red-800">{actionError}</p>
+                <p className="text-[11px] text-red-600 mt-0.5">Please re-enter your password to proceed.</p>
+              </div>
+            </div>
           )}
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => setActionOpen(false)}
+            <button type="button" onClick={() => setActionOpen(false)}
               className="rounded-lg border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-600 hover:bg-ink-50">
               Cancel
             </button>
-            <button onClick={handleAction} disabled={actionWorking}
+            <button type="submit" disabled={actionWorking || !actionPassword}
               className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 ${actionType === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
                 }`}>
-              {actionWorking ? 'Working…' : (actionType === 'approve' ? 'Approve & Deduct Stock' : 'Void')}
+              {actionWorking ? 'Verifying…' : (actionType === 'approve' ? 'Approve & Deduct Stock' : 'Void')}
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   );

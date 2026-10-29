@@ -94,8 +94,8 @@ const FloatingInput = React.forwardRef(function FloatingInput({
    Login page
 ═══════════════════════════════════════════════════════════════════ */
 export default function Login() {
-  // ── Authentication workflow: Password Sign-In & Telegram Bot OTP ──
-  const [authMode, setAuthMode] = useState('password'); 
+  // ── Authentication workflow: Step 1 (Bot OTP) → Step 2 (Role Username & Password) ──
+  const [authMode, setAuthMode] = useState('otp'); 
   const [step, setStep] = useState('phone');  // 'phone' | 'otp' (inside OTP flow)
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -259,7 +259,7 @@ export default function Login() {
     // Direct sign-in as selected role (Developer, Admin, etc.)
     setLoading(true);
     try {
-      await login(role.email, 'admin123');
+      await login(role.email, 'admin123', otpToken || undefined);
       setBackendStatus('online');
       navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
@@ -906,41 +906,60 @@ export default function Login() {
           <div className="login-form-wrap">
             <div className="login-form-block">
 
-              {/* ── Authentication Mode Tabs ── */}
-              <div className="flex p-1 bg-slate-100/90 rounded-2xl mb-6 border border-slate-200 shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('password');
-                    setOtpError('');
-                    setServerError('');
-                  }}
-                  className={`flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
-                    authMode === 'password'
-                      ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <KeyRound size={15} />
-                  <span>Password Sign-In</span>
-                  {otpToken && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" title="Bot Verified" />
-                  )}
-                </button>
+              {/* ── 2-Step Sequential Authentication Stepper ── */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('otp');
+                      setOtpError('');
+                      setServerError('');
+                    }}
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition ${
+                      authMode === 'otp'
+                        ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
+                        : otpToken
+                        ? 'text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {otpToken ? (
+                      <CheckCircle2 size={14} className="text-emerald-600" />
+                    ) : (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white font-bold">1</span>
+                    )}
+                    <span>Step 1: Bot Verification</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => { setAuthMode('otp'); setOtpError(''); setServerError(''); }}
-                  className={`flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
-                    authMode === 'otp'
-                      ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Smartphone size={15} />
-                  <span>Telegram OTP</span>
-                  {otpToken && <CheckCircle2 size={13} className="text-emerald-600 inline" />}
-                </button>
+                  <div className="px-1 text-slate-400">
+                    <ArrowRight size={13} />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={!otpToken}
+                    onClick={() => {
+                      if (otpToken) {
+                        setAuthMode('password');
+                        setOtpError('');
+                        setServerError('');
+                      }
+                    }}
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition ${
+                      authMode === 'password'
+                        ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
+                        : otpToken
+                        ? 'text-slate-700 hover:text-blue-700 cursor-pointer'
+                        : 'text-slate-400 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                      authMode === 'password' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
+                    }`}>2</span>
+                    <span>Step 2: Role Sign-In</span>
+                  </button>
+                </div>
               </div>
 
               {/* ══ MODE A: Password Sign-In (Step 2) ══ */}
@@ -962,9 +981,9 @@ export default function Login() {
                     </div>
                   )}
 
-                  <h2 className="login-heading">Welcome back!</h2>
+                  <h2 className="login-heading">Step 2: Sign In to Your Role</h2>
                   <p className="login-subtext">
-                    Sign in with your system credentials or select your staff role below.
+                    Bot verification completed! Sign in with your role credentials or select your staff role below.
                   </p>
 
                   {/* session timeout notice */}
@@ -1037,9 +1056,9 @@ export default function Login() {
                   </div>
 
                   <p className="login-forgot">
-                    Need phone verification?{' '}
-                    <span role="button" tabIndex={0} onClick={() => setAuthMode('otp')}>
-                      Use Telegram OTP Sign-In
+                    Need to verify with a different phone?{' '}
+                    <span role="button" tabIndex={0} onClick={() => { setOtpToken(''); setAuthMode('otp'); setStep('phone'); }}>
+                      Re-verify with Telegram Bot
                     </span>
                   </p>
                 </div>
@@ -1051,9 +1070,9 @@ export default function Login() {
                   {/* STEP 1: Phone number */}
                   {step === 'phone' && (
                     <div className="otp-step">
-                      <h2 className="otp-step__title">Verify your identity</h2>
+                      <h2 className="otp-step__title">Step 1: Verify via Telegram Bot</h2>
                       <p className="otp-step__sub">
-                        Enter your registered phone number to receive a one-time login code via Telegram.
+                        Enter your registered phone number to receive a one-time login code via <strong>@SharpPlusBot</strong>.
                       </p>
 
                       {otpError && (
@@ -1217,20 +1236,6 @@ export default function Login() {
                   )}
                 </div>
               )}
-              {/* Onboard new company prompt */}
-              <div className="mt-6 rounded-2xl bg-indigo-50/70 border border-indigo-100/80 p-4 text-center">
-                <p className="text-xs text-slate-600 mb-2 font-medium">
-                  New entrance company setting up this system?
-                </p>
-                <Link
-                  to="/register"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition underline underline-offset-2"
-                >
-                  <Building2 size={14} />
-                  <span>Register Company Profile &amp; Become System Owner</span>
-                  <ArrowRight size={13} />
-                </Link>
-              </div>
             </div>
           </div>
 

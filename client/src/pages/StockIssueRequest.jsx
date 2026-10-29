@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Plus, X, CheckCircle2, XCircle, Send, PackageCheck,
   Clock, AlertTriangle, ChevronDown, RefreshCw, Search,
-  Layers, ArrowRight, Eye, Trash2, Filter, Building2,
+  Layers, ArrowRight, Eye, EyeOff, Lock, Trash2, Filter, Building2,
   ClipboardList, PackageOpen, TrendingDown, Zap,
 } from 'lucide-react';
 import api from '../api/axios';
@@ -105,8 +105,11 @@ export default function StockIssueRequest() {
   const [actionType, setActionType] = useState('');   // 'approve'|'issue'|'reject'|'cancel'
   const [actionTarget, setActionTarget] = useState(null);
   const [actionNote, setActionNote] = useState('');
+  const [actionPassword, setActionPassword] = useState('');
+  const [showActionPw, setShowActionPw] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  const pwInputRef = useRef(null);
 
   // ── Issue qty overrides ──────────────────────────────────────
   const [issueQtys, setIssueQtys] = useState({});
@@ -267,6 +270,8 @@ export default function StockIssueRequest() {
     setActionType(type);
     setActionTarget(req);
     setActionNote('');
+    setActionPassword('');
+    setShowActionPw(false);
     setActionError('');
     if (type === 'issue') {
       const qtys = {};
@@ -276,15 +281,26 @@ export default function StockIssueRequest() {
       setIssueQtys(qtys);
     }
     setActionOpen(true);
+    if (type === 'approve') {
+      setTimeout(() => pwInputRef.current?.focus(), 150);
+    }
   };
 
   const handleAction = async () => {
+    if (actionType === 'approve' && !actionPassword) {
+      setActionError('Please enter your login password.');
+      pwInputRef.current?.focus();
+      return;
+    }
     setActionError('');
     setActionLoading(true);
     try {
       const url = `/stock-requests/${actionTarget._id}/${actionType}`;
       let body = { note: actionNote };
 
+      if (actionType === 'approve') {
+        body.password = actionPassword;
+      }
       if (actionType === 'reject') body = { reason: actionNote };
       if (actionType === 'cancel') body = { reason: actionNote };
       if (actionType === 'issue') {
@@ -302,7 +318,11 @@ export default function StockIssueRequest() {
       setDetailOpen(false);
       await load(true);
     } catch (err) {
-      setActionError(err.response?.data?.message || 'Action failed');
+      setActionError(err.response?.data?.message || 'Action failed. Please re-enter your password.');
+      if (actionType === 'approve') {
+        setActionPassword('');
+        setTimeout(() => pwInputRef.current?.focus(), 100);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -924,6 +944,40 @@ export default function StockIssueRequest() {
                   </div>
                 )}
 
+              {/* Password for Approval */}
+              {actionType === 'approve' && (
+                <div>
+                  <label className="block text-xs font-bold text-ink-700 mb-1.5">
+                    Your Password <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+                    <input
+                      ref={pwInputRef}
+                      type={showActionPw ? 'text' : 'password'}
+                      name="stockRequestApprovalPassword"
+                      autoComplete="new-password"
+                      data-lpignore="true"
+                      required
+                      value={actionPassword}
+                      onChange={e => setActionPassword(e.target.value)}
+                      placeholder="Enter your login password…"
+                      className={`w-full rounded-xl border py-2 pl-9 pr-10 text-xs outline-none transition ${
+                        actionError ? 'border-red-400 bg-red-50/40 ring-1 ring-red-300' : 'border-ink-200 focus:border-blue-500'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowActionPw(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600"
+                    >
+                      {showActionPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Note/Reason input */}
               <div>
                 <label className="block text-xs font-bold text-ink-700 mb-1.5">
@@ -943,8 +997,12 @@ export default function StockIssueRequest() {
               </div>
 
               {actionError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-700">
-                  {actionError}
+                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-700">
+                  <AlertTriangle size={15} className="flex-shrink-0 mt-0.5 text-rose-600" />
+                  <div>
+                    <p className="font-bold text-rose-800">{actionError}</p>
+                    <p className="text-[11px] text-rose-600 mt-0.5">Please re-enter your password to proceed.</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -956,7 +1014,7 @@ export default function StockIssueRequest() {
               </button>
               <button
                 onClick={handleAction}
-                disabled={actionLoading || (actionType === 'reject' && !actionNote.trim())}
+                disabled={actionLoading || (actionType === 'reject' && !actionNote.trim()) || (actionType === 'approve' && !actionPassword)}
                 className={`inline-flex items-center gap-1.5 rounded-xl px-5 py-2 text-xs font-bold text-white transition disabled:opacity-50 ${ACTION_CONFIG[actionType]?.btnClass}`}
               >
                 {actionLoading

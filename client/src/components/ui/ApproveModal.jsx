@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import Modal from './Modal';
 import Button from './Button';
+import api from '../../api/axios';
 
 // ── Action config ─────────────────────────────────────────────────────
 const ACTION_CONFIG = {
@@ -154,19 +155,81 @@ export default function ApproveModal({
   const [password, setPassword] = useState('');
   const [showPw,   setShowPw]   = useState(false);
   const [note,     setNote]     = useState('');
+  const pwInputRef = React.useRef(null);
+
+  // Embedded Update Password sub-modal state
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [changePwLoading, setChangePwLoading] = useState(false);
+  const [changePwError, setChangePwError] = useState('');
+  const [changePwSuccess, setChangePwSuccess] = useState('');
 
   const cfg  = ACTION_CONFIG[action] ?? ACTION_CONFIG.check;
   const Icon = cfg.icon;
 
+  React.useEffect(() => {
+    if (open) {
+      setPassword('');
+      setNote('');
+      setShowChangePw(false);
+      setCurrentPw('');
+      setNewPw('');
+      setChangePwError('');
+      setChangePwSuccess('');
+      setTimeout(() => pwInputRef.current?.focus(), 150);
+    }
+  }, [open]);
+
+  // When error is received (e.g., incorrect password), clear field and refocus to prompt re-entry
+  React.useEffect(() => {
+    if (error) {
+      setPassword('');
+      setTimeout(() => {
+        pwInputRef.current?.focus();
+        pwInputRef.current?.select();
+      }, 100);
+    }
+  }, [error]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!password) {
+      pwInputRef.current?.focus();
+      return;
+    }
     await onConfirm(password, note);
-    setPassword('');
-    setNote('');
+  };
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!currentPw || !newPw) {
+      setChangePwError('Please fill in both current and new password.');
+      return;
+    }
+    if (newPw.length < 6) {
+      setChangePwError('New password must be at least 6 characters.');
+      return;
+    }
+    setChangePwLoading(true);
+    setChangePwError('');
+    try {
+      await api.put('/auth/password', { currentPassword: currentPw, newPassword: newPw });
+      setChangePwSuccess('Password updated successfully! You can now use your new password.');
+      setPassword(newPw);
+      setShowChangePw(false);
+      setCurrentPw('');
+      setNewPw('');
+      setTimeout(() => pwInputRef.current?.focus(), 100);
+    } catch (err) {
+      setChangePwError(err.response?.data?.message || 'Failed to update password. Check your current password.');
+    } finally {
+      setChangePwLoading(false);
+    }
   };
 
   const handleClose = () => {
-    setPassword(''); setNote(''); onClose();
+    setPassword(''); setNote(''); setShowChangePw(false); onClose();
   };
 
   return (
@@ -199,22 +262,37 @@ export default function ApproveModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3" autoComplete="off">
           {/* Password */}
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-600">
-              Your password <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-ink-600">
+                Your password <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => { setChangePwError(''); setShowChangePw(v => !v); }}
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline"
+              >
+                {showChangePw ? 'Hide Password Update' : 'Change / Update Password?'}
+              </button>
+            </div>
             <div className="relative">
               <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
               <input
+                ref={pwInputRef}
                 type={showPw ? 'text' : 'password'}
+                name="approvalVerificationPassword"
+                autoComplete="new-password"
+                data-lpignore="true"
                 required
                 autoFocus
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Enter your login password…"
-                className="w-full rounded-lg border border-ink-200 py-2 pl-9 pr-10 text-sm outline-none focus:border-blue-500"
+                className={`w-full rounded-lg border py-2 pl-9 pr-10 text-sm outline-none transition ${
+                  error ? 'border-red-400 bg-red-50/30 focus:border-red-500 ring-1 ring-red-300' : 'border-ink-200 focus:border-blue-500'
+                }`}
               />
               <button
                 type="button"
@@ -226,6 +304,76 @@ export default function ApproveModal({
               </button>
             </div>
           </div>
+
+          {/* Inline Change Password Box */}
+          {showChangePw && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 space-y-2.5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                  <Lock size={13} /> Update Your Account Password
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowChangePw(false)}
+                  className="text-xs text-slate-400 hover:text-slate-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Current Password</label>
+                <input
+                  type="password"
+                  value={currentPw}
+                  onChange={e => setCurrentPw(e.target.value)}
+                  placeholder="Enter current password…"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">New Password (min 6 chars)</label>
+                <input
+                  type="password"
+                  value={newPw}
+                  onChange={e => setNewPw(e.target.value)}
+                  placeholder="Enter new password…"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {changePwError && (
+                <p className="text-[11px] font-semibold text-red-600 bg-red-50 p-1.5 rounded border border-red-200">{changePwError}</p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePw(false)}
+                  className="text-xs px-2.5 py-1 rounded text-slate-600 hover:bg-slate-200/60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={changePwLoading || !currentPw || !newPw}
+                  onClick={handleUpdatePassword}
+                  className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold transition disabled:opacity-50"
+                >
+                  {changePwLoading ? 'Updating…' : 'Save & Use New Password'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Success Banner */}
+          {changePwSuccess && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 font-semibold">
+              <CheckCircle size={15} className="text-emerald-600 shrink-0" />
+              <span>{changePwSuccess}</span>
+            </div>
+          )}
 
           {/* Note */}
           <div>
@@ -243,9 +391,21 @@ export default function ApproveModal({
 
           {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              <AlertTriangle size={14} className="flex-shrink-0" />
-              {error}
+            <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 animate-shake">
+              <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-red-600" />
+              <div className="flex-1">
+                <p className="font-bold text-xs text-red-800">{error}</p>
+                <div className="flex items-center justify-between mt-1 text-[11px] flex-wrap gap-1">
+                  <span className="text-red-600">Please re-enter your password to proceed.</span>
+                  <button
+                    type="button"
+                    onClick={() => { setChangePwError(''); setShowChangePw(true); }}
+                    className="font-bold text-blue-700 hover:text-blue-900 underline ml-auto"
+                  >
+                    Forgot or need to update password?
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

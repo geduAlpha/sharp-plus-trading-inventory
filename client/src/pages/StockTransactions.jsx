@@ -2472,7 +2472,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                     <th className="py-2.5 px-3">Code</th>
                     <th className="py-2.5 px-3">Party / Employee / Supplier</th>
                     <th className="py-2.5 px-3">TIN / Code</th>
-                    <th className="py-2.5 px-3">Issued Date</th>
+                    <th className="py-2.5 px-3">Issued Date (h:m:s)</th>
                     <th className="py-2.5 px-3 text-right">Grand Total</th>
                     <th className="py-2.5 px-3">User Name</th>
                     <th className="py-2.5 px-3">Device Name</th>
@@ -2532,8 +2532,8 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                           <td className="py-2 px-3 font-mono font-bold text-blue-700">{t.voucherNo || '—'}</td>
                           <td className="py-2 px-3 font-semibold text-slate-800">{partyName}</td>
                           <td className="py-2 px-3 font-mono text-slate-600">{partyCode}</td>
-                          <td className="py-2 px-3 whitespace-nowrap text-slate-600">
-                            {t.date ? new Date(t.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                          <td className="py-2 px-3 whitespace-nowrap text-slate-600 font-mono text-xs">
+                            {t.date ? new Date(t.date).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—'}
                           </td>
                           <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">{Number(t.totalAmount || 0).toFixed(2)}</td>
                           <td className="py-2 px-3 text-slate-600">{t.performedBy?.name || '—'}</td>
@@ -3095,7 +3095,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
               </div>
               <div className="text-right">
                 <WorkflowBadge status={detailTxn.status} />
-                <p className="font-mono text-slate-500 mt-1">{detailTxn.date ? new Date(detailTxn.date).toLocaleDateString() : ''}</p>
+                <p className="font-mono text-slate-500 mt-1">{detailTxn.date ? new Date(detailTxn.date).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : ''}</p>
               </div>
             </div>
 

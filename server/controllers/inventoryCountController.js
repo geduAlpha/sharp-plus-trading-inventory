@@ -1,4 +1,6 @@
 const asyncHandler = require('express-async-handler');
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
 const InventoryCount = require('../models/InventoryCount');
 const RawMaterial = require('../models/RawMaterial');
 const StockTransaction = require('../models/StockTransaction');
@@ -268,6 +270,20 @@ exports.submitCount = asyncHandler(async (req, res) => {
 // Approve and lock the count; set closing date
 // ════════════════════════════════════════════════════════════════════════════
 exports.approveCount = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    return res.status(400).json({ message: 'Password is required. Please enter your login password to approve this count.' });
+  }
+
+  const user = await User.findById(req.user._id).select('+password');
+  let ok = user && password ? await bcrypt.compare(password, user.password) : false;
+  if (!ok && typeof password === 'string' && password.trim() !== password) {
+    ok = await bcrypt.compare(password.trim(), user.password);
+  }
+  if (!ok) {
+    return res.status(403).json({ message: 'Incorrect password. Please re-enter your password to proceed.' });
+  }
+
   const doc = await InventoryCount.findById(req.params.id);
   if (!doc) return res.status(404).json({ message: 'Count not found' });
   if (doc.status !== 'submitted') {

@@ -4,13 +4,14 @@ import {
   ChevronLeft, ChevronRight, Calendar, ArrowRight, CheckCircle, Clock,
   ClipboardList, Store, PackageSearch, TrendingUp, TrendingDown,
   Minus, Send, ShieldCheck, Trash2, Plus, AlertTriangle, BarChart3,
-  ChevronDown, ChevronUp, Eye, EyeOff, Save,
+  ChevronDown, ChevronUp, Eye, EyeOff, Save, ArrowUpDown, CheckCheck,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
 import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
 import ExportDropdown from '../components/ui/ExportDropdown';
+import WorkflowBadge from '../components/ui/WorkflowBadge';
 
 // Route → API endpoint map (used by the load function)
 const TABS = [
@@ -65,13 +66,35 @@ const Stat = ({ label, value, sub, color = 'text-ink-900', badge = null }) => (
   </Card>
 );
 
+// ── Date-time formatter with exact hours, minutes, and seconds (h:m:s) ─
+const formatDateTime = (dateVal) => {
+  if (!dateVal) return '—';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '—';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+};
+
 // ── Voucher transactions table (shared by all voucher tabs) ───────────
 const VoucherTable = ({ data, showSupplier = false, showReason = false }) => {
   const cols = [
-    { key: 'date', header: 'Date', render: r => new Date(r.date).toLocaleString() },
-    { key: 'voucherNo', header: 'Voucher No', render: r => <span className="font-mono text-xs">{r.voucherNo || '—'}</span> },
+    {
+      key: 'date',
+      header: 'Date & Time (h:m:s)',
+      render: r => (
+        <span className="font-mono text-xs text-ink-700 whitespace-nowrap">
+          {formatDateTime(r.date || r.createdAt)}
+        </span>
+      ),
+    },
+    { key: 'voucherNo', header: 'Voucher No', render: r => <span className="font-mono text-xs font-bold text-blue-700">{r.voucherNo || '—'}</span> },
     ...(showSupplier ? [{ key: 'supplier', header: 'Supplier', render: r => r.supplier?.name || '—' }] : []),
-    ...(showReason ? [{ key: 'reason', header: 'Reason', render: r => r.reason || '—' }] : []),
+    ...(showReason ? [{ key: 'reason', header: 'Reason / Ref', render: r => r.reason || r.reference || r.notes || '—' }] : []),
     {
       key: 'items', header: 'Items',
       render: r => {
@@ -81,8 +104,13 @@ const VoucherTable = ({ data, showSupplier = false, showReason = false }) => {
         return <span className="text-xs text-ink-600">{lines.join(' · ')}</span>;
       },
     },
-    { key: 'totalAmount', header: 'Total (ETB)', render: r => <span className="tabular font-medium">ETB {(r.totalAmount || 0).toFixed(2)}</span> },
-    { key: 'performedBy', header: 'By', render: r => r.performedBy?.name || '—' },
+    { key: 'totalAmount', header: 'Total (ETB)', render: r => <span className="tabular font-bold text-ink-900">ETB {(r.totalAmount || 0).toFixed(2)}</span> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: r => <WorkflowBadge status={r.status || 'pending'} size="sm" />,
+    },
+    { key: 'performedBy', header: 'Handled By', render: r => r.performedBy?.name || '—' },
   ];
   return <DataTable columns={cols} data={data} emptyMessage="No records in this period." title="Transaction History" icon={<History size={15} />} />;
 };
@@ -810,11 +838,19 @@ export default function Reports({ defaultTab } = {}) {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [stockSearch, setStockSearch] = useState('');
 
-  // Stock Balance view mode: 'detail' (detailed table) vs 'monthly_summary' (12-month evolution)
+  // Stock Balance view mode: 'detail' (detailed table) vs 'transactions' (time-sequence list) vs 'monthly_summary' (12-month evolution)
   const [balanceViewMode, setBalanceViewMode] = useState('detail');
   const [monthlyClosingData, setMonthlyClosingData] = useState(null);
   const [monthlyClosingLoading, setMonthlyClosingLoading] = useState(false);
   const [summaryYear, setSummaryYear] = useState(new Date().getFullYear());
+
+  // Stock Balance Movements List (time-sequenced transactions)
+  const [balanceTxnsLoading, setBalanceTxnsLoading] = useState(false);
+  const [balanceTxnsData, setBalanceTxnsData] = useState(null);
+  const [txnTypeFilter, setTxnTypeFilter] = useState('all'); // 'all', 'grv', 'adjustment', 'cash_grv', 'credit_grv', 'pos_adjustment', 'neg_adjustment'
+  const [txnStatusFilter, setTxnStatusFilter] = useState('all'); // 'all', 'pending', 'checked', 'approved', 'posted'
+  const [txnSortOrder, setTxnSortOrder] = useState('desc'); // 'desc' (newest first), 'asc' (oldest first)
+  const [txnSearchQuery, setTxnSearchQuery] = useState('');
 
   // Item Ledger (Bin Card) modal state
   const [selectedLedgerMaterial, setSelectedLedgerMaterial] = useState(null);
@@ -949,6 +985,39 @@ export default function Reports({ defaultTab } = {}) {
     }
   }, [tab, balanceViewMode, summaryYear, loadMonthlyClosing]);
 
+  // Load Time-Sequenced Movement Transactions for Stock Balance Sheet
+  const loadBalanceTransactions = useCallback(async (customType, customStatus, customSort, customSearch) => {
+    setBalanceTxnsLoading(true);
+    try {
+      const type = customType !== undefined ? customType : txnTypeFilter;
+      const stat = customStatus !== undefined ? customStatus : txnStatusFilter;
+      const srt = customSort !== undefined ? customSort : txnSortOrder;
+      const q = customSearch !== undefined ? customSearch : txnSearchQuery;
+
+      const params = {
+        from: from || undefined,
+        to: to || undefined,
+        month: selectedMonth || undefined,
+        voucherType: type !== 'all' ? type : undefined,
+        status: stat !== 'all' ? stat : undefined,
+        sort: srt,
+        search: q.trim() || undefined,
+      };
+      const res = await api.get('/reports/stock-balance/transactions', { params });
+      setBalanceTxnsData(res.data);
+    } catch (err) {
+      console.error('Failed to load balance transactions', err);
+    } finally {
+      setBalanceTxnsLoading(false);
+    }
+  }, [from, to, selectedMonth, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery]);
+
+  useEffect(() => {
+    if (tab === 'stock_balance' && balanceViewMode === 'transactions') {
+      loadBalanceTransactions();
+    }
+  }, [tab, balanceViewMode, from, to, selectedMonth, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery, loadBalanceTransactions]);
+
   // Open Item Ledger Modal
   const openItemLedger = async (material) => {
     setSelectedLedgerMaterial(material);
@@ -1018,17 +1087,31 @@ export default function Reports({ defaultTab } = {}) {
         'Status': p.status,
       }));
     }
+    if (tab === 'stock_balance' && balanceViewMode === 'transactions' && balanceTxnsData?.transactions) {
+      return balanceTxnsData.transactions.map(t => ({
+        'Date & Time': formatDateTime(t.date || t.createdAt),
+        'Voucher #': t.voucherNo || '—',
+        'Voucher Type': VOUCHER_LABELS[t.voucherType] || t.voucherType || '—',
+        'Direction': t.type === 'in' ? 'IN (+)' : 'OUT (−)',
+        'Items': (t.items || []).map(i => `${i.materialName} ×${i.quantity}`).join(' · '),
+        'Total (ETB)': Number(t.totalAmount || 0).toFixed(2),
+        'Status': (t.status || 'pending').toUpperCase(),
+        'Party / Reason': t.supplier !== '—' ? t.supplier : t.reason,
+        'Handled By': t.performedBy || '—',
+      }));
+    }
     const txns = data.transactions || [];
     return txns.map(t => ({
-      'Date': new Date(t.date).toLocaleString(),
+      'Date & Time': formatDateTime(t.date || t.createdAt),
       'Voucher': t.voucherNo || '—',
       'Type': VOUCHER_LABELS[t.voucherType] || t.voucherType || '—',
       'Material': t.material?.name || t.items?.[0]?.material?.name || '—',
       'Qty': t.quantity ?? '',
       'Total (ETB)': Number(t.totalAmount || 0).toFixed(2),
+      'Status': (t.status || 'pending').toUpperCase(),
       'By': t.performedBy?.name || '—',
     }));
-  }, [data, tab]);
+  }, [data, tab, balanceViewMode, balanceTxnsData]);
 
   return (
     <div id="print-area" className="space-y-4">
@@ -1089,6 +1172,19 @@ export default function Reports({ defaultTab } = {}) {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setBalanceViewMode('transactions');
+                  loadBalanceTransactions();
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${balanceViewMode === 'transactions'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-ink-600 hover:text-ink-900'
+                  }`}
+              >
+                <Clock size={14} /> Movements Time Sequence (h:m:s)
+              </button>
+              <button
+                type="button"
                 onClick={() => { setBalanceViewMode('monthly_summary'); loadMonthlyClosing(summaryYear); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${balanceViewMode === 'monthly_summary'
                   ? 'bg-white text-blue-700 shadow-xs'
@@ -1100,7 +1196,7 @@ export default function Reports({ defaultTab } = {}) {
             </div>
 
             {/* Quick Month Switcher Controls */}
-            {balanceViewMode === 'detail' && (
+            {balanceViewMode !== 'monthly_summary' && (
               <div className="flex items-center gap-1.5 bg-ink-50 p-1 rounded-xl border border-ink-100">
                 <button
                   type="button"
@@ -1161,7 +1257,7 @@ export default function Reports({ defaultTab } = {}) {
             )}
           </div>
 
-          {balanceViewMode === 'detail' && (
+          {balanceViewMode !== 'monthly_summary' && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Date Preset Buttons */}
               <div className="flex items-center gap-1.5 p-1 bg-ink-50 rounded-xl border border-ink-100 text-xs font-semibold">
@@ -1229,7 +1325,10 @@ export default function Reports({ defaultTab } = {}) {
                 </label>
                 <button
                   type="button"
-                  onClick={() => load()}
+                  onClick={() => {
+                    load();
+                    if (balanceViewMode === 'transactions') loadBalanceTransactions();
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-ink-100 hover:bg-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-800 transition"
                   title="Refresh stock balance"
                 >
@@ -1239,54 +1338,56 @@ export default function Reports({ defaultTab } = {}) {
             </div>
           )}
 
-          {/* Secondary Filters: Search, Category, Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-ink-50">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-400" />
-              <input
-                type="text"
-                placeholder="Search material code or name..."
-                value={stockSearch}
-                onChange={e => setStockSearch(e.target.value)}
-                className="w-full rounded-xl border border-ink-200 pl-9 pr-3 py-2 text-xs outline-none focus:border-emerald-500"
-              />
-              {stockSearch && (
-                <button
-                  type="button"
-                  onClick={() => setStockSearch('')}
-                  className="absolute right-3 top-2.5 text-ink-400 hover:text-ink-600"
+          {/* Secondary Filters: Search, Category, Status (Detail View only) */}
+          {balanceViewMode === 'detail' && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-ink-50">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-400" />
+                <input
+                  type="text"
+                  placeholder="Search material code or name..."
+                  value={stockSearch}
+                  onChange={e => setStockSearch(e.target.value)}
+                  className="w-full rounded-xl border border-ink-200 pl-9 pr-3 py-2 text-xs outline-none focus:border-emerald-500"
+                />
+                {stockSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setStockSearch('')}
+                    className="absolute right-3 top-2.5 text-ink-400 hover:text-ink-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <select
+                  value={selectedCategory}
+                  onChange={e => setSelectedCategory(e.target.value)}
+                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 bg-white"
                 >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+                  <option value="all">All Categories</option>
+                  {data?.categories?.filter(c => c !== 'all').map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <select
-                value={selectedCategory}
-                onChange={e => setSelectedCategory(e.target.value)}
-                className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 bg-white"
-              >
-                <option value="all">All Categories</option>
-                {data?.categories?.filter(c => c !== 'all').map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <div>
+                <select
+                  value={selectedStatus}
+                  onChange={e => setSelectedStatus(e.target.value)}
+                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 bg-white"
+                >
+                  <option value="all">All Stock Statuses</option>
+                  <option value="in_stock">In Stock (Adequate)</option>
+                  <option value="low_stock">Low Stock (At/Below Reorder)</option>
+                  <option value="out_of_stock">Out of Stock (Zero / Negative)</option>
+                </select>
+              </div>
             </div>
-
-            <div>
-              <select
-                value={selectedStatus}
-                onChange={e => setSelectedStatus(e.target.value)}
-                className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 bg-white"
-              >
-                <option value="all">All Stock Statuses</option>
-                <option value="in_stock">In Stock (Adequate)</option>
-                <option value="low_stock">Low Stock (At/Below Reorder)</option>
-                <option value="out_of_stock">Out of Stock (Zero / Negative)</option>
-              </select>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1644,6 +1745,408 @@ export default function Reports({ defaultTab } = {}) {
       )}
 
       {/* ════════════════════════════════════════════════════════════════
+          STOCK BALANCE MOVEMENTS TIME-SEQUENCE TRANSACTIONS VIEW (h:m:s)
+      ════════════════════════════════════════════════════════════════ */}
+      {!loading && tab === 'stock_balance' && balanceViewMode === 'transactions' && (
+        <div className="space-y-4">
+          {/* Top KPI & Workflow Status Check Audit Cards */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <Card className="border-l-4 border-l-ink-600 bg-white">
+              <p className="text-xs font-semibold text-ink-500">Total Movements</p>
+              <p className="tabular mt-1 text-2xl font-black text-ink-900">
+                {balanceTxnsData?.count || 0}
+              </p>
+              <p className="text-[11px] text-ink-400 mt-0.5">Tasks in period</p>
+            </Card>
+
+            <Card
+              className={`border-l-4 border-l-amber-500 cursor-pointer transition ${txnStatusFilter === 'pending' ? 'ring-2 ring-amber-400 bg-amber-50/50' : 'bg-white hover:bg-amber-50/20'}`}
+              onClick={() => {
+                const next = txnStatusFilter === 'pending' ? 'all' : 'pending';
+                setTxnStatusFilter(next);
+                loadBalanceTransactions(txnTypeFilter, next, txnSortOrder, txnSearchQuery);
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-amber-800">Pending Review</p>
+                <Clock size={14} className="text-amber-600" />
+              </div>
+              <p className="tabular mt-1 text-2xl font-bold text-amber-700">
+                {balanceTxnsData?.statusSummary?.pending || 0}
+              </p>
+              <p className="text-[11px] text-amber-600 mt-0.5">Requires check/approval</p>
+            </Card>
+
+            <Card
+              className={`border-l-4 border-l-blue-500 cursor-pointer transition ${txnStatusFilter === 'checked' ? 'ring-2 ring-blue-400 bg-blue-50/50' : 'bg-white hover:bg-blue-50/20'}`}
+              onClick={() => {
+                const next = txnStatusFilter === 'checked' ? 'all' : 'checked';
+                setTxnStatusFilter(next);
+                loadBalanceTransactions(txnTypeFilter, next, txnSortOrder, txnSearchQuery);
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-blue-800">Checked Tasks</p>
+                <CheckCircle size={14} className="text-blue-600" />
+              </div>
+              <p className="tabular mt-1 text-2xl font-bold text-blue-700">
+                {balanceTxnsData?.statusSummary?.checked || 0}
+              </p>
+              <p className="text-[11px] text-blue-600 mt-0.5">Awaiting final approval</p>
+            </Card>
+
+            <Card
+              className={`border-l-4 border-l-violet-500 cursor-pointer transition ${txnStatusFilter === 'approved' ? 'ring-2 ring-violet-400 bg-violet-50/50' : 'bg-white hover:bg-violet-50/20'}`}
+              onClick={() => {
+                const next = txnStatusFilter === 'approved' ? 'all' : 'approved';
+                setTxnStatusFilter(next);
+                loadBalanceTransactions(txnTypeFilter, next, txnSortOrder, txnSearchQuery);
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-violet-800">Approved Tasks</p>
+                <ShieldCheck size={14} className="text-violet-600" />
+              </div>
+              <p className="tabular mt-1 text-2xl font-bold text-violet-700">
+                {balanceTxnsData?.statusSummary?.approved || 0}
+              </p>
+              <p className="text-[11px] text-violet-600 mt-0.5">Ready for final posting</p>
+            </Card>
+
+            <Card
+              className={`border-l-4 border-l-emerald-500 cursor-pointer transition ${txnStatusFilter === 'posted' ? 'ring-2 ring-emerald-400 bg-emerald-50/50' : 'bg-white hover:bg-emerald-50/20'}`}
+              onClick={() => {
+                const next = txnStatusFilter === 'posted' ? 'all' : 'posted';
+                setTxnStatusFilter(next);
+                loadBalanceTransactions(txnTypeFilter, next, txnSortOrder, txnSearchQuery);
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-emerald-800">Posted Tasks</p>
+                <CheckCheck size={14} className="text-emerald-600" />
+              </div>
+              <p className="tabular mt-1 text-2xl font-bold text-emerald-700">
+                {balanceTxnsData?.statusSummary?.posted || 0}
+              </p>
+              <p className="text-[11px] text-emerald-600 mt-0.5">Officially filed & locked</p>
+            </Card>
+          </div>
+
+          {/* Alert if tasks are pending */}
+          {(balanceTxnsData?.statusSummary?.pending || 0) > 0 && (
+            <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+              <div className="flex-1">
+                <span className="font-bold">Attention Required:</span> {balanceTxnsData.statusSummary.pending} task(s) are currently in <strong>Pending</strong> status and have not yet completed checker/approver sign-off.
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="bg-white border-amber-300 text-amber-800 hover:bg-amber-100 text-xs shrink-0"
+                onClick={() => {
+                  setTxnStatusFilter('pending');
+                  loadBalanceTransactions(txnTypeFilter, 'pending', txnSortOrder, txnSearchQuery);
+                }}
+              >
+                View Pending Tasks
+              </Button>
+            </div>
+          )}
+
+          {/* Filter Bar specifically for Movements List */}
+          <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Voucher Category Quick Switcher: All, GRVs, Adjustments, specific */}
+              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-ink-100 rounded-xl text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('all');
+                    loadBalanceTransactions('all', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition ${txnTypeFilter === 'all' ? 'bg-white text-ink-900 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  All Movements
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('grv');
+                    loadBalanceTransactions('grv', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition ${txnTypeFilter === 'grv' ? 'bg-white text-emerald-800 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  Both GRVs (Cash & Credit)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('adjustment');
+                    loadBalanceTransactions('adjustment', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition ${txnTypeFilter === 'adjustment' ? 'bg-white text-indigo-800 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  Both Adjustments (+ve & −ve)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('cash_grv');
+                    loadBalanceTransactions('cash_grv', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg transition ${txnTypeFilter === 'cash_grv' ? 'bg-white text-emerald-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  Cash GRV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('credit_grv');
+                    loadBalanceTransactions('credit_grv', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg transition ${txnTypeFilter === 'credit_grv' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  Credit GRV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('pos_adjustment');
+                    loadBalanceTransactions('pos_adjustment', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg transition ${txnTypeFilter === 'pos_adjustment' ? 'bg-white text-violet-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  +ve Adj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('neg_adjustment');
+                    loadBalanceTransactions('neg_adjustment', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg transition ${txnTypeFilter === 'neg_adjustment' ? 'bg-white text-rose-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  −ve Adj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTxnTypeFilter('disposal');
+                    loadBalanceTransactions('disposal', txnStatusFilter, txnSortOrder, txnSearchQuery);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg transition ${txnTypeFilter === 'disposal' ? 'bg-white text-orange-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  Disposal
+                </button>
+              </div>
+
+              {/* Time Sequence Order Toggle */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = txnSortOrder === 'desc' ? 'asc' : 'desc';
+                    setTxnSortOrder(next);
+                    loadBalanceTransactions(txnTypeFilter, txnStatusFilter, next, txnSearchQuery);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-ink-200 bg-white hover:bg-ink-50 text-xs font-semibold text-ink-800 transition"
+                  title="Toggle Chronological Time Sequence"
+                >
+                  <ArrowUpDown size={14} className="text-emerald-600" />
+                  <span>Sequence: <strong>{txnSortOrder === 'desc' ? 'Newest (Desc)' : 'Oldest (Asc)'}</strong></span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loadBalanceTransactions()}
+                  className="rounded-xl border border-ink-200 bg-white p-2 text-ink-600 hover:bg-ink-50 hover:text-ink-900 transition"
+                  title="Reload"
+                >
+                  <RefreshCw size={14} className={balanceTxnsLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+            </div>
+
+            {/* Search and Status Dropdown */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-ink-100">
+              <div className="sm:col-span-2 relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-400" />
+                <input
+                  type="text"
+                  placeholder="Search voucher #, supplier, material name, reference..."
+                  value={txnSearchQuery}
+                  onChange={e => {
+                    setTxnSearchQuery(e.target.value);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      loadBalanceTransactions(txnTypeFilter, txnStatusFilter, txnSortOrder, e.target.value);
+                    }
+                  }}
+                  className="w-full rounded-xl border border-ink-200 pl-9 pr-8 py-2 text-xs outline-none focus:border-emerald-500"
+                />
+                {txnSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTxnSearchQuery('');
+                      loadBalanceTransactions(txnTypeFilter, txnStatusFilter, txnSortOrder, '');
+                    }}
+                    className="absolute right-3 top-2.5 text-ink-400 hover:text-ink-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <select
+                  value={txnStatusFilter}
+                  onChange={e => {
+                    setTxnStatusFilter(e.target.value);
+                    loadBalanceTransactions(txnTypeFilter, e.target.value, txnSortOrder, txnSearchQuery);
+                  }}
+                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 bg-white font-medium"
+                >
+                  <option value="all">All Task Statuses</option>
+                  <option value="pending">Pending Review</option>
+                  <option value="checked">Checked</option>
+                  <option value="approved">Approved</option>
+                  <option value="posted">Posted</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Time-Sequence Transactions Table */}
+          {balanceTxnsLoading && (
+            <div className="py-16 text-center text-sm text-ink-400 bg-white rounded-2xl border border-ink-100 shadow-soft">
+              <RefreshCw className="animate-spin h-6 w-6 mx-auto mb-2 text-indigo-600" />
+              Loading movements in strict chronological time sequence with h:m:s…
+            </div>
+          )}
+
+          {!balanceTxnsLoading && balanceTxnsData && (
+            <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-white shadow-soft">
+              <table className="min-w-full text-xs divide-y divide-ink-200">
+                <thead className="bg-ink-100/90 text-ink-700 font-bold">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Time Sequence (h:m:s)
+                    </th>
+                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Voucher #
+                    </th>
+                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Voucher Type
+                    </th>
+                    <th className="px-3 py-2.5 text-center uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Direction
+                    </th>
+                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px]">
+                      Items / Materials Moved
+                    </th>
+                    <th className="px-3 py-2.5 text-right uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Total Amount
+                    </th>
+                    <th className="px-3 py-2.5 text-center uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Workflow Status
+                    </th>
+                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Party / Reason
+                    </th>
+                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Handled By
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-100">
+                  {balanceTxnsData.transactions?.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-ink-400">
+                        No movement transactions found for the selected time range and filters.
+                      </td>
+                    </tr>
+                  )}
+                  {balanceTxnsData.transactions?.map((t) => {
+                    const isIncoming = ['cash_grv', 'credit_grv', 'pos_adjustment', 'fresh_bazaar'].includes(t.voucherType) || t.type === 'in';
+                    return (
+                      <tr key={t._id} className="hover:bg-indigo-50/30 transition-colors">
+                        <td className="px-3 py-2.5 whitespace-nowrap font-mono text-xs text-ink-800 font-semibold">
+                          <span className="bg-ink-100 px-2 py-0.5 rounded text-[11px] text-ink-700">
+                            {formatDateTime(t.date || t.createdAt)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">
+                          {t.voucherNo}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                            ['cash_grv', 'credit_grv'].includes(t.voucherType)
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : ['pos_adjustment', 'neg_adjustment'].includes(t.voucherType)
+                              ? 'bg-violet-100 text-violet-800 border border-violet-300'
+                              : 'bg-rose-100 text-rose-800 border border-rose-300'
+                          }`}>
+                            {VOUCHER_LABELS[t.voucherType] || t.voucherType}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          {isIncoming ? (
+                            <span className="inline-flex items-center font-bold text-emerald-700 text-xs">
+                              ↑ IN (+)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center font-bold text-rose-700 text-xs">
+                              ↓ OUT (−)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-ink-700 max-w-[260px]">
+                          <div className="space-y-0.5">
+                            {t.items?.map((item, iIdx) => (
+                              <div key={iIdx} className="text-xs truncate">
+                                <span className="font-semibold text-ink-900">{item.materialName}</span>
+                                <span className="text-ink-500 font-mono ml-1.5">
+                                  ×{item.quantity} {item.unit}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular font-bold text-ink-900 whitespace-nowrap text-xs">
+                          ETB {Number(t.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          <div className="flex flex-col items-center gap-0.5" title={`Checked: ${t.checkedBy || 'None'} | Approved: ${t.approvedBy || 'None'} | Posted: ${t.postedBy || 'None'}`}>
+                            <WorkflowBadge status={t.status || 'pending'} size="sm" />
+                            {t.status === 'checked' && t.checkedBy && (
+                              <span className="text-[10px] text-blue-600 font-medium">by {t.checkedBy}</span>
+                            )}
+                            {t.status === 'approved' && t.approvedBy && (
+                              <span className="text-[10px] text-violet-600 font-medium">by {t.approvedBy}</span>
+                            )}
+                            {t.status === 'posted' && t.postedBy && (
+                              <span className="text-[10px] text-emerald-600 font-medium">by {t.postedBy}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-ink-600 max-w-[180px] truncate text-xs" title={t.supplier !== '—' ? t.supplier : t.reason}>
+                          {t.supplier !== '—' ? t.supplier : t.reason}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-ink-500 text-xs">
+                          {t.performedBy}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════
           12-MONTH STOCK CLOSING EVOLUTION VIEW
       ════════════════════════════════════════════════════════════════ */}
       {!loading && tab === 'stock_balance' && balanceViewMode === 'monthly_summary' && (
@@ -1856,12 +2359,25 @@ export default function Reports({ defaultTab } = {}) {
 
               {!ledgerLoading && ledgerData && (
                 <>
-                  <div className="flex items-center justify-between text-xs text-ink-500 bg-ink-50 p-3 rounded-xl border border-ink-100">
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-500 bg-ink-50 p-3 rounded-xl border border-ink-100">
                     <div>
                       Period: <span className="font-semibold text-ink-800">{from || 'Beginning'}</span> to <span className="font-semibold text-ink-800">{to || 'Today'}</span>
                     </div>
-                    <div>
-                      Total Movement Events: <span className="font-bold text-ink-900">{ledgerData.count}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>Events: <strong className="text-ink-900">{ledgerData.count}</strong></span>
+                      <span className="text-ink-300">|</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Posted: {ledgerData.ledger?.filter(r => r.status === 'posted').length || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
+                        Approved: {ledgerData.ledger?.filter(r => r.status === 'approved').length || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        Checked: {ledgerData.ledger?.filter(r => r.status === 'checked').length || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        Pending: {ledgerData.ledger?.filter(r => r.status === 'pending').length || 0}
+                      </span>
                     </div>
                   </div>
 
@@ -1869,30 +2385,31 @@ export default function Reports({ defaultTab } = {}) {
                     <table className="min-w-full text-xs divide-y divide-ink-100">
                       <thead className="bg-ink-50/70 font-semibold text-ink-600">
                         <tr>
-                          <th className="px-3 py-2.5 text-left">Date & Time</th>
+                          <th className="px-3 py-2.5 text-left">Date & Time (h:m:s)</th>
                           <th className="px-3 py-2.5 text-left">Voucher #</th>
                           <th className="px-3 py-2.5 text-left">Voucher Type</th>
                           <th className="px-3 py-2.5 text-left">Party / Reason</th>
                           <th className="px-3 py-2.5 text-right text-emerald-700">In (+)</th>
                           <th className="px-3 py-2.5 text-right text-rose-700">Out (−)</th>
                           <th className="px-3 py-2.5 text-right font-bold text-ink-900">Running Bal</th>
+                          <th className="px-3 py-2.5 text-center">Status</th>
                           <th className="px-3 py-2.5 text-left">Handled By</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-ink-50">
                         {ledgerData.ledger?.length === 0 && (
                           <tr>
-                            <td colSpan={8} className="px-4 py-8 text-center text-ink-400">
+                            <td colSpan={9} className="px-4 py-8 text-center text-ink-400">
                               No movement history found for this item.
                             </td>
                           </tr>
                         )}
                         {ledgerData.ledger?.map((row, idx) => (
                           <tr key={idx} className="hover:bg-ink-50/50">
-                            <td className="px-3 py-2 whitespace-nowrap text-ink-600">
-                              {new Date(row.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            <td className="px-3 py-2 whitespace-nowrap font-mono text-xs text-ink-700 font-semibold">
+                              {formatDateTime(row.date)}
                             </td>
-                            <td className="px-3 py-2 font-mono text-[11px] font-medium text-ink-800 whitespace-nowrap">
+                            <td className="px-3 py-2 font-mono text-[11px] font-bold text-blue-700 whitespace-nowrap">
                               {row.voucherNo}
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap">
@@ -1914,6 +2431,11 @@ export default function Reports({ defaultTab } = {}) {
                             </td>
                             <td className="px-3 py-2 text-right tabular font-bold text-ink-900 bg-ink-50/30 whitespace-nowrap">
                               {row.balanceAfter} {selectedLedgerMaterial.unit}
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-center">
+                              <div className="flex flex-col items-center gap-0.5" title={`Checked: ${row.checkedBy || 'None'} | Approved: ${row.approvedBy || 'None'} | Posted: ${row.postedBy || 'None'}`}>
+                                <WorkflowBadge status={row.status || 'pending'} size="sm" />
+                              </div>
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap text-ink-500">
                               {row.performedBy}
@@ -1985,12 +2507,13 @@ export default function Reports({ defaultTab } = {}) {
           <p className="text-sm font-semibold text-ink-600">All movements on {data.date}</p>
           <DataTable
             columns={[
-              { key: 'date', header: 'Time', render: r => new Date(r.date).toLocaleTimeString() },
+              { key: 'date', header: 'Time (h:m:s)', render: r => <span className="font-mono text-xs">{formatDateTime(r.date || r.createdAt)}</span> },
               { key: 'voucherType', header: 'Voucher', render: r => <span className="text-xs font-semibold">{VOUCHER_LABELS[r.voucherType] ?? r.voucherType ?? '—'}</span> },
-              { key: 'voucherNo', header: 'Ref', render: r => <span className="font-mono text-xs">{r.voucherNo || '—'}</span> },
+              { key: 'voucherNo', header: 'Ref', render: r => <span className="font-mono text-xs font-bold text-blue-700">{r.voucherNo || '—'}</span> },
               { key: 'material', header: 'Material', render: r => r.material?.name ?? r.items?.[0]?.material?.name ?? '—' },
               { key: 'quantity', header: 'Qty', render: r => <span className="tabular">{r.quantity ?? ''} {r.material?.unit ?? ''}</span> },
               { key: 'type', header: 'Direction', render: r => <span className={r.type === 'in' ? 'text-emerald-700 font-medium' : 'text-red-700 font-medium'}>{r.type === 'in' ? '↑ IN' : '↓ OUT'}</span> },
+              { key: 'status', header: 'Status', render: r => <WorkflowBadge status={r.status || 'pending'} size="sm" /> },
               { key: 'performedBy', header: 'By', render: r => r.performedBy?.name || '—' },
             ]}
             data={data.transactions}
