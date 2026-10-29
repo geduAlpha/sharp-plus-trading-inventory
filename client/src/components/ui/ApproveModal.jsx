@@ -11,7 +11,7 @@ import api from '../../api/axios';
 const ACTION_CONFIG = {
   check: {
     label: 'Check',
-    description: 'Mark this document as checked. You confirm the details are correct.',
+    description: 'Verify this document details. Note: Checking does not affect the stock balance until formal approval.',
     icon: CheckCircle,
     color: 'text-blue-600',
     bg: 'bg-blue-50',
@@ -20,7 +20,7 @@ const ACTION_CONFIG = {
   },
   approve: {
     label: 'Approve',
-    description: 'Approve this document. Once approved it can be received / posted.',
+    description: 'Approve this document. Formal approval will automatically apply stock movement and update inventory stock balance.',
     icon: ShieldCheck,
     color: 'text-violet-600',
     bg: 'bg-violet-50',

@@ -333,7 +333,11 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
   let endDate = to ? new Date(to) : null;
   if (endDate) endDate.setHours(23, 59, 59, 999);
 
-  const txnQuery = { status: { $ne: 'voided' }, deletedAt: null };
+  const txnQuery = {
+    $or: [{ status: { $in: ['approved', 'posted'] } }, { stockApplied: true }],
+    status: { $ne: 'voided' },
+    deletedAt: null,
+  };
   if (startDate) {
     txnQuery.date = { $gte: startDate };
   }
@@ -1018,7 +1022,11 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
   });
 
   // Query transactions up to endDate
-  const txnQuery = { status: { $ne: 'voided' }, deletedAt: null };
+  const txnQuery = {
+    $or: [{ status: { $in: ['approved', 'posted'] } }, { stockApplied: true }],
+    status: { $ne: 'voided' },
+    deletedAt: null,
+  };
   if (startDate && endDate) {
     txnQuery.date = { $gte: startDate, $lte: endDate };
   } else if (endDate) {

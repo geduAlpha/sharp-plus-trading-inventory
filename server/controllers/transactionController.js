@@ -526,7 +526,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     paymentStatus: assignedPaymentStatus,
     amountPaid: initialAmountPaid,
     dueDate: dueDate ? new Date(dueDate) : null,
-    stockApplied: true, // Automatically apply store stock update upon voucher save
+    stockApplied: Boolean(isSale), // Only direct sales immediately affect stock; GRVs, Adjustments & non-sales wait for approval
     status: isSale ? 'posted' : 'pending',
     postedBy: isSale ? req.user._id : undefined,
     postedAt: isSale ? new Date() : undefined,
@@ -535,7 +535,7 @@ const createTransaction = asyncHandler(async (req, res) => {
       by: req.user._id,
       byName: req.user.name,
       byRole: req.user.role,
-      note: isSale ? `${voucherType === 'credit_sale' ? 'Credit' : 'Cash'} sale completed & stock deducted` : 'Voucher prepared (store stock balance updated automatically)',
+      note: isSale ? `${voucherType === 'credit_sale' ? 'Credit' : 'Cash'} sale completed & stock deducted` : 'Voucher prepared (awaiting approval before stock balance update)',
     }],
   };
 
@@ -552,11 +552,13 @@ const createTransaction = asyncHandler(async (req, res) => {
     const [createdTxn] = await StockTransaction.create([txnData], session ? { session } : {});
     transaction = createdTxn;
 
-    // Automatically update store item balance and overall stock atomically
-    await applyStockMovement(resolvedItems, direction, session, {
-      defaultStore: assignedStoreLocation,
-      updateWac: isGRV || canonicalVoucherType === 'pos_adjustment',
-    });
+    // Direct sales immediately reduce stock atomically; GRVs, Adjustments, and non-sale vouchers wait for approval
+    if (isSale) {
+      await applyStockMovement(resolvedItems, direction, session, {
+        defaultStore: assignedStoreLocation,
+        updateWac: false,
+      });
+    }
 
     // If this is a direct sale, also create companion SalesRecord
     if (isSale) {
@@ -692,21 +694,28 @@ const updateTransaction = asyncHandler(async (req, res) => {
       transaction.stockApplied = false;
     }
 
-    // 2. Validate negative stock reduction for new items after reversal
+    const isApprovedOrPosted = ['approved', 'posted'].includes(transaction.status);
+
+    // 2. Validate negative stock reduction for new items if stock is to be applied
     const assignedStore = req.body.storeLocation || req.body.consigneeUnit || transaction.storeLocation || 'Main Store';
-    if (newDirection === 'out') {
+    if (isApprovedOrPosted && newDirection === 'out') {
       const val = await validateStockForReduction(resolvedItems, assignedStore, session);
       if (!val.valid) {
         throw new Error(val.error);
       }
     }
 
-    // 3. Apply new stock movement to store balances & current stock
-    await applyStockMovement(resolvedItems, newDirection, session, {
-      defaultStore: assignedStore,
-      updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment'].includes(voucherType),
-    });
-    transaction.stockApplied = true;
+    // 3. Only apply stock movement if the transaction is approved or posted!
+    // GRVs, Adjustments, and non-sale vouchers do NOT affect stock balance while pending/unapproved.
+    if (isApprovedOrPosted) {
+      await applyStockMovement(resolvedItems, newDirection, session, {
+        defaultStore: assignedStore,
+        updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment'].includes(voucherType),
+      });
+      transaction.stockApplied = true;
+    } else {
+      transaction.stockApplied = false;
+    }
 
     // 4. Update transaction document
     const rawTotalAmount = resolvedItems.reduce((s, i) => s + i.totalCost, 0);
@@ -1060,7 +1069,9 @@ const advanceTransaction = asyncHandler(async (req, res) => {
   if (action === 'post')    { txn.postedBy   = actor._id; txn.postedAt   = new Date(); }
 
   // ── STOCK IMPACT RULES ────────────────────────────────────────────
-  // Stock is applied automatically upon saving/creation or upon review/approval/posting.
+  // STRICT RULE: GRVs, Adjustments, and Stock Vouchers ONLY affect stock balance upon APPROVAL or POSTING.
+  // Checking/reviewing a voucher does NOT affect stock balance.
+  // When an approval takes place ('approve' or 'post'), stock is atomically applied to currentStock and storeBalances.
   // Duplicate-update protection: if txn.stockApplied is already true, it is not re-applied.
   // VOIDED   → reverse stock movement and set stockApplied = false.
   const direction = txn.type || VOUCHER_DIRECTION[txn.voucherType];
@@ -1068,8 +1079,8 @@ const advanceTransaction = asyncHandler(async (req, res) => {
     ? txn.items
     : [{ material: txn.material, quantity: txn.quantity, unitCost: txn.unitCost, storeLocation: txn.storeLocation }];
 
-  if (['check', 'approve', 'post'].includes(action)) {
-    // Apply stock only once (prevents duplicate updates when vouchers are saved, approved, or resubmitted)
+  if (['approve', 'post'].includes(action)) {
+    // Apply stock only upon approval or posting
     if (!txn.stockApplied) {
       if (direction === 'out') {
         const val = await validateStockForReduction(stockItems, txn.storeLocation);
