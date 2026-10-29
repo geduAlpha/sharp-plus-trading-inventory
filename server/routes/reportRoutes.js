@@ -13,6 +13,7 @@ const {
   getPurchaseReport,
   getSummaryReport,
   getStockBalanceReport,
+  getSerialBinCardReport,
   getItemStockLedger,
   getStockBalanceTransactions,
   getMonthlyClosingReport,
@@ -24,6 +25,7 @@ router.use(authorizePermission('viewReports'));
 
 // Stock Balance & Monthly Closing
 router.get('/stock-balance',                     getStockBalanceReport);
+router.get('/stock-balance/serial-bincard',      getSerialBinCardReport);
 router.get('/stock-balance/transactions',        getStockBalanceTransactions);
 router.get('/monthly-closing',                   getMonthlyClosingReport);
 router.get('/stock-balance/ledger/:materialId', getItemStockLedger);

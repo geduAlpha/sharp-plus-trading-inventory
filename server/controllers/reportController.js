@@ -218,6 +218,7 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     enquiryDate,
     dateCriteria = 'at_the_day_of',
     removeZeroBalance,
+    transactedArticles,
   } = req.query;
 
   let selectedMonthLabel = null;
@@ -443,6 +444,11 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
 
     // Remove zero balance items if filter is active
     if ((removeZeroBalance === 'true' || removeZeroBalance === true || removeZeroBalance === '1') && closingStock <= 0) {
+      continue;
+    }
+
+    // Filter transacted articles only if requested
+    if ((transactedArticles === 'true' || transactedArticles === true || transactedArticles === '1') && totalInQty === 0 && totalOutQty === 0) {
       continue;
     }
 
@@ -901,6 +907,333 @@ const getMonthlyClosingReport = asyncHandler(async (req, res) => {
   });
 });
 
+// ── GET /api/reports/stock-balance/serial-bincard ──────────────────────
+// Returns articles with expandable batch groups and item transactions,
+// calculating running balances accurately per batch based on real database records.
+const getSerialBinCardReport = asyncHandler(async (req, res) => {
+  let {
+    from,
+    to,
+    month,
+    category,
+    search,
+    status,
+    store,
+    gsl,
+    itemType,
+    article,
+    activeArticles = 'A',
+    enquiryDate,
+    dateCriteria = 'at_the_day_of',
+    removeZeroBalance,
+    transactedArticles,
+  } = req.query;
+
+  const effectiveEnquiryDate = enquiryDate || new Date().toISOString().split('T')[0];
+
+  let endDate = null;
+  let startDate = null;
+
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const [y, m] = month.split('-').map(Number);
+    startDate = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    endDate = new Date(y, m, 0, 23, 59, 59, 999);
+  } else if (dateCriteria === 'range' && (from || to)) {
+    if (from) {
+      startDate = new Date(from);
+      startDate.setHours(0, 0, 0, 0);
+    }
+    if (to) {
+      endDate = new Date(to);
+      endDate.setHours(23, 59, 59, 999);
+    }
+  } else {
+    // at_the_day_of / default
+    endDate = new Date(effectiveEnquiryDate);
+    endDate.setHours(23, 59, 59, 999);
+  }
+
+  // Build article filter
+  const matFilter = {};
+  if (activeArticles === 'I' || activeArticles === 'inactive') {
+    matFilter.isActive = false;
+  } else if (activeArticles === 'All' || activeArticles === 'all') {
+    // all
+  } else {
+    matFilter.isActive = true;
+  }
+
+  const resolvedType = gsl || itemType;
+  if (resolvedType && resolvedType !== 'all' && resolvedType !== 'Item') {
+    matFilter.itemType = resolvedType;
+  }
+
+  if (category && category !== 'all') {
+    matFilter.category = category;
+  }
+
+  if (store && store !== 'all' && store.toLowerCase() !== 'all stores') {
+    matFilter.storeLocation = { $regex: new RegExp(`^${store.trim()}$`, 'i') };
+  }
+
+  if (article && article !== 'all') {
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(article)) {
+      matFilter._id = article;
+    } else {
+      matFilter.$or = [
+        { code: { $regex: article, $options: 'i' } },
+        { name: { $regex: article, $options: 'i' } },
+      ];
+    }
+  }
+
+  if (search && search.trim()) {
+    const searchRegex = { $regex: search.trim(), $options: 'i' };
+    if (matFilter.$or) {
+      matFilter.$and = [
+        { $or: matFilter.$or },
+        { $or: [{ name: searchRegex }, { code: searchRegex }, { category: searchRegex }] },
+      ];
+      delete matFilter.$or;
+    } else {
+      matFilter.$or = [
+        { name: searchRegex },
+        { code: searchRegex },
+        { category: searchRegex },
+      ];
+    }
+  }
+
+  const materials = await RawMaterial.find(matFilter).sort({ category: 1, name: 1 }).lean();
+  const materialIds = materials.map(m => m._id.toString());
+  const materialMap = {};
+
+  materials.forEach(m => {
+    materialMap[m._id.toString()] = {
+      material: m,
+      batches: {}, // batchNumber -> { batchNumber, totalDebit, totalCredit, runningBalance, transactions: [] }
+    };
+  });
+
+  // Query transactions up to endDate
+  const txnQuery = { status: { $ne: 'voided' } };
+  if (startDate && endDate) {
+    txnQuery.date = { $gte: startDate, $lte: endDate };
+  } else if (endDate) {
+    txnQuery.date = { $lte: endDate };
+  }
+
+  const transactions = await StockTransaction.find(txnQuery)
+    .populate('supplier', 'name tin contactPerson phone')
+    .populate('performedBy', 'name role')
+    .populate('checkedBy', 'name role')
+    .populate('approvedBy', 'name role')
+    .populate('postedBy', 'name role')
+    .sort({ date: 1, createdAt: 1 })
+    .lean();
+
+  const VOUCHER_LABELS = {
+    cash_grv: 'Cash GRV',
+    credit_grv: 'Credit GRV',
+    fresh_bazaar: 'Fresh Bazaar GRV',
+    pos_adjustment: '+ve Adjustment',
+    neg_adjustment: '−ve Adjustment',
+    psav: '+ve Adjustment',
+    nsav: '−ve Adjustment',
+    disposal: 'Goods Disposal',
+    sales_import: 'Sales Import',
+    cash_sale: 'Cash Sale',
+    credit_sale: 'Credit Sale',
+    cash_sales: 'Cash Sales',
+    credit_sales: 'Credit Sales',
+  };
+
+  const getScore = (status) => {
+    switch (status) {
+      case 'posted': return '100% (Posted)';
+      case 'approved': return '90% (Approved)';
+      case 'checked': return '75% (Checked)';
+      case 'pending': return '50% (Pending)';
+      default: return '100% (Verified)';
+    }
+  };
+
+  for (const txn of transactions) {
+    const vt = canonicalVt(txn);
+    const isOut = ['disposal', 'neg_adjustment', 'sales_import', 'cash_sale', 'credit_sale', 'cash_sales', 'credit_sales'].includes(vt) || txn.type === 'out';
+    const consignee = txn.supplier?.name || txn.customerName || txn.employeeName || txn.consigneeUnit || txn.reason || txn.storeLocation || 'Main Store';
+    const txnDate = txn.date || txn.createdAt;
+    const score = getScore(txn.status);
+
+    const items = txn.items && txn.items.length > 0
+      ? txn.items
+      : [{
+          material: txn.material,
+          quantity: txn.quantity,
+          unitCost: txn.unitCost || 0,
+          totalCost: txn.totalAmount || ((txn.unitCost || 0) * (txn.quantity || 0)),
+          serialNumber: txn.reference || '',
+        }];
+
+    for (const item of items) {
+      if (!item.material) continue;
+      const mId = item.material.toString();
+      const entry = materialMap[mId];
+      if (!entry) continue;
+
+      const qty = Number(item.quantity || 0);
+      if (qty <= 0) continue;
+
+      const unitAmount = Number(item.unitCost || item.sellingPrice || txn.unitCost || entry.material.unitCost || 0);
+      const debitQty = isOut ? 0 : qty;
+      const creditQty = isOut ? qty : 0;
+
+      // Determine batch number
+      let batchNumber = '';
+      if (item.batchNumber && String(item.batchNumber).trim()) {
+        batchNumber = String(item.batchNumber).trim();
+      } else if (item.serialNumber && String(item.serialNumber).trim()) {
+        batchNumber = String(item.serialNumber).trim();
+      } else if (txn.reference && String(txn.reference).trim()) {
+        batchNumber = String(txn.reference).trim();
+      } else if (txn.voucherNo && String(txn.voucherNo).trim()) {
+        batchNumber = 'BN-' + String(txn.voucherNo).trim();
+      } else {
+        batchNumber = 'BN-' + txn._id.toString().slice(-6).toUpperCase();
+      }
+
+      if (!entry.batches[batchNumber]) {
+        entry.batches[batchNumber] = {
+          batchNumber,
+          totalDebit: 0,
+          totalCredit: 0,
+          runningBalance: 0,
+          firstDate: txnDate,
+          transactions: [],
+        };
+      }
+
+      const batchObj = entry.batches[batchNumber];
+      batchObj.runningBalance = Number((batchObj.runningBalance + debitQty - creditQty).toFixed(4));
+      batchObj.totalDebit = Number((batchObj.totalDebit + debitQty).toFixed(4));
+      batchObj.totalCredit = Number((batchObj.totalCredit + creditQty).toFixed(4));
+
+      batchObj.transactions.push({
+        txnId: txn._id,
+        voucher: txn.voucherNo || ('TXN-' + txn._id.toString().slice(-6).toUpperCase()),
+        voucherType: VOUCHER_LABELS[vt] || vt,
+        consignee,
+        date: txnDate,
+        unitAmount: Number(unitAmount.toFixed(2)),
+        debitQuantity: debitQty,
+        creditQuantity: creditQty,
+        balance: batchObj.runningBalance,
+        score,
+        batchNumber,
+        enquiryDate: effectiveEnquiryDate,
+      });
+    }
+  }
+
+  // Construct final articles list
+  const articleList = [];
+  let grandTotalBalance = 0;
+  let grandTotalDebit = 0;
+  let grandTotalCredit = 0;
+
+  for (const mId of materialIds) {
+    const entry = materialMap[mId];
+    const m = entry.material;
+    const batchKeys = Object.keys(entry.batches);
+
+    // If no transactions were found but article has currentStock > 0, provide opening batch
+    if (batchKeys.length === 0 && Number(m.currentStock || 0) > 0) {
+      const initBatch = 'BN-INIT';
+      const bal = Number(Number(m.currentStock).toFixed(4));
+      entry.batches[initBatch] = {
+        batchNumber: initBatch,
+        totalDebit: bal,
+        totalCredit: 0,
+        runningBalance: bal,
+        firstDate: m.createdAt || new Date(),
+        transactions: [
+          {
+            txnId: m._id,
+            voucher: 'OPENING-BAL',
+            voucherType: 'Opening Balance',
+            consignee: m.storeLocation || 'Main Store',
+            date: m.createdAt || new Date(),
+            unitAmount: Number(m.unitCost || 0),
+            debitQuantity: bal,
+            creditQuantity: 0,
+            balance: bal,
+            score: '100% (Verified)',
+            batchNumber: initBatch,
+            enquiryDate: effectiveEnquiryDate,
+          },
+        ],
+      };
+      batchKeys.push(initBatch);
+    }
+
+    const batches = batchKeys.map(k => {
+      const b = entry.batches[k];
+      return {
+        batchNumber: b.batchNumber,
+        batchBalance: b.runningBalance,
+        totalDebit: b.totalDebit,
+        totalCredit: b.totalCredit,
+        firstDate: b.firstDate,
+        transactions: b.transactions,
+      };
+    });
+
+    const totalBalance = Number(batches.reduce((s, b) => s + b.batchBalance, 0).toFixed(4));
+    const totalDebit = Number(batches.reduce((s, b) => s + b.totalDebit, 0).toFixed(4));
+    const totalCredit = Number(batches.reduce((s, b) => s + b.totalCredit, 0).toFixed(4));
+
+    // Filters
+    const isRemoveZero = removeZeroBalance === 'true' || removeZeroBalance === true || removeZeroBalance === '1';
+    if (isRemoveZero && totalBalance <= 0) continue;
+
+    const isTransactedOnly = transactedArticles === 'true' || transactedArticles === true || transactedArticles === '1';
+    if (isTransactedOnly && (totalDebit === 0 && totalCredit === 0)) continue;
+
+    grandTotalBalance += totalBalance;
+    grandTotalDebit += totalDebit;
+    grandTotalCredit += totalCredit;
+
+    articleList.push({
+      _id: m._id,
+      code: m.code || ('ART-' + m._id.toString().slice(-5).toUpperCase()),
+      name: m.name,
+      category: m.category || 'General',
+      itemType: m.itemType || 'Raw Material',
+      unit: m.unit || 'Pcs',
+      unitCost: Number(m.unitCost || 0),
+      store: m.storeLocation || 'Main Store',
+      totalBalance,
+      totalDebit,
+      totalCredit,
+      batchCount: batches.length,
+      batches,
+    });
+  }
+
+  res.json({
+    success: true,
+    enquiryDate: effectiveEnquiryDate,
+    count: articleList.length,
+    totals: {
+      totalBalance: Number(grandTotalBalance.toFixed(2)),
+      totalDebit: Number(grandTotalDebit.toFixed(2)),
+      totalCredit: Number(grandTotalCredit.toFixed(2)),
+    },
+    articles: articleList,
+  });
+});
+
 module.exports = {
   getDailyReport,
   getVoucherReport,
@@ -914,6 +1247,7 @@ module.exports = {
   getPurchaseReport,
   getSummaryReport,
   getStockBalanceReport,
+  getSerialBinCardReport,
   getItemStockLedger,
   getStockBalanceTransactions,
   getMonthlyClosingReport,

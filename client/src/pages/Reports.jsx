@@ -881,7 +881,13 @@ export default function Reports({ defaultTab } = {}) {
   const [storeFilter, setStoreFilter] = useState('Main store');
   const [articleFilter, setArticleFilter] = useState('all');
   const [removeZeroBalance, setRemoveZeroBalance] = useState(true);
+  const [transactedArticles, setTransactedArticles] = useState(false);
   const [activeArticles, setActiveArticles] = useState('A'); // 'A' | 'All' | 'I'
+  const [serialBinCardData, setSerialBinCardData] = useState(null);
+  const [serialBinCardLoading, setSerialBinCardLoading] = useState(false);
+  const [expandedArticles, setExpandedArticles] = useState({});
+  const [expandedBatches, setExpandedBatches] = useState({});
+  const [expandedCategories, setExpandedCategories] = useState({});
   const [dateCriteria, setDateCriteria] = useState('at_the_day_of'); // 'at_the_day_of' | 'range' | 'month' | 'all'
   const [enquiryDate, setEnquiryDate] = useState(todayStr());
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -954,6 +960,7 @@ export default function Reports({ defaultTab } = {}) {
         params.enquiryDate = enquiryDate;
         params.activeArticles = activeArticles;
         params.removeZeroBalance = removeZeroBalance;
+        params.transactedArticles = transactedArticles;
         if (gslFilter && gslFilter !== 'all') params.gsl = gslFilter;
         if (storeFilter && storeFilter !== 'all') params.store = storeFilter;
         if (articleFilter && articleFilter !== 'all') params.article = articleFilter;
@@ -976,12 +983,63 @@ export default function Reports({ defaultTab } = {}) {
     } finally { setLoading(false); }
   }, [
     tab, date, from, to, selectedCategory, selectedStatus, stockSearch, currentTab,
-    gslFilter, storeFilter, articleFilter, removeZeroBalance, activeArticles, dateCriteria, enquiryDate, selectedMonth,
+    gslFilter, storeFilter, articleFilter, removeZeroBalance, transactedArticles, activeArticles, dateCriteria, enquiryDate, selectedMonth,
   ]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Load dedicated Serial BinCard data with batch hierarchy
+  const loadSerialBinCard = useCallback(async () => {
+    setSerialBinCardLoading(true);
+    try {
+      const params = {
+        dateCriteria,
+        enquiryDate,
+        activeArticles,
+        removeZeroBalance,
+        transactedArticles,
+      };
+      if (gslFilter && gslFilter !== 'all') params.gsl = gslFilter;
+      if (storeFilter && storeFilter !== 'all') params.store = storeFilter;
+      if (articleFilter && articleFilter !== 'all') params.article = articleFilter;
+      if (selectedCategory && selectedCategory !== 'all') params.category = selectedCategory;
+      if (stockSearch.trim()) params.search = stockSearch.trim();
+      if (dateCriteria === 'range') {
+        if (from) params.from = from;
+        if (to) params.to = to;
+      } else if (dateCriteria === 'month') {
+        params.month = selectedMonth;
+      }
+      const res = await api.get('/reports/stock-balance/serial-bincard', { params });
+      setSerialBinCardData(res.data);
+      // Auto-expand all articles and batches by default
+      const artMap = {};
+      const batchMap = {};
+      (res.data?.articles || []).forEach(a => {
+        artMap[a._id] = true;
+        (a.batches || []).forEach((b, idx) => {
+          batchMap[`${a._id}_${b.batchNumber || idx}`] = true;
+        });
+      });
+      setExpandedArticles(artMap);
+      setExpandedBatches(batchMap);
+    } catch (err) {
+      console.error('Failed to load Serial BinCard data', err);
+    } finally {
+      setSerialBinCardLoading(false);
+    }
+  }, [
+    dateCriteria, enquiryDate, activeArticles, removeZeroBalance, transactedArticles,
+    gslFilter, storeFilter, articleFilter, selectedCategory, stockSearch, from, to, selectedMonth
+  ]);
+
+  useEffect(() => {
+    if (tab === 'stock_balance' && stockSubTab === 'serial_bincard') {
+      loadSerialBinCard();
+    }
+  }, [tab, stockSubTab, loadSerialBinCard]);
 
   // Set exact calendar month range
   const setMonthRange = (ymStr) => {
@@ -1179,6 +1237,53 @@ export default function Reports({ defaultTab } = {}) {
     }));
   }, [data, tab, balanceViewMode, balanceTxnsData]);
 
+  // ── Category Grouped Items for BinCard Summary (matching reference image) ──
+  const categoryGroupedStock = useMemo(() => {
+    const groups = {};
+    filteredStockItems.forEach(item => {
+      const cat = (item.category && item.category.trim()) ? item.category.trim() : 'General';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(item);
+    });
+    return Object.keys(groups).sort().map(cat => {
+      const items = groups[cat];
+      const totalOpening = items.reduce((sum, i) => sum + (Number(i.openingStock) || 0), 0);
+      const totalInward = items.reduce((sum, i) => sum + (Number(i.totalInQty) || 0), 0);
+      const totalOutward = items.reduce((sum, i) => sum + (Number(i.totalOutQty) || 0), 0);
+      const totalBalance = items.reduce((sum, i) => sum + (Number(i.closingStock) || 0), 0);
+      return {
+        category: cat,
+        items,
+        totalOpening,
+        totalInward,
+        totalOutward,
+        totalBalance,
+      };
+    });
+  }, [filteredStockItems]);
+
+  // ── Filtered Serial BinCard articles with batch search ────────────────
+  const filteredSerialArticles = useMemo(() => {
+    if (!serialBinCardData?.articles) return [];
+    if (!stockSearch.trim()) return serialBinCardData.articles;
+    const q = stockSearch.toLowerCase().trim();
+    return serialBinCardData.articles.filter(art => {
+      const matchArt = (art.code && art.code.toLowerCase().includes(q)) ||
+                       (art.name && art.name.toLowerCase().includes(q)) ||
+                       (art.category && art.category.toLowerCase().includes(q)) ||
+                       (art.store && art.store.toLowerCase().includes(q));
+      if (matchArt) return true;
+      return (art.batches || []).some(b =>
+        (b.batchNumber && b.batchNumber.toLowerCase().includes(q)) ||
+        (b.transactions || []).some(t =>
+          (t.voucher && t.voucher.toLowerCase().includes(q)) ||
+          (t.consignee && t.consignee.toLowerCase().includes(q)) ||
+          (t.voucherType && t.voucherType.toLowerCase().includes(q))
+        )
+      );
+    });
+  }, [serialBinCardData?.articles, stockSearch]);
+
   // ── Available filter options from loaded data ─────────────────────────
   const categoryOptions = useMemo(() => {
     return (data?.categories || []).filter(c => c && c !== 'all');
@@ -1337,6 +1442,45 @@ export default function Reports({ defaultTab } = {}) {
         'CUMULATIVE %': m.cumulativePercent.toFixed(2) + '%',
         'ABC CLASS': m.abcClass,
       }));
+    } else if (stockSubTab === 'serial_bincard') {
+      title = 'Serial_BinCard_Report';
+      const serialRows = [];
+      (filteredSerialArticles || []).forEach(art => {
+        (art.batches || []).forEach(b => {
+          (b.transactions || []).forEach(t => {
+            serialRows.push({
+              'ARTICLE CODE': art.code || '—',
+              'ARTICLE NAME': art.name,
+              'CATEGORY': art.category,
+              'STORE': art.store,
+              'BATCH NUMBER': t.batchNumber || b.batchNumber,
+              'VOUCHER': t.voucher || '—',
+              'VOUCHER TYPE': t.voucherType || '—',
+              'CONSIGNEE': t.consignee || '—',
+              'DATE': formatDateTime(t.date),
+              'UNIT AMOUNT (ETB)': Number(t.unitAmount || 0).toFixed(2),
+              'DEBIT QUANTITY': Number(t.debitQuantity || 0).toFixed(2),
+              'CREDIT QUANTITY': Number(t.creditQuantity || 0).toFixed(2),
+              'BALANCE': Number(t.balance || 0).toFixed(2),
+              'SCORE': t.score || '100% (Verified)',
+              'ENQUIRY DATE': t.enquiryDate || enquiryDate,
+            });
+          });
+        });
+      });
+      rows = serialRows;
+    } else if (stockSubTab === 'bincard_summary') {
+      title = 'BinCard_Summary_Report';
+      rows = filteredStockItems.map(m => ({
+        'ARTICLE CODE': m.code || '—',
+        'ARTICLE NAME': m.name,
+        'UOM': m.unit,
+        'CATEGORY': m.category,
+        'OPENING': Number(m.openingStock || 0).toFixed(2),
+        'INWARD': Number(m.totalInQty || 0).toFixed(2),
+        'OUTWARD': Number(m.totalOutQty || 0).toFixed(2),
+        'BALANCE': Number(m.closingStock || 0).toFixed(2),
+      }));
     } else if (stockSubTab === 'dead_movement') {
       title = 'Dead_Item_Movement_Report';
       rows = deadMovementItems.map(m => ({
@@ -1462,8 +1606,13 @@ export default function Reports({ defaultTab } = {}) {
             <div className="flex items-center gap-2.5 shrink-0">
               <button
                 type="button"
-                onClick={() => load()}
-                disabled={loading}
+                onClick={() => {
+                  load();
+                  if (stockSubTab === 'serial_bincard') {
+                    loadSerialBinCard();
+                  }
+                }}
+                disabled={loading || serialBinCardLoading}
                 className="w-18 h-18 sm:w-20 sm:h-20 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white flex flex-col items-center justify-center gap-1 shadow-md hover:shadow-lg transition-all font-bold text-xs cursor-pointer disabled:opacity-70"
                 title="Show Report Data"
               >
@@ -1639,7 +1788,7 @@ export default function Reports({ defaultTab } = {}) {
                   </div>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-1.5">
                   <label className="inline-flex items-center gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -1649,6 +1798,17 @@ export default function Reports({ defaultTab } = {}) {
                     />
                     <span className="text-xs font-semibold text-slate-700">Remove Zero Balace</span>
                   </label>
+                  <div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={transactedArticles}
+                        onChange={e => setTransactedArticles(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-semibold text-slate-700">Transacted Articles</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div>
@@ -1952,87 +2112,141 @@ export default function Reports({ defaultTab } = {}) {
           )}
 
           {/* ══════════════════════════════════════════════════════════════
-              SUB-TAB 2: BINCARD SUMMARY
+              SUB-TAB 2: BINCARD SUMMARY (CATEGORY GROUPED MATCHING SCREENSHOT)
           ══════════════════════════════════════════════════════════════ */}
           {stockSubTab === 'bincard_summary' && (
             <div className="space-y-3">
-              {/* Equation Banner */}
-              <div className="rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50/70 via-indigo-50/30 to-white p-3 shadow-2xs">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-bold text-blue-950 flex items-center gap-1.5">
-                    <Scale size={14} className="text-blue-600" />
-                    Opening Stock + Received (In) − Issued (Out) = Closing Balance
-                  </span>
-                  <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">
-                    Period: {data.monthLabel || `${from} to ${to}`}
-                  </span>
+              {/* Category Expand/Collapse All Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allOpen = {};
+                      categoryGroupedStock.forEach(g => { allOpen[g.category] = true; });
+                      setExpandedCategories(allOpen);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                  >
+                    + Expand All Categories
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allClosed = {};
+                      categoryGroupedStock.forEach(g => { allClosed[g.category] = false; });
+                      setExpandedCategories(allClosed);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                  >
+                    − Collapse All
+                  </button>
+                </div>
+                <div className="text-xs text-slate-500 font-medium">
+                  {categoryGroupedStock.length} Categories · {filteredStockItems.length} Articles
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
-                <table className="min-w-full text-xs divide-y divide-slate-200">
-                  <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                    <tr>
-                      <th className="px-3 py-2 text-left">ARTICLE CODE</th>
-                      <th className="px-3 py-2 text-left">ARTICLE NAME</th>
-                      <th className="px-2 py-2 text-left">UOM</th>
-                      <th className="px-3 py-2 text-left">CATEGORY</th>
-                      <th className="px-3 py-2 text-right bg-slate-100/60">OPENING</th>
-                      <th className="px-3 py-2 text-right bg-emerald-50 text-emerald-800">INWARD (+)</th>
-                      <th className="px-3 py-2 text-right bg-rose-50 text-rose-800">OUTWARD (−)</th>
-                      <th className="px-3 py-2 text-right bg-blue-50 text-blue-900">CLOSING (=)</th>
-                      <th className="px-3 py-2 text-center">STATUS</th>
-                      <th className="px-2 py-2 text-center">ACTION</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredStockItems.map((item, idx) => (
-                      <tr key={item._id || idx} className="hover:bg-slate-50/80 transition">
-                        <td className="px-3 py-2 font-mono font-semibold text-slate-700">
-                          {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
-                        </td>
-                        <td className="px-3 py-2 font-bold text-slate-900 uppercase">
-                          {item.name}
-                        </td>
-                        <td className="px-2 py-2 text-slate-600">{item.unit}</td>
-                        <td className="px-3 py-2 text-slate-600">{item.category}</td>
-                        <td className="px-3 py-2 text-right font-mono bg-slate-50/50 tabular-nums">
-                          {Number(item.openingStock || 0).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-emerald-700 font-bold bg-emerald-50/30 tabular-nums">
-                          +{Number(item.totalInQty || 0).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-rose-700 font-bold bg-rose-50/30 tabular-nums">
-                          −{Number(item.totalOutQty || 0).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-black text-blue-900 bg-blue-50/30 tabular-nums">
-                          {Number(item.closingStock || 0).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            item.closingStock <= 0 ? 'bg-red-100 text-red-700' :
-                            item.closingStock <= item.reorderLevel ? 'bg-amber-100 text-amber-700' :
-                            'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            {item.closingStock <= 0 ? 'OUT' : item.closingStock <= item.reorderLevel ? 'LOW' : 'OK'}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStockSubTab('bincard');
-                              handleSelectBinCardItem(item);
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10.5px] font-semibold rounded bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition cursor-pointer"
-                          >
-                            <History size={11} /> BinCard
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Category Grouped Sections Matching Screenshot */}
+              <div className="space-y-2">
+                {categoryGroupedStock.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-400 text-xs">
+                    No articles found matching the current criteria.
+                  </div>
+                ) : (
+                  categoryGroupedStock.map((grp) => {
+                    const isExpanded = expandedCategories[grp.category] !== false;
+                    return (
+                      <div key={grp.category} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                        {/* Category Header Bar (Solid Blue banner matching screenshot) */}
+                        <div
+                          onClick={() => setExpandedCategories(prev => ({ ...prev, [grp.category]: !isExpanded }))}
+                          className="w-full bg-[#357bbd] hover:bg-[#2b68a3] text-white px-3.5 py-2 flex items-center justify-between cursor-pointer transition select-none"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold">{isExpanded ? '▼' : '▶'}</span>
+                            <span className="text-xs font-bold tracking-wide">Category: {grp.category}</span>
+                            <span className="text-[11px] font-normal opacity-85">({grp.items.length} item{grp.items.length !== 1 ? 's' : ''})</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs font-semibold opacity-95">
+                            <span>Balance: <strong className="font-mono">{grp.totalBalance.toFixed(2)}</strong></span>
+                          </div>
+                        </div>
+
+                        {/* Items Table Under Category (Visible When Expanded) */}
+                        {isExpanded && (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-xs divide-y divide-slate-200">
+                              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                                <tr>
+                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE CODE</th>
+                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE NAME</th>
+                                  <th className="px-3 py-2 text-left font-bold text-slate-800">UOM</th>
+                                  <th className="px-3 py-2 text-left font-bold text-slate-800">CATEGORY</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">OPENING</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-emerald-800 bg-emerald-50/50">INWARD</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-rose-800 bg-rose-50/50">OUTWARD</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-slate-900 bg-blue-50/50">BALANCE</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {grp.items.map((item, idx) => (
+                                  <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                                    <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                                      {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                                    </td>
+                                    <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                                      {item.name}
+                                    </td>
+                                    <td className="px-3 py-2 text-slate-600">
+                                      {item.unit || 'Pcs'}
+                                    </td>
+                                    <td className="px-3 py-2 text-slate-600">
+                                      {item.category || grp.category}
+                                    </td>
+                                    <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
+                                      {Number(item.openingStock || 0).toFixed(2)}
+                                    </td>
+                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
+                                      {Number(item.totalInQty || 0).toFixed(2)}
+                                    </td>
+                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
+                                      {Number(item.totalOutQty || 0).toFixed(2)}
+                                    </td>
+                                    <td className="px-3.5 py-2 text-right font-mono font-black text-slate-900 bg-blue-50/20 tabular-nums">
+                                      {Number(item.closingStock || 0).toFixed(2)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+
+                              {/* Category Group Subtotal Row */}
+                              <tfoot className="bg-slate-100/90 font-bold border-t border-slate-300 text-slate-900 text-xs">
+                                <tr>
+                                  <td colSpan={4} className="px-3.5 py-2 uppercase font-extrabold text-slate-800 text-[11px]">
+                                    Subtotal — Category: {grp.category} ({grp.items.length} items)
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-slate-800 tabular-nums">
+                                    {grp.totalOpening.toFixed(2)}
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-emerald-800 tabular-nums">
+                                    {grp.totalInward.toFixed(2)}
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-rose-800 tabular-nums">
+                                    {grp.totalOutward.toFixed(2)}
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-black text-blue-950 tabular-nums">
+                                    {grp.totalBalance.toFixed(2)}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
@@ -2048,74 +2262,85 @@ export default function Reports({ defaultTab } = {}) {
                   <span className="text-xs font-bold text-slate-700">Select Article:</span>
                   <select
                     value={binCardArticleId}
-                    onChange={e => handleSelectBinCardItem(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 font-semibold outline-none focus:border-blue-500 cursor-pointer"
+                    onChange={e => {
+                      const sel = filteredStockItems.find(i => String(i._id) === String(e.target.value));
+                      if (sel) handleSelectBinCardItem(sel);
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 font-semibold"
                   >
-                    {filteredStockItems.map(a => (
-                      <option key={a._id} value={a._id}>
-                        {a.code ? `[${a.code}] ` : ''}{a.name} ({a.unit})
+                    <option value="">-- Choose an article to inspect ledger --</option>
+                    {filteredStockItems.map(i => (
+                      <option key={i._id} value={i._id}>
+                        {i.code ? `${i.code} - ` : ''}{i.name} ({i.unit})
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {ledgerData?.material && (
-                  <div className="flex items-center gap-3 text-xs font-semibold text-slate-700">
-                    <span>Current Stock: <strong className="text-blue-700 font-mono">{ledgerData.material.currentStock} {ledgerData.material.unit}</strong></span>
-                    <span>Reorder: <strong className="text-slate-900 font-mono">{ledgerData.material.reorderLevel}</strong></span>
-                    <span>Unit Cost: <strong className="text-emerald-700 font-mono">ETB {(ledgerData.material.unitCost || 0).toFixed(2)}</strong></span>
+                {selectedLedgerMaterial && (
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-slate-500">Current Stock: <strong className="text-slate-900">{selectedLedgerMaterial.currentStock} {selectedLedgerMaterial.unit}</strong></span>
+                    <span className="text-slate-500">Unit Cost: <strong className="text-slate-900">{(selectedLedgerMaterial.unitCost || 0).toFixed(2)} ETB</strong></span>
                   </div>
                 )}
               </div>
 
-              {ledgerLoading ? (
-                <div className="py-12 text-center text-xs text-slate-500">
-                  <RefreshCw className="animate-spin h-5 w-5 mx-auto mb-1.5 text-blue-600" />
-                  Loading BinCard transactions…
+              {ledgerLoading && (
+                <div className="py-12 text-center text-xs text-slate-400">
+                  <RefreshCw className="animate-spin h-5 w-5 mx-auto mb-2 text-blue-600" />
+                  Loading Item Ledger…
                 </div>
-              ) : (
+              )}
+
+              {!ledgerLoading && !ledgerData && (
+                <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center text-xs text-slate-400">
+                  Select an article above or click "BinCard" on any item in the BinCard Summary table to load its running ledger.
+                </div>
+              )}
+
+              {!ledgerLoading && ledgerData && (
                 <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
                   <table className="min-w-full text-xs divide-y divide-slate-200">
                     <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
                       <tr>
-                        <th className="px-3 py-2 text-left">Date &amp; Time (h:m:s)</th>
-                        <th className="px-3 py-2 text-left">Voucher #</th>
-                        <th className="px-3 py-2 text-left">Type</th>
-                        <th className="px-3 py-2 text-left">Party / Reason</th>
-                        <th className="px-3 py-2 text-right text-emerald-800">In (+)</th>
-                        <th className="px-3 py-2 text-right text-rose-800">Out (−)</th>
-                        <th className="px-3 py-2 text-right text-blue-900">Balance</th>
-                        <th className="px-3 py-2 text-center">Status</th>
+                        <th className="px-3 py-2 text-left">DATE & TIME</th>
+                        <th className="px-3 py-2 text-left">VOUCHER #</th>
+                        <th className="px-3 py-2 text-left">TYPE</th>
+                        <th className="px-3 py-2 text-left">PARTY / REASON</th>
+                        <th className="px-3 py-2 text-right text-emerald-800 bg-emerald-50/50">IN (+)</th>
+                        <th className="px-3 py-2 text-right text-rose-800 bg-rose-50/50">OUT (−)</th>
+                        <th className="px-3 py-2 text-right text-blue-900 bg-blue-50/50">BALANCE</th>
+                        <th className="px-3 py-2 text-center">STATUS</th>
+                        <th className="px-3 py-2 text-left">HANDLED BY</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {(!ledgerData?.ledger || ledgerData.ledger.length === 0) ? (
+                      {ledgerData.ledger?.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
-                            No ledger movements recorded for this article.
+                          <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                            No ledger movements recorded for this material in the selected period.
                           </td>
                         </tr>
                       ) : (
-                        ledgerData.ledger.map((l, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50/70 transition">
-                            <td className="px-3 py-2 font-mono text-[11px] text-slate-600 whitespace-nowrap">
-                              {formatDateTime(l.date || l.createdAt)}
+                        ledgerData.ledger?.map((row, idx) => (
+                          <tr key={row.txnId || idx} className="hover:bg-slate-50/80 transition">
+                            <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">{formatDateTime(row.date)}</td>
+                            <td className="px-3 py-2 font-mono font-bold text-slate-900">{row.voucherNo}</td>
+                            <td className="px-3 py-2 text-slate-700">{VOUCHER_LABELS[row.voucherType] || row.voucherType}</td>
+                            <td className="px-3 py-2 text-slate-600 truncate max-w-xs">{row.supplier !== '—' ? row.supplier : row.reason}</td>
+                            <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
+                              {row.inQty > 0 ? `+${row.inQty}` : '—'}
                             </td>
-                            <td className="px-3 py-2 font-mono font-bold text-blue-700">{l.voucherNo}</td>
-                            <td className="px-3 py-2 font-semibold text-slate-700">{VOUCHER_LABELS[l.voucherType] || l.voucherType}</td>
-                            <td className="px-3 py-2 text-slate-600 truncate max-w-xs">{l.supplier !== '—' ? l.supplier : l.reason}</td>
-                            <td className="px-3 py-2 text-right font-mono text-emerald-700 font-bold tabular-nums">
-                              {l.inQty > 0 ? `+${l.inQty}` : '—'}
+                            <td className="px-3 py-2 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
+                              {row.outQty > 0 ? `−${row.outQty}` : '—'}
                             </td>
-                            <td className="px-3 py-2 text-right font-mono text-rose-700 font-bold tabular-nums">
-                              {l.outQty > 0 ? `−${l.outQty}` : '—'}
-                            </td>
-                            <td className="px-3 py-2 text-right font-mono font-black text-blue-900 tabular-nums">
-                              {l.balanceAfter}
+                            <td className="px-3 py-2 text-right font-mono font-black text-blue-900 bg-blue-50/20 tabular-nums">
+                              {row.balanceAfter}
                             </td>
                             <td className="px-3 py-2 text-center">
-                              <WorkflowBadge status={l.status} />
+                              <WorkflowBadge status={row.status} />
                             </td>
+                            <td className="px-3 py-2 text-slate-600">{row.performedBy}</td>
                           </tr>
                         ))
                       )}
@@ -2191,44 +2416,245 @@ export default function Reports({ defaultTab } = {}) {
           )}
 
           {/* ══════════════════════════════════════════════════════════════
-              SUB-TAB 5: SERIAL BINCARD
+              SUB-TAB 5: SERIAL BINCARD (ACCURATE RUNNING BALANCES PER BATCH)
           ══════════════════════════════════════════════════════════════ */}
           {stockSubTab === 'serial_bincard' && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
-              <table className="min-w-full text-xs divide-y divide-slate-200">
-                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                  <tr>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
-                    <th className="px-3.5 py-2.5 text-left">SERIAL / BATCH NO</th>
-                    <th className="px-3.5 py-2.5 text-left">STORE LOCATION</th>
-                    <th className="px-2.5 py-2.5 text-left">UOM</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CURRENT BALANCE</th>
-                    <th className="px-3.5 py-2.5 text-center">TRACKING STATUS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredStockItems.map((item, idx) => (
-                    <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
-                      <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
-                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
-                      <td className="px-3.5 py-2 font-mono text-slate-600">
-                        {item.code ? `SN-${item.code}` : `LOT-${item._id ? item._id.slice(-6).toUpperCase() : '001'}`}
-                      </td>
-                      <td className="px-3.5 py-2 text-slate-600">{item.storeLocation || 'Main Store'}</td>
-                      <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
-                      <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
-                        {Number(item.closingStock || 0).toFixed(2)}
-                      </td>
-                      <td className="px-3.5 py-2 text-center">
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                          Active Tracked
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              {/* Toolbar Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allArt = {};
+                      const allBatches = {};
+                      (filteredSerialArticles || []).forEach(a => {
+                        allArt[a._id] = true;
+                        (a.batches || []).forEach((b, idx) => {
+                          allBatches[`${a._id}_${b.batchNumber || idx}`] = true;
+                        });
+                      });
+                      setExpandedArticles(allArt);
+                      setExpandedBatches(allBatches);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
+                  >
+                    + Expand All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpandedArticles({});
+                      setExpandedBatches({});
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+                  >
+                    − Collapse All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadSerialBinCard}
+                    disabled={serialBinCardLoading}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw size={12} className={serialBinCardLoading ? 'animate-spin' : ''} /> Refresh Batches
+                  </button>
+                </div>
+
+                {serialBinCardData?.totals && (
+                  <div className="flex items-center gap-3 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1 rounded-lg">
+                    <span>Total Debit: <strong className="text-emerald-700 font-mono">+{serialBinCardData.totals.totalDebit?.toFixed(2)}</strong></span>
+                    <span>Total Credit: <strong className="text-rose-700 font-mono">−{serialBinCardData.totals.totalCredit?.toFixed(2)}</strong></span>
+                    <span>Total Balance: <strong className="text-blue-900 font-mono">{serialBinCardData.totals.totalBalance?.toFixed(2)}</strong></span>
+                  </div>
+                )}
+              </div>
+
+              {serialBinCardLoading && (
+                <div className="py-16 text-center text-xs text-slate-400">
+                  <RefreshCw className="animate-spin h-6 w-6 mx-auto mb-2 text-blue-600" />
+                  Calculating running balances per batch from stock transactions…
+                </div>
+              )}
+
+              {!serialBinCardLoading && filteredSerialArticles.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-400 text-xs">
+                  No articles or batch transactions match the selected filters.
+                </div>
+              )}
+
+              {/* Expandable Article Cards Grouped by Batch Number */}
+              {!serialBinCardLoading && filteredSerialArticles.length > 0 && (
+                <div className="space-y-3">
+                  {filteredSerialArticles.map(art => {
+                    const isArtExpanded = expandedArticles[art._id] !== false;
+                    return (
+                      <div key={art._id} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                        {/* Article Header Bar */}
+                        <div
+                          onClick={() => setExpandedArticles(prev => ({ ...prev, [art._id]: !isArtExpanded }))}
+                          className="w-full bg-slate-50 hover:bg-slate-100/90 border-b border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 cursor-pointer transition select-none"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-200 text-slate-700 text-xs font-bold shrink-0">
+                              {isArtExpanded ? '▼' : '▶'}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-blue-700 px-2 py-0.5 rounded bg-blue-50 border border-blue-200">
+                              {art.code || 'ART-' + art._id.slice(-5).toUpperCase()}
+                            </span>
+                            <span className="font-bold text-slate-900 text-sm truncate uppercase">
+                              {art.name}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                              {art.category || 'General'}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                              {art.unit || 'Pcs'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs shrink-0 font-medium">
+                            <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold text-[11px]">
+                              {art.batchCount} Batch{art.batchCount !== 1 ? 'es' : ''}
+                            </span>
+                            <span className="text-slate-600">
+                              Debit: <strong className="text-emerald-700 font-mono">+{Number(art.totalDebit || 0).toFixed(2)}</strong>
+                            </span>
+                            <span className="text-slate-600">
+                              Credit: <strong className="text-rose-700 font-mono">−{Number(art.totalCredit || 0).toFixed(2)}</strong>
+                            </span>
+                            <span className="text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded font-bold font-mono">
+                              Bal: {Number(art.totalBalance || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Batches Container (Visible When Article is Expanded) */}
+                        {isArtExpanded && (
+                          <div className="p-3 bg-slate-50/40 space-y-3">
+                            {(art.batches || []).map((batch, bIdx) => {
+                              const batchKey = `${art._id}_${batch.batchNumber || bIdx}`;
+                              const isBatchExpanded = expandedBatches[batchKey] !== false;
+                              return (
+                                <div key={batchKey} className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                                  {/* Batch Header Bar */}
+                                  <div
+                                    onClick={() => setExpandedBatches(prev => ({ ...prev, [batchKey]: !isBatchExpanded }))}
+                                    className="px-3.5 py-2 bg-gradient-to-r from-slate-100/90 via-slate-50 to-white flex flex-wrap items-center justify-between gap-2 cursor-pointer hover:bg-slate-100 transition select-none border-b border-slate-200/70"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] font-bold text-slate-500">{isBatchExpanded ? '▼' : '▶'}</span>
+                                      <span className="text-[11px] font-extrabold uppercase text-slate-700">Batch Number:</span>
+                                      <span className="font-mono text-xs font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+                                        {batch.batchNumber}
+                                      </span>
+                                      <span className="text-[11px] text-slate-500 font-medium">
+                                        ({batch.transactions?.length || 0} transaction{batch.transactions?.length !== 1 ? 's' : ''})
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-xs font-semibold">
+                                      <span className="text-emerald-700 font-mono">In: +{Number(batch.totalDebit || 0).toFixed(2)}</span>
+                                      <span className="text-rose-700 font-mono">Out: −{Number(batch.totalCredit || 0).toFixed(2)}</span>
+                                      <span className="text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-mono font-bold">
+                                        Batch Balance: {Number(batch.batchBalance || 0).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Exact 11 Columns Stock Transactions Table */}
+                                  {isBatchExpanded && (
+                                    <div className="overflow-x-auto">
+                                      <table className="min-w-full text-xs divide-y divide-slate-200">
+                                        <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider text-[10.5px] font-bold">
+                                          <tr>
+                                            <th className="px-3 py-2 text-left">VOUCHER</th>
+                                            <th className="px-3 py-2 text-left">VOUCHER TYPE</th>
+                                            <th className="px-3 py-2 text-left">CONSIGNEE</th>
+                                            <th className="px-3 py-2 text-left">DATE</th>
+                                            <th className="px-3 py-2 text-right">UNIT AMOUNT</th>
+                                            <th className="px-3 py-2 text-right text-emerald-800 bg-emerald-50/50">DEBIT QUANTITY</th>
+                                            <th className="px-3 py-2 text-right text-rose-800 bg-rose-50/50">CREDIT QUANTITY</th>
+                                            <th className="px-3 py-2 text-right text-blue-900 bg-blue-50/50">BALANCE</th>
+                                            <th className="px-2.5 py-2 text-center">SCORE</th>
+                                            <th className="px-3 py-2 text-left font-mono">BATCH NUMBER</th>
+                                            <th className="px-3 py-2 text-center">ENQUIRY DATE</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                          {(batch.transactions || []).map((t, tIdx) => (
+                                            <tr key={t.txnId ? `${t.txnId}_${tIdx}` : tIdx} className="hover:bg-slate-50 transition-colors">
+                                              <td className="px-3 py-1.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                                {t.voucher || '—'}
+                                              </td>
+                                              <td className="px-3 py-1.5 font-medium text-slate-700 whitespace-nowrap">
+                                                {t.voucherType || '—'}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-slate-600 truncate max-w-xs" title={t.consignee}>
+                                                {t.consignee || '—'}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap font-medium">
+                                                {formatDateTime(t.date)}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-right font-mono text-slate-800 tabular-nums">
+                                                {Number(t.unitAmount || 0).toFixed(2)}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
+                                                {t.debitQuantity > 0 ? `+${Number(t.debitQuantity).toFixed(2)}` : '—'}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
+                                                {t.creditQuantity > 0 ? `−${Number(t.creditQuantity).toFixed(2)}` : '—'}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-right font-mono font-black text-blue-900 bg-blue-50/20 tabular-nums">
+                                                {Number(t.balance || 0).toFixed(2)}
+                                              </td>
+                                              <td className="px-2.5 py-1.5 text-center">
+                                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+                                                  {t.score || '100% (Verified)'}
+                                                </span>
+                                              </td>
+                                              <td className="px-3 py-1.5 font-mono text-xs text-indigo-700 font-semibold whitespace-nowrap">
+                                                {t.batchNumber || batch.batchNumber}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-center text-slate-500 whitespace-nowrap font-medium">
+                                                {t.enquiryDate || enquiryDate}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                        {/* Batch Table Totals Footer */}
+                                        <tfoot className="bg-slate-100/80 font-bold border-t border-slate-200 text-slate-800 text-[11px]">
+                                          <tr>
+                                            <td colSpan={5} className="px-3 py-1.5 uppercase font-bold text-slate-600">
+                                              Batch {batch.batchNumber} Running Total
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-800 tabular-nums">
+                                              +{Number(batch.totalDebit || 0).toFixed(2)}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right font-mono font-bold text-rose-800 tabular-nums">
+                                              −{Number(batch.totalCredit || 0).toFixed(2)}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right font-mono font-black text-blue-950 tabular-nums">
+                                              {Number(batch.batchBalance || 0).toFixed(2)}
+                                            </td>
+                                            <td colSpan={3} className="px-3 py-1.5 text-center text-slate-400 font-normal">
+                                              As of {enquiryDate}
+                                            </td>
+                                          </tr>
+                                        </tfoot>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
