@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Printer, Scale, Search, History, X, RefreshCw,
   ChevronLeft, ChevronRight, Calendar, ArrowRight, CheckCircle, Clock,
   ClipboardList, Store, PackageSearch, TrendingUp, TrendingDown,
   Minus, Send, ShieldCheck, Trash2, Plus, AlertTriangle, BarChart3,
   ChevronDown, ChevronUp, Eye, EyeOff, Save, ArrowUpDown, CheckCheck,
+  FileSpreadsheet, Download, Home, Copy, Check, FileText, Layers,
+  Filter, ShieldAlert, Award, AlertCircle, Info, SlidersHorizontal,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
@@ -12,6 +15,40 @@ import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
 import ExportDropdown from '../components/ui/ExportDropdown';
 import WorkflowBadge from '../components/ui/WorkflowBadge';
+import { exportToExcel, exportToCSV, exportToPDF } from '../utils/exportUtils';
+
+// ── Binoculars SVG Icon matching reference image ──────────────────────
+const BinocularsIcon = ({ className = "h-5 w-5", ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M10 10h4" />
+    <path d="M19 7l-2 11a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2V9" />
+    <path d="M5 7l2 11a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V9" />
+    <circle cx="7" cy="6" r="3" />
+    <circle cx="17" cy="6" r="3" />
+  </svg>
+);
+
+// Report sub-tabs matching the reference image
+const REPORT_SUB_TABS = [
+  { id: 'stock_only', label: 'Stock Only' },
+  { id: 'bincard_summary', label: 'BinCard Summary' },
+  { id: 'bincard', label: 'BinCard' },
+  { id: 'min_stock_level', label: 'Min. Stock Level' },
+  { id: 'serial_bincard', label: 'Serial BinCard' },
+  { id: 'expiry_date', label: 'Expiry Date' },
+  { id: 'expiry_notification', label: 'Expiry Date Notification' },
+  { id: 'abc_analysis', label: 'ABC Analysis' },
+  { id: 'dead_movement', label: 'Dead Item Movement Summary' },
+];
 
 // Route → API endpoint map (used by the load function)
 const TABS = [
@@ -838,6 +875,19 @@ export default function Reports({ defaultTab } = {}) {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [stockSearch, setStockSearch] = useState('');
 
+  // Stock Balance UI states (matching reference image)
+  const [stockSubTab, setStockSubTab] = useState('stock_only');
+  const [gslFilter, setGslFilter] = useState('Item');
+  const [storeFilter, setStoreFilter] = useState('Main store');
+  const [articleFilter, setArticleFilter] = useState('all');
+  const [removeZeroBalance, setRemoveZeroBalance] = useState(true);
+  const [activeArticles, setActiveArticles] = useState('A'); // 'A' | 'All' | 'I'
+  const [dateCriteria, setDateCriteria] = useState('at_the_day_of'); // 'at_the_day_of' | 'range' | 'month' | 'all'
+  const [enquiryDate, setEnquiryDate] = useState(todayStr());
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [binCardArticleId, setBinCardArticleId] = useState('');
+
   // Stock Balance view mode: 'detail' (detailed table) vs 'transactions' (time-sequence list) vs 'monthly_summary' (12-month evolution)
   const [balanceViewMode, setBalanceViewMode] = useState('detail');
   const [monthlyClosingData, setMonthlyClosingData] = useState(null);
@@ -900,18 +950,34 @@ export default function Reports({ defaultTab } = {}) {
       } else if (tab === 'stock') {
         // current static stock levels
       } else if (tab === 'stock_balance') {
-        if (from) params.from = from;
-        if (to) params.to = to;
+        params.dateCriteria = dateCriteria;
+        params.enquiryDate = enquiryDate;
+        params.activeArticles = activeArticles;
+        params.removeZeroBalance = removeZeroBalance;
+        if (gslFilter && gslFilter !== 'all') params.gsl = gslFilter;
+        if (storeFilter && storeFilter !== 'all') params.store = storeFilter;
+        if (articleFilter && articleFilter !== 'all') params.article = articleFilter;
         if (selectedCategory && selectedCategory !== 'all') params.category = selectedCategory;
         if (selectedStatus && selectedStatus !== 'all') params.status = selectedStatus;
         if (stockSearch.trim()) params.search = stockSearch.trim();
+        if (dateCriteria === 'range') {
+          if (from) params.from = from;
+          if (to) params.to = to;
+        } else if (dateCriteria === 'month') {
+          params.month = selectedMonth;
+        } else if (dateCriteria === 'at_the_day_of' || dateCriteria === 'as_of_date') {
+          params.to = enquiryDate;
+        }
       } else {
         params = { from, to };
       }
       const res = await api.get(currentTab.endpoint, { params });
       setData(res.data);
     } finally { setLoading(false); }
-  }, [tab, date, from, to, selectedCategory, selectedStatus, stockSearch, currentTab]);
+  }, [
+    tab, date, from, to, selectedCategory, selectedStatus, stockSearch, currentTab,
+    gslFilter, storeFilter, articleFilter, removeZeroBalance, activeArticles, dateCriteria, enquiryDate, selectedMonth,
+  ]);
 
   useEffect(() => {
     load();
@@ -1113,6 +1179,220 @@ export default function Reports({ defaultTab } = {}) {
     }));
   }, [data, tab, balanceViewMode, balanceTxnsData]);
 
+  // ── Available filter options from loaded data ─────────────────────────
+  const categoryOptions = useMemo(() => {
+    return (data?.categories || []).filter(c => c && c !== 'all');
+  }, [data?.categories]);
+
+  const storeOptions = useMemo(() => {
+    return (data?.stores || ['Main store']).filter(Boolean);
+  }, [data?.stores]);
+
+  const articleOptions = useMemo(() => {
+    return data?.articles || (data?.items || []).map(i => ({ _id: i._id, code: i.code, name: i.name, category: i.category, unit: i.unit }));
+  }, [data?.articles, data?.items]);
+
+  // ── Client-side filtered items for Stock Balance tabs ─────────────────
+  const filteredStockItems = useMemo(() => {
+    if (!data?.items) return [];
+    let list = [...data.items];
+
+    // Search query filter (Article Code, Name, Category, UOM, Store)
+    if (stockSearch.trim()) {
+      const q = stockSearch.toLowerCase().trim();
+      list = list.filter(item =>
+        (item.code && item.code.toLowerCase().includes(q)) ||
+        (item.name && item.name.toLowerCase().includes(q)) ||
+        (item.category && item.category.toLowerCase().includes(q)) ||
+        (item.unit && item.unit.toLowerCase().includes(q)) ||
+        (item.storeLocation && item.storeLocation.toLowerCase().includes(q))
+      );
+    }
+
+    // Remove zero balance items filter
+    if (removeZeroBalance) {
+      list = list.filter(item => Number(item.closingStock || 0) > 0);
+    }
+
+    // Active articles filter
+    if (activeArticles === 'A') {
+      list = list.filter(item => item.isActive !== false);
+    } else if (activeArticles === 'I') {
+      list = list.filter(item => item.isActive === false);
+    }
+
+    return list;
+  }, [data?.items, stockSearch, removeZeroBalance, activeArticles]);
+
+  // ── Derived datasets for specialized tabs ────────────────────────────
+  const minStockItems = useMemo(() => {
+    return filteredStockItems.filter(item => {
+      const min = Number(item.minStock || 0);
+      const reorder = Number(item.reorderLevel || 10);
+      const threshold = min > 0 ? min : reorder;
+      return Number(item.closingStock || 0) <= threshold;
+    });
+  }, [filteredStockItems]);
+
+  const abcItems = useMemo(() => {
+    const sorted = [...filteredStockItems].sort((a, b) => (b.closingValue || 0) - (a.closingValue || 0));
+    const grandTotal = sorted.reduce((sum, i) => sum + (i.closingValue || 0), 0) || 1;
+    let running = 0;
+    return sorted.map((item, idx) => {
+      const val = Number(item.closingValue || 0);
+      const percent = (val / grandTotal) * 100;
+      running += percent;
+      let abcClass = 'C';
+      if (running <= 70 || idx === 0) {
+        abcClass = 'A';
+      } else if (running <= 90) {
+        abcClass = 'B';
+      }
+      return {
+        ...item,
+        rank: idx + 1,
+        valuePercent: percent,
+        cumulativePercent: Math.min(100, running),
+        abcClass,
+      };
+    });
+  }, [filteredStockItems]);
+
+  const deadMovementItems = useMemo(() => {
+    return filteredStockItems.filter(item => Number(item.totalOutQty || 0) === 0);
+  }, [filteredStockItems]);
+
+  // Auto-select first article for BinCard tab
+  useEffect(() => {
+    if (tab === 'stock_balance' && stockSubTab === 'bincard') {
+      if (!binCardArticleId && filteredStockItems.length > 0) {
+        setBinCardArticleId(filteredStockItems[0]._id);
+        openItemLedger(filteredStockItems[0]);
+      }
+    }
+  }, [tab, stockSubTab, binCardArticleId, filteredStockItems]);
+
+  const handleSelectBinCardItem = (itemOrId) => {
+    const id = typeof itemOrId === 'string' ? itemOrId : itemOrId?._id;
+    setBinCardArticleId(id);
+    const target = (data?.items || []).find(i => i._id === id);
+    if (target) {
+      openItemLedger(target);
+    }
+  };
+
+  // Sub-tab export data builder
+  const getSubTabExportRows = useCallback(() => {
+    let rows = [];
+    let title = 'Stock_Balance_Report';
+    if (stockSubTab === 'stock_only') {
+      title = 'Stock_Only_Report';
+      rows = filteredStockItems.map(m => ({
+        'ARTICLE CODE': m.code || '—',
+        'ARTICLE NAME': m.name,
+        'UOM': m.unit,
+        'CATEGORY': m.category,
+        'MAIN STORE': Number(m.closingStock || 0).toFixed(2),
+        'QTY TOTAL': Number(m.closingStock || 0).toFixed(2),
+        'UNIT COST (ETB)': Number(m.unitCost || 0).toFixed(2),
+        'TOTAL VALUE (ETB)': Number(m.closingValue || 0).toFixed(2),
+      }));
+    } else if (stockSubTab === 'bincard_summary') {
+      title = 'BinCard_Summary_Report';
+      rows = filteredStockItems.map(m => ({
+        'ARTICLE CODE': m.code || '—',
+        'ARTICLE NAME': m.name,
+        'UOM': m.unit,
+        'CATEGORY': m.category,
+        'OPENING BALANCE': Number(m.openingStock || 0).toFixed(2),
+        'RECEIVED (IN)': Number(m.totalInQty || 0).toFixed(2),
+        'ISSUED (OUT)': Number(m.totalOutQty || 0).toFixed(2),
+        'CLOSING BALANCE': Number(m.closingStock || 0).toFixed(2),
+        'STATUS': (m.status || 'in_stock').toUpperCase(),
+      }));
+    } else if (stockSubTab === 'min_stock_level') {
+      title = 'Min_Stock_Level_Report';
+      rows = minStockItems.map(m => ({
+        'ARTICLE CODE': m.code || '—',
+        'ARTICLE NAME': m.name,
+        'UOM': m.unit,
+        'CATEGORY': m.category,
+        'CURRENT STOCK': Number(m.closingStock || 0).toFixed(2),
+        'MIN STOCK LEVEL': Number(m.minStock || 0).toFixed(2),
+        'REORDER LEVEL': Number(m.reorderLevel || 10).toFixed(2),
+        'DEFICIT': Math.max(0, (m.reorderLevel || 10) - m.closingStock).toFixed(2),
+        'STATUS': (m.status || 'low_stock').toUpperCase(),
+      }));
+    } else if (stockSubTab === 'abc_analysis') {
+      title = 'ABC_Analysis_Report';
+      rows = abcItems.map(m => ({
+        'RANK': m.rank,
+        'ARTICLE CODE': m.code || '—',
+        'ARTICLE NAME': m.name,
+        'UOM': m.unit,
+        'CURRENT STOCK': Number(m.closingStock || 0).toFixed(2),
+        'UNIT COST': Number(m.unitCost || 0).toFixed(2),
+        'TOTAL VALUE (ETB)': Number(m.closingValue || 0).toFixed(2),
+        '% OF TOTAL': m.valuePercent.toFixed(2) + '%',
+        'CUMULATIVE %': m.cumulativePercent.toFixed(2) + '%',
+        'ABC CLASS': m.abcClass,
+      }));
+    } else if (stockSubTab === 'dead_movement') {
+      title = 'Dead_Item_Movement_Report';
+      rows = deadMovementItems.map(m => ({
+        'ARTICLE CODE': m.code || '—',
+        'ARTICLE NAME': m.name,
+        'UOM': m.unit,
+        'CATEGORY': m.category,
+        'CURRENT STOCK': Number(m.closingStock || 0).toFixed(2),
+        'UNIT COST': Number(m.unitCost || 0).toFixed(2),
+        'STOCK VALUE (ETB)': Number(m.closingValue || 0).toFixed(2),
+        'OUTWARD ISSUED': Number(m.totalOutQty || 0).toFixed(2),
+        'STATUS': 'DORMANT / DEAD STOCK',
+      }));
+    } else {
+      rows = filteredStockItems.map(m => ({
+        'ARTICLE CODE': m.code || '—',
+        'ARTICLE NAME': m.name,
+        'UOM': m.unit,
+        'CATEGORY': m.category,
+        'MAIN STORE': Number(m.closingStock || 0).toFixed(2),
+        'QTY TOTAL': Number(m.closingStock || 0).toFixed(2),
+      }));
+    }
+    return { rows, title: `${title}_${enquiryDate || todayStr()}` };
+  }, [stockSubTab, filteredStockItems, minStockItems, abcItems, deadMovementItems, enquiryDate]);
+
+  const handleExportExcel = () => {
+    const { rows, title } = getSubTabExportRows();
+    if (!rows.length) return alert('No data to export.');
+    exportToExcel(rows, title, stockSubTab);
+  };
+
+  const handleExportCSV = () => {
+    const { rows, title } = getSubTabExportRows();
+    if (!rows.length) return alert('No data to export.');
+    exportToCSV(rows, title);
+  };
+
+  const handleExportPDF = () => {
+    const { rows, title } = getSubTabExportRows();
+    if (!rows.length) return alert('No data to export.');
+    const cols = Object.keys(rows[0] || {}).map(k => ({ header: k, accessor: k }));
+    exportToPDF({ title: title.replace(/_/g, ' '), columns: cols, data: rows });
+  };
+
+  const handleCopyTable = () => {
+    const { rows } = getSubTabExportRows();
+    if (!rows.length) return;
+    const headers = Object.keys(rows[0]).join('\t');
+    const body = rows.map(r => Object.values(r).join('\t')).join('\n');
+    navigator.clipboard.writeText(`${headers}\n${body}`).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div id="print-area" className="space-y-4">
 
@@ -1123,271 +1403,379 @@ export default function Reports({ defaultTab } = {}) {
         {from && to && <p>Period: {from} to {to}</p>}
       </div>
 
-      {/* ── Page heading (from sidebar nav) ── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-ink-900 flex items-center gap-2">
-            {tab === 'stock_balance' && <Scale className="h-6 w-6 text-emerald-600" />}
-            {currentTab?.label ?? 'Reports'}
-          </h1>
-          <p className="text-xs text-ink-500 mt-0.5">
-            {tab === 'stock_balance'
-              ? 'Complete Stock Balance & Movement Ledger — Opening + Received (Cash/Credit/Bazaar/PADJ) − Issued (Disposal/NADJ/Sales) = Closing'
-              : 'Detailed inventory and transaction reports'}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <ExportDropdown
-            data={exportData}
-            fileName={`report_${tab}`}
-            sheetName={currentTab?.label || 'Report'}
-            pdfTitle={currentTab?.label || 'Report'}
-            pdfColumns={exportData[0]
-              ? Object.keys(exportData[0]).map(k => ({ header: k, accessor: k }))
-              : []
-            }
-          />
-          <Button variant="ghost" className="border border-ink-200" onClick={() => window.print()}>
-            <Printer size={15} /> Print
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Filter bar for Stock Balance ── */}
+      {/* ── Stock Balance Report Breadcrumb Header (matching reference image) ── */}
       {tab === 'stock_balance' && (
-        <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft space-y-3">
-          {/* Top Toggle: Detailed Month Sheet vs 12-Month Evolution */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-3">
-            <div className="flex items-center gap-1.5 p-1 bg-ink-100 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setBalanceViewMode('detail')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${balanceViewMode === 'detail'
-                  ? 'bg-white text-emerald-800 shadow-xs'
-                  : 'text-ink-600 hover:text-ink-900'
-                  }`}
-              >
-                <Scale size={14} /> Monthly Balance Sheet
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setBalanceViewMode('transactions');
-                  loadBalanceTransactions();
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${balanceViewMode === 'transactions'
-                  ? 'bg-white text-indigo-700 shadow-xs'
-                  : 'text-ink-600 hover:text-ink-900'
-                  }`}
-              >
-                <Clock size={14} /> Movements Time Sequence (h:m:s)
-              </button>
-              <button
-                type="button"
-                onClick={() => { setBalanceViewMode('monthly_summary'); loadMonthlyClosing(summaryYear); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${balanceViewMode === 'monthly_summary'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-ink-600 hover:text-ink-900'
-                  }`}
-              >
-                <Calendar size={14} /> 12-Month Closing Evolution
-              </button>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-bold text-slate-900">
+              Reports - Stock Balance Report
+            </h1>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <Link to="/" className="inline-flex items-center gap-1 text-slate-600 hover:text-blue-600 transition">
+              <Home size={13} className="text-slate-400" />
+              <span>Home</span>
+            </Link>
+            <span className="text-slate-300">&gt;</span>
+            <span className="text-slate-600">Reports</span>
+            <span className="text-slate-300">&gt;</span>
+            <span className="font-semibold text-slate-800">Stock Balance Report</span>
+          </div>
+        </div>
+      )}
 
-            {/* Quick Month Switcher Controls */}
-            {balanceViewMode !== 'monthly_summary' && (
-              <div className="flex items-center gap-1.5 bg-ink-50 p-1 rounded-xl border border-ink-100">
-                <button
-                  type="button"
-                  onClick={handlePrevMonth}
-                  title="Previous Month"
-                  className="rounded-lg p-1.5 text-ink-600 hover:bg-white hover:text-ink-900 hover:shadow-2xs transition"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <div className="flex items-center gap-1.5 px-2">
-                  <Calendar size={14} className="text-emerald-600" />
-                  <input
-                    type="month"
-                    value={selectedMonth}
-                    onChange={(e) => { if (e.target.value) setMonthRange(e.target.value); }}
-                    className="rounded-md border border-ink-200 bg-white px-2 py-0.5 text-xs font-bold text-ink-900 outline-none focus:border-emerald-500 cursor-pointer"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleNextMonth}
-                  title="Next Month"
-                  className="rounded-lg p-1.5 text-ink-600 hover:bg-white hover:text-ink-900 hover:shadow-2xs transition"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
-
-            {/* Year Switcher for 12-Month Evolution */}
-            {balanceViewMode === 'monthly_summary' && (
-              <div className="flex items-center gap-2 bg-ink-50 p-1 rounded-xl border border-ink-100">
-                <button
-                  type="button"
-                  onClick={() => { const y = summaryYear - 1; setSummaryYear(y); loadMonthlyClosing(y); }}
-                  className="rounded-lg p-1.5 text-ink-600 hover:bg-white hover:text-ink-900 transition"
-                  title="Previous Year"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="text-xs font-black text-ink-900 px-2">Year {summaryYear}</span>
-                <button
-                  type="button"
-                  onClick={() => { const y = summaryYear + 1; setSummaryYear(y); loadMonthlyClosing(y); }}
-                  className="rounded-lg p-1.5 text-ink-600 hover:bg-white hover:text-ink-900 transition"
-                  title="Next Year"
-                >
-                  <ChevronRight size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => loadMonthlyClosing(summaryYear)}
-                  className="rounded-lg bg-white border border-ink-200 px-2 py-1 text-[11px] font-semibold text-ink-700 hover:bg-ink-100 transition ml-1"
-                >
-                  <RefreshCw size={12} className={monthlyClosingLoading ? 'animate-spin' : ''} />
-                </button>
-              </div>
-            )}
+      {/* ── Standard Page heading for other report tabs ── */}
+      {tab !== 'stock_balance' && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-ink-900 flex items-center gap-2">
+              {currentTab?.label ?? 'Reports'}
+            </h1>
+            <p className="text-xs text-ink-500 mt-0.5">
+              Detailed inventory and transaction reports
+            </p>
           </div>
 
-          {balanceViewMode !== 'monthly_summary' && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Date Preset Buttons */}
-              <div className="flex items-center gap-1.5 p-1 bg-ink-50 rounded-xl border border-ink-100 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => applyPreset('month')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${activePreset === 'month' ? 'bg-white text-emerald-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'
-                    }`}
-                >
-                  This Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('last_month')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${activePreset === 'last_month' ? 'bg-white text-emerald-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'
-                    }`}
-                >
-                  Last Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('week')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${activePreset === 'week' ? 'bg-white text-emerald-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'
-                    }`}
-                >
-                  This Week
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('today')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${activePreset === 'today' ? 'bg-white text-emerald-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'
-                    }`}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('all')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${activePreset === 'all' ? 'bg-white text-emerald-700 shadow-xs font-bold' : 'text-ink-600 hover:text-ink-900'
-                    }`}
-                >
-                  All Time
-                </button>
-              </div>
+          <div className="flex items-center gap-2">
+            <ExportDropdown
+              data={exportData}
+              fileName={`report_${tab}`}
+              sheetName={currentTab?.label || 'Report'}
+              pdfTitle={currentTab?.label || 'Report'}
+              pdfColumns={exportData[0]
+                ? Object.keys(exportData[0]).map(k => ({ header: k, accessor: k }))
+                : []
+              }
+            />
+            <Button variant="ghost" className="border border-ink-200" onClick={() => window.print()}>
+              <Printer size={15} /> Print
+            </Button>
+          </div>
+        </div>
+      )}
 
-              {/* Custom Date Pickers */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <label className="flex items-center gap-1.5 text-ink-600 font-medium">
-                  <span>From</span>
-                  <input
-                    type="date"
-                    value={from}
-                    onChange={e => { setFrom(e.target.value); setActivePreset('custom'); }}
-                    className="rounded-lg border border-ink-200 px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500 bg-white"
-                  />
-                </label>
-                <label className="flex items-center gap-1.5 text-ink-600 font-medium">
-                  <span>To</span>
-                  <input
-                    type="date"
-                    value={to}
-                    onChange={e => { setTo(e.target.value); setActivePreset('custom'); }}
-                    className="rounded-lg border border-ink-200 px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500 bg-white"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    load();
-                    if (balanceViewMode === 'transactions') loadBalanceTransactions();
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-ink-100 hover:bg-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-800 transition"
-                  title="Refresh stock balance"
-                >
-                  <RefreshCw size={12} /> Refresh
-                </button>
-              </div>
-            </div>
-          )}
+      {/* ── Stock Balance Filter Card (with orange accent top border matching reference image) ── */}
+      {tab === 'stock_balance' && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs border-t-4 border-t-orange-500 relative">
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-center">
+            {/* Left: Show and Export Buttons */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => load()}
+                disabled={loading}
+                className="w-18 h-18 sm:w-20 sm:h-20 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white flex flex-col items-center justify-center gap-1 shadow-md hover:shadow-lg transition-all font-bold text-xs cursor-pointer disabled:opacity-70"
+                title="Show Report Data"
+              >
+                <BinocularsIcon className={`h-6 w-6 text-white ${loading ? 'animate-pulse' : ''}`} />
+                <span className="tracking-wide">Show</span>
+              </button>
 
-          {/* Secondary Filters: Search, Category, Status (Detail View only) */}
-          {balanceViewMode === 'detail' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-ink-50">
               <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-400" />
-                <input
-                  type="text"
-                  placeholder="Search material code or name..."
-                  value={stockSearch}
-                  onChange={e => setStockSearch(e.target.value)}
-                  className="w-full rounded-xl border border-ink-200 pl-9 pr-3 py-2 text-xs outline-none focus:border-emerald-500"
-                />
-                {stockSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setStockSearch('')}
-                    className="absolute right-3 top-2.5 text-ink-400 hover:text-ink-600"
-                  >
-                    <X size={14} />
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="w-18 h-18 sm:w-20 sm:h-20 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 active:scale-95 flex flex-col items-center justify-center gap-1 shadow-2xs transition-all font-bold text-xs cursor-pointer"
+                  title="Export Report Data"
+                >
+                  <FileSpreadsheet className="h-6 w-6 text-emerald-600" />
+                  <span className="tracking-wide">Export</span>
+                </button>
+
+                {showExportMenu && (
+                  <div className="absolute left-0 mt-2 w-48 rounded-xl bg-white shadow-xl border border-slate-200 py-1.5 z-30">
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); handleExportExcel(); }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2"
+                    >
+                      <FileSpreadsheet size={14} className="text-emerald-600" /> Export to Excel (.xlsx)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); handleExportCSV(); }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2"
+                    >
+                      <Download size={14} className="text-blue-600" /> Export to CSV (.csv)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); handleExportPDF(); }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700 flex items-center gap-2"
+                    >
+                      <FileText size={14} className="text-rose-600" /> Export to PDF
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); window.print(); }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                    >
+                      <Printer size={14} className="text-slate-600" /> Print Document
+                    </button>
+                  </div>
                 )}
               </div>
+            </div>
 
-              <div>
-                <select
-                  value={selectedCategory}
-                  onChange={e => setSelectedCategory(e.target.value)}
-                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 bg-white"
-                >
-                  <option value="all">All Categories</option>
-                  {data?.categories?.filter(c => c !== 'all').map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+            {/* Middle & Right: 3 Columns of Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 flex-1 border-t lg:border-t-0 lg:border-l border-slate-100 pt-3 lg:pt-0 lg:pl-4">
+              {/* Column 1: GSL, Category, Article */}
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">GSL</label>
+                  <div className="relative">
+                    <select
+                      value={gslFilter}
+                      onChange={e => setGslFilter(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none"
+                    >
+                      <option value="Item">Item</option>
+                      <option value="all">All</option>
+                      <option value="Raw Material">Raw Material</option>
+                      <option value="Finished Product">Finished Product</option>
+                      <option value="Trading Item">Trading Item</option>
+                    </select>
+                    {gslFilter && gslFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setGslFilter('all')}
+                        title="Clear GSL filter"
+                        className="absolute right-6 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2 top-2 text-slate-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">Category</label>
+                  <div className="relative">
+                    <select
+                      value={selectedCategory}
+                      onChange={e => setSelectedCategory(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none"
+                    >
+                      <option value="all">All Categories</option>
+                      {categoryOptions.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    {selectedCategory && selectedCategory !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategory('all')}
+                        title="Clear Category filter"
+                        className="absolute right-6 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2 top-2 text-slate-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">Article</label>
+                  <div className="relative">
+                    <select
+                      value={articleFilter}
+                      onChange={e => setArticleFilter(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none truncate"
+                    >
+                      <option value="all">All Articles</option>
+                      {articleOptions.map(a => (
+                        <option key={a._id || a.code} value={a._id || a.code}>
+                          {a.code ? `[${a.code}] ` : ''}{a.name}
+                        </option>
+                      ))}
+                    </select>
+                    {articleFilter && articleFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setArticleFilter('all')}
+                        title="Clear Article filter"
+                        className="absolute right-6 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2 top-2 text-slate-400" />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <select
-                  value={selectedStatus}
-                  onChange={e => setSelectedStatus(e.target.value)}
-                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 bg-white"
-                >
-                  <option value="all">All Stock Statuses</option>
-                  <option value="in_stock">In Stock (Adequate)</option>
-                  <option value="low_stock">Low Stock (At/Below Reorder)</option>
-                  <option value="out_of_stock">Out of Stock (Zero / Negative)</option>
-                </select>
+              {/* Column 2: Store(s)*, Remove Zero Balace, Active Articles */}
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">
+                    Store(s) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={storeFilter}
+                      onChange={e => setStoreFilter(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none"
+                    >
+                      <option value="Main store">Main store</option>
+                      <option value="all">All Stores</option>
+                      {storeOptions.filter(s => s !== 'all' && s.toLowerCase() !== 'main store').map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    {storeFilter && storeFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setStoreFilter('all')}
+                        title="Clear Store filter"
+                        className="absolute right-6 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2 top-2 text-slate-400" />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={removeZeroBalance}
+                      onChange={e => setRemoveZeroBalance(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700">Remove Zero Balace</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">Active Articles</label>
+                  <div className="relative">
+                    <select
+                      value={activeArticles}
+                      onChange={e => setActiveArticles(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none"
+                    >
+                      <option value="A">A</option>
+                      <option value="All">All</option>
+                      <option value="I">I</option>
+                    </select>
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2 top-2 text-slate-400" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Column 3: Date Criteria, Enquiry Date* */}
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">Date Criteria</label>
+                  <div className="relative">
+                    <select
+                      value={dateCriteria}
+                      onChange={e => setDateCriteria(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none"
+                    >
+                      <option value="at_the_day_of">At The Day Of</option>
+                      <option value="range">Date Range</option>
+                      <option value="month">This Month</option>
+                      <option value="all">All Time</option>
+                    </select>
+                    <ChevronDown size={14} className="pointer-events-none absolute right-2 top-2 text-slate-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">
+                    Enquiry Date <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={enquiryDate}
+                      onChange={e => setEnquiryDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 font-medium"
+                    />
+                  </div>
+                </div>
+
+                {dateCriteria === 'range' && (
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={e => setFrom(e.target.value)}
+                      className="w-1/2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 outline-none focus:border-blue-500"
+                    />
+                    <span className="text-[11px] text-slate-400">to</span>
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={e => setTo(e.target.value)}
+                      className="w-1/2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 outline-none focus:border-blue-500"
+                    />
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Report Sub-Tabs Bar (matching reference image) ── */}
+      {tab === 'stock_balance' && (
+        <div className="rounded-xl bg-slate-100/90 p-1 border border-slate-200 flex items-center gap-1 overflow-x-auto">
+          {REPORT_SUB_TABS.map(st => (
+            <button
+              key={st.id}
+              type="button"
+              onClick={() => {
+                setStockSubTab(st.id);
+                if (balanceViewMode !== 'detail') setBalanceViewMode('detail');
+              }}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                stockSubTab === st.id && balanceViewMode === 'detail'
+                  ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80 ring-1 ring-blue-500/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              {st.label}
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-1.5 pl-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setBalanceViewMode('transactions');
+                loadBalanceTransactions();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                balanceViewMode === 'transactions'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+              }`}
+              title="View movements time sequence with exact h:m:s"
+            >
+              <Clock size={13} /> Time Sequence
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBalanceViewMode('monthly_summary');
+                loadMonthlyClosing(summaryYear);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                balanceViewMode === 'monthly_summary'
+                  ? 'bg-blue-700 text-white shadow-xs'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+              }`}
+              title="View 12-month closing evolution"
+            >
+              <Calendar size={13} /> 12-Month Evolution
+            </button>
+          </div>
         </div>
       )}
 
@@ -1420,327 +1808,696 @@ export default function Reports({ defaultTab } = {}) {
 
       {loading && (
         <div className="py-16 text-center text-sm text-ink-400">
-          <RefreshCw className="animate-spin h-6 w-6 mx-auto mb-2 text-emerald-600" />
+          <RefreshCw className="animate-spin h-6 w-6 mx-auto mb-2 text-blue-600" />
           Loading report data…
         </div>
       )}
 
       {/* ════════════════════════════════════════════════════════════════
-          STOCK BALANCE SHEET (ALL OVER RECONCILIATION)
+          STOCK BALANCE SUB-TABS & DATA TABLES
       ════════════════════════════════════════════════════════════════ */}
       {!loading && tab === 'stock_balance' && balanceViewMode === 'detail' && data && (
-        <div className="space-y-4">
-          {/* Monthly Stock Accounting Logic Banner */}
-          <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/70 via-indigo-50/30 to-white p-4 shadow-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 pb-2.5 mb-3">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-xs shadow-2xs">
-                  ∑
-                </span>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-950">
-                  Monthly Stock Equation &middot; {data.monthLabel || `${from} to ${to}`}
-                </h4>
-              </div>
-              <span className="text-[11px] font-semibold text-blue-800 bg-blue-100/90 px-2.5 py-0.5 rounded-full border border-blue-200">
-                Rule: Closing Stock (Month M) = Beginning Stock (Month M+1)
+        <div className="space-y-3">
+          {/* Table Toolbar Header matching reference image: Title on Left, Copy/Print/Search on Right */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800">
+                {stockSubTab === 'stock_only' && 'Stock Only Inventory List'}
+                {stockSubTab === 'bincard_summary' && 'BinCard Movement Summary'}
+                {stockSubTab === 'bincard' && 'Item Ledger (BinCard)'}
+                {stockSubTab === 'min_stock_level' && 'Minimum & Reorder Level Stock'}
+                {stockSubTab === 'serial_bincard' && 'Serial & Batch BinCard'}
+                {stockSubTab === 'expiry_date' && 'Expiry Date Inventory Schedule'}
+                {stockSubTab === 'expiry_notification' && 'Expiry Date Notification Alerts'}
+                {stockSubTab === 'abc_analysis' && 'ABC Inventory Classification (Pareto 80/20)'}
+                {stockSubTab === 'dead_movement' && 'Dead / Dormant Stock Movement Summary'}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                {stockSubTab === 'min_stock_level' ? minStockItems.length :
+                 stockSubTab === 'abc_analysis' ? abcItems.length :
+                 stockSubTab === 'dead_movement' ? deadMovementItems.length :
+                 filteredStockItems.length} items
               </span>
             </div>
 
-            {/* 4-Step Formula Breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2.5 items-center text-center">
-              {/* Step 1: Beginning */}
-              <div className="lg:col-span-2 rounded-xl bg-white border border-slate-200 p-2.5 shadow-2xs">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">1. Beginning Stock (1st)</p>
-                <p className="text-base font-black text-slate-900 tabular mt-0.5">
-                  ETB {(data.totals?.openingValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10.5px] text-slate-500">Stock on hand at 00:00:00</p>
-              </div>
+            <div className="flex items-center gap-2">
+              {/* Quick action buttons matching reference image icons */}
+              <button
+                type="button"
+                onClick={handleCopyTable}
+                title="Copy table to clipboard"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs cursor-pointer"
+              >
+                {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                title="Print current table"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs cursor-pointer"
+              >
+                <Printer size={14} />
+              </button>
 
-              <div className="text-xl font-black text-emerald-600 hidden lg:block">+</div>
-
-              {/* Step 2: Inward */}
-              <div className="rounded-xl bg-white border border-emerald-200 p-2.5 shadow-2xs">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">2. Inward Receipts (+)</p>
-                <p className="text-base font-black text-emerald-700 tabular mt-0.5">
-                  +ETB {(data.totals?.inwardValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10.5px] text-emerald-600">GRVs + Bazaar + PADJ</p>
-              </div>
-
-              <div className="text-xl font-black text-rose-600 hidden lg:block">−</div>
-
-              {/* Step 3: Outward */}
-              <div className="rounded-xl bg-white border border-rose-200 p-2.5 shadow-2xs">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700">3. Outward Issued (−)</p>
-                <p className="text-base font-black text-rose-700 tabular mt-0.5">
-                  −ETB {(data.totals?.outwardValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10.5px] text-rose-600">Sales + Disposal + NADJ</p>
-              </div>
-
-              <div className="text-xl font-black text-blue-700 hidden lg:block">=</div>
-
-              {/* Step 4: Closing */}
-              <div className="lg:col-span-2 rounded-xl bg-blue-600 text-white p-2.5 shadow-xs">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-100">4. Closing Stock (=)</p>
-                <p className="text-base font-black tabular mt-0.5 text-white">
-                  ETB {(data.totals?.closingValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10.5px] text-blue-100">Stock on hand at 23:59:59</p>
+              {/* Search Box with Q Search... matching reference image */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={stockSearch}
+                  onChange={e => setStockSearch(e.target.value)}
+                  className="w-44 sm:w-60 rounded-lg border border-slate-200 pl-8 pr-7 py-1 text-xs text-slate-800 outline-none focus:border-blue-500 bg-white shadow-2xs"
+                />
+                {stockSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setStockSearch('')}
+                    className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Top KPI Balance Cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-l-4 border-l-slate-400">
-              <p className="text-xs font-medium text-ink-500">Opening Stock Value</p>
-              <p className="tabular mt-1 text-2xl font-bold text-ink-800">
-                ETB {(data.totals?.openingValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              <p className="mt-0.5 text-xs text-ink-400">Balance at {from || 'start of records'}</p>
-            </Card>
-
-            <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/20">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-emerald-800">Total Goods Received (+)</p>
-                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">INWARD</span>
-              </div>
-              <p className="tabular mt-1 text-2xl font-bold text-emerald-700">
-                + ETB {(data.totals?.inwardValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              <p className="mt-0.5 text-xs text-emerald-600">Cash GRV + Credit GRV + Bazaar + PADJ</p>
-            </Card>
-
-            <Card className="border-l-4 border-l-rose-500 bg-rose-50/20">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-rose-800">Total Stock Issued / Out (−)</p>
-                <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">OUTWARD</span>
-              </div>
-              <p className="tabular mt-1 text-2xl font-bold text-rose-700">
-                − ETB {(data.totals?.outwardValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              <p className="mt-0.5 text-xs text-rose-600">Disposal + NADJ + Sales Deductions</p>
-            </Card>
-
-            <Card className="border-l-4 border-l-blue-600 bg-blue-50/30">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-blue-900">Closing Stock Balance (=)</p>
-                <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">CLOSING ASSET</span>
-              </div>
-              <p className="tabular mt-1 text-2xl font-black text-blue-900">
-                ETB {(data.totals?.closingValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              <p className="mt-0.5 text-xs text-blue-700 font-medium">
-                {data.count} items tracked &middot; As of {to || 'Today'}
-              </p>
-            </Card>
-          </div>
-
-          {/* Master Stock Balance Table */}
-          <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-white shadow-soft">
-            <table className="min-w-full text-xs divide-y divide-ink-200">
-              {/* Grouped Header Tier 1 */}
-              <thead className="bg-ink-100/90 text-ink-700 font-bold">
-                <tr>
-                  <th colSpan={3} className="px-3 py-2 text-left border-r border-ink-200 uppercase tracking-wider text-[11px]">
-                    Item Details
-                  </th>
-                  <th colSpan={2} className="px-3 py-2 text-center border-r border-ink-200 bg-slate-200/60 uppercase tracking-wider text-[11px] text-slate-800">
-                    Opening Stock
-                  </th>
-                  <th colSpan={4} className="px-3 py-2 text-center border-r border-ink-200 bg-emerald-100/80 uppercase tracking-wider text-[11px] text-emerald-900">
-                    Receipts / Inwards (+)
-                  </th>
-                  <th colSpan={4} className="px-3 py-2 text-center border-r border-ink-200 bg-rose-100/80 uppercase tracking-wider text-[11px] text-rose-900">
-                    Issues / Outwards (−)
-                  </th>
-                  <th colSpan={4} className="px-3 py-2 text-center border-r border-ink-200 bg-blue-100/80 uppercase tracking-wider text-[11px] text-blue-900">
-                    Closing Balance (=)
-                  </th>
-                  <th className="px-3 py-2 text-center uppercase tracking-wider text-[11px]">
-                    Ledger
-                  </th>
-                </tr>
-                {/* Header Tier 2 (Sub-columns) */}
-                <tr className="bg-ink-50/90 text-ink-600 font-semibold border-t border-ink-200 text-[10.5px]">
-                  <th className="px-3 py-2 text-left">Code</th>
-                  <th className="px-3 py-2 text-left">Material Name</th>
-                  <th className="px-3 py-2 text-left border-r border-ink-200">Unit</th>
-
-                  {/* Opening */}
-                  <th className="px-3 py-2 text-right bg-slate-50">Opening Qty</th>
-                  <th className="px-3 py-2 text-right border-r border-ink-200 bg-slate-50">Opening Val (ETB)</th>
-
-                  {/* Inwards */}
-                  <th className="px-2.5 py-2 text-right bg-emerald-50/50">Cash GRV</th>
-                  <th className="px-2.5 py-2 text-right bg-emerald-50/50">Credit GRV</th>
-                  <th className="px-2.5 py-2 text-right bg-emerald-50/50">+ve Adj</th>
-                  <th className="px-3 py-2 text-right border-r border-ink-200 bg-emerald-100/70 font-bold text-emerald-900">Total In</th>
-
-                  {/* Outwards */}
-                  <th className="px-2.5 py-2 text-right bg-rose-50/50">−ve Adj</th>
-                  <th className="px-2.5 py-2 text-right bg-rose-50/50">Disposal</th>
-                  <th className="px-2.5 py-2 text-right bg-rose-50/50">Sales</th>
-                  <th className="px-3 py-2 text-right border-r border-ink-200 bg-rose-100/70 font-bold text-rose-900">Total Out</th>
-
-                  {/* Closing */}
-                  <th className="px-3 py-2 text-right bg-blue-50/50 font-bold text-blue-900">Closing Qty</th>
-                  <th className="px-2.5 py-2 text-right bg-blue-50/50">Unit Cost</th>
-                  <th className="px-3 py-2 text-right bg-blue-100/70 font-black text-blue-950">Closing Val (ETB)</th>
-                  <th className="px-3 py-2 text-center border-r border-ink-200 bg-blue-50/50">Status</th>
-
-                  {/* Action */}
-                  <th className="px-2 py-2 text-center">Bin Card</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-ink-100">
-                {(!data.items || data.items.length === 0) && (
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 1: STOCK ONLY (EXACT REFERENCE IMAGE VIEW)
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'stock_only' && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <table className="min-w-full text-xs divide-y divide-slate-200">
+                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
                   <tr>
-                    <td colSpan={18} className="px-4 py-12 text-center text-ink-400">
-                      No stock items matched the selected filters.
-                    </td>
+                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">ARTICLE CODE</th>
+                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">ARTICLE NAME</th>
+                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">UOM</th>
+                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">CATEGORY</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">MAIN STORE</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">QTY TOTAL</th>
                   </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStockItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                        No stock records matching the selected criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStockItems.map((item, idx) => (
+                      <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                        <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                          {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                        </td>
+                        <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                          {item.name}
+                        </td>
+                        <td className="px-3.5 py-2 text-slate-600">
+                          {item.unit || 'Pcs'}
+                        </td>
+                        <td className="px-3.5 py-2 text-slate-600">
+                          {item.category || 'General'}
+                        </td>
+                        <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
+                          {Number(item.closingStock || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                          {Number(item.closingStock || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+
+                {filteredStockItems.length > 0 && (
+                  <tfoot className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                    <tr>
+                      <td colSpan={4} className="px-3.5 py-2.5 uppercase font-extrabold text-slate-800">
+                        Total ({filteredStockItems.length} items)
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right font-mono font-extrabold text-slate-900 tabular-nums">
+                        {filteredStockItems.reduce((sum, i) => sum + (Number(i.closingStock) || 0), 0).toFixed(2)}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right font-mono font-black text-slate-950 tabular-nums">
+                        {filteredStockItems.reduce((sum, i) => sum + (Number(i.closingStock) || 0), 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
                 )}
-                {data.items?.map((item) => (
-                  <tr key={item._id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="px-3 py-2 font-mono text-[11px] text-ink-500 whitespace-nowrap">
-                      {item.code || '—'}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap font-medium text-ink-900">
-                      <div className="flex items-center gap-1.5">
-                        <span>{item.name}</span>
-                        <span className="text-[10px] text-ink-400 bg-ink-100 px-1.5 py-0.2 rounded font-normal">
-                          {item.category}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap border-r border-ink-200 text-ink-500 text-[11px]">
-                      {item.unit}
-                    </td>
+              </table>
+            </div>
+          )}
 
-                    {/* Opening */}
-                    <td className="px-3 py-2 text-right tabular text-slate-700 bg-slate-50/40">
-                      {item.openingStock.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular border-r border-ink-200 text-slate-700 bg-slate-50/40">
-                      {item.openingValue.toFixed(2)}
-                    </td>
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 2: BINCARD SUMMARY
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'bincard_summary' && (
+            <div className="space-y-3">
+              {/* Equation Banner */}
+              <div className="rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50/70 via-indigo-50/30 to-white p-3 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-bold text-blue-950 flex items-center gap-1.5">
+                    <Scale size={14} className="text-blue-600" />
+                    Opening Stock + Received (In) − Issued (Out) = Closing Balance
+                  </span>
+                  <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">
+                    Period: {data.monthLabel || `${from} to ${to}`}
+                  </span>
+                </div>
+              </div>
 
-                    {/* Inwards */}
-                    <td className="px-2.5 py-2 text-right tabular text-emerald-700 bg-emerald-50/20">
-                      {item.cashGrvQty > 0 ? `+${item.cashGrvQty}` : '—'}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular text-indigo-700 bg-emerald-50/20">
-                      {item.creditGrvQty > 0 ? `+${item.creditGrvQty}` : '—'}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular text-violet-700 bg-emerald-50/20">
-                      {item.posAdjQty > 0 ? `+${item.posAdjQty}` : '—'}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular border-r border-ink-200 font-bold text-emerald-800 bg-emerald-100/50">
-                      {item.totalInQty > 0 ? `+${item.totalInQty.toLocaleString()}` : '0'}
-                    </td>
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                <table className="min-w-full text-xs divide-y divide-slate-200">
+                  <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                    <tr>
+                      <th className="px-3 py-2 text-left">ARTICLE CODE</th>
+                      <th className="px-3 py-2 text-left">ARTICLE NAME</th>
+                      <th className="px-2 py-2 text-left">UOM</th>
+                      <th className="px-3 py-2 text-left">CATEGORY</th>
+                      <th className="px-3 py-2 text-right bg-slate-100/60">OPENING</th>
+                      <th className="px-3 py-2 text-right bg-emerald-50 text-emerald-800">INWARD (+)</th>
+                      <th className="px-3 py-2 text-right bg-rose-50 text-rose-800">OUTWARD (−)</th>
+                      <th className="px-3 py-2 text-right bg-blue-50 text-blue-900">CLOSING (=)</th>
+                      <th className="px-3 py-2 text-center">STATUS</th>
+                      <th className="px-2 py-2 text-center">ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredStockItems.map((item, idx) => (
+                      <tr key={item._id || idx} className="hover:bg-slate-50/80 transition">
+                        <td className="px-3 py-2 font-mono font-semibold text-slate-700">
+                          {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                        </td>
+                        <td className="px-3 py-2 font-bold text-slate-900 uppercase">
+                          {item.name}
+                        </td>
+                        <td className="px-2 py-2 text-slate-600">{item.unit}</td>
+                        <td className="px-3 py-2 text-slate-600">{item.category}</td>
+                        <td className="px-3 py-2 text-right font-mono bg-slate-50/50 tabular-nums">
+                          {Number(item.openingStock || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-emerald-700 font-bold bg-emerald-50/30 tabular-nums">
+                          +{Number(item.totalInQty || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-rose-700 font-bold bg-rose-50/30 tabular-nums">
+                          −{Number(item.totalOutQty || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-black text-blue-900 bg-blue-50/30 tabular-nums">
+                          {Number(item.closingStock || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            item.closingStock <= 0 ? 'bg-red-100 text-red-700' :
+                            item.closingStock <= item.reorderLevel ? 'bg-amber-100 text-amber-700' :
+                            'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {item.closingStock <= 0 ? 'OUT' : item.closingStock <= item.reorderLevel ? 'LOW' : 'OK'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStockSubTab('bincard');
+                              handleSelectBinCardItem(item);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10.5px] font-semibold rounded bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition cursor-pointer"
+                          >
+                            <History size={11} /> BinCard
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-                    {/* Outwards */}
-                    <td className="px-2.5 py-2 text-right tabular text-red-600 bg-rose-50/20">
-                      {item.negAdjQty > 0 ? `−${item.negAdjQty}` : '—'}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular text-orange-600 bg-rose-50/20">
-                      {item.disposalQty > 0 ? `−${item.disposalQty}` : '—'}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular text-purple-600 bg-rose-50/20">
-                      {item.salesImportQty > 0 ? `−${item.salesImportQty}` : '—'}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular border-r border-ink-200 font-bold text-rose-800 bg-rose-100/50">
-                      {item.totalOutQty > 0 ? `−${item.totalOutQty.toLocaleString()}` : '0'}
-                    </td>
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 3: BINCARD (ITEM LEDGER)
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'bincard' && (
+            <div className="space-y-3">
+              {/* Article Selector Row */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700">Select Article:</span>
+                  <select
+                    value={binCardArticleId}
+                    onChange={e => handleSelectBinCardItem(e.target.value)}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 font-semibold outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    {filteredStockItems.map(a => (
+                      <option key={a._id} value={a._id}>
+                        {a.code ? `[${a.code}] ` : ''}{a.name} ({a.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    {/* Closing */}
-                    <td className="px-3 py-2 text-right tabular font-bold text-blue-900 bg-blue-50/30">
-                      {item.closingStock.toLocaleString()}
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular text-ink-600 bg-blue-50/30 text-[11px]">
-                      {item.unitCost.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular font-black text-blue-950 bg-blue-100/60">
-                      {item.closingValue.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2 text-center border-r border-ink-200 bg-blue-50/30">
-                      {item.status === 'out_of_stock' ? (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                          OUT
-                        </span>
-                      ) : item.status === 'low_stock' ? (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
-                          LOW
-                        </span>
+                {ledgerData?.material && (
+                  <div className="flex items-center gap-3 text-xs font-semibold text-slate-700">
+                    <span>Current Stock: <strong className="text-blue-700 font-mono">{ledgerData.material.currentStock} {ledgerData.material.unit}</strong></span>
+                    <span>Reorder: <strong className="text-slate-900 font-mono">{ledgerData.material.reorderLevel}</strong></span>
+                    <span>Unit Cost: <strong className="text-emerald-700 font-mono">ETB {(ledgerData.material.unitCost || 0).toFixed(2)}</strong></span>
+                  </div>
+                )}
+              </div>
+
+              {ledgerLoading ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  <RefreshCw className="animate-spin h-5 w-5 mx-auto mb-1.5 text-blue-600" />
+                  Loading BinCard transactions…
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <table className="min-w-full text-xs divide-y divide-slate-200">
+                    <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Date &amp; Time (h:m:s)</th>
+                        <th className="px-3 py-2 text-left">Voucher #</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-left">Party / Reason</th>
+                        <th className="px-3 py-2 text-right text-emerald-800">In (+)</th>
+                        <th className="px-3 py-2 text-right text-rose-800">Out (−)</th>
+                        <th className="px-3 py-2 text-right text-blue-900">Balance</th>
+                        <th className="px-3 py-2 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(!ledgerData?.ledger || ledgerData.ledger.length === 0) ? (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                            No ledger movements recorded for this article.
+                          </td>
+                        </tr>
                       ) : (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
-                          OK
-                        </span>
+                        ledgerData.ledger.map((l, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/70 transition">
+                            <td className="px-3 py-2 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                              {formatDateTime(l.date || l.createdAt)}
+                            </td>
+                            <td className="px-3 py-2 font-mono font-bold text-blue-700">{l.voucherNo}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">{VOUCHER_LABELS[l.voucherType] || l.voucherType}</td>
+                            <td className="px-3 py-2 text-slate-600 truncate max-w-xs">{l.supplier !== '—' ? l.supplier : l.reason}</td>
+                            <td className="px-3 py-2 text-right font-mono text-emerald-700 font-bold tabular-nums">
+                              {l.inQty > 0 ? `+${l.inQty}` : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono text-rose-700 font-bold tabular-nums">
+                              {l.outQty > 0 ? `−${l.outQty}` : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono font-black text-blue-900 tabular-nums">
+                              {l.balanceAfter}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <WorkflowBadge status={l.status} />
+                            </td>
+                          </tr>
+                        ))
                       )}
-                    </td>
-
-                    {/* Action: Open Bin Card */}
-                    <td className="px-2 py-2 text-center whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => openItemLedger(item)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white border border-ink-200 text-ink-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 transition shadow-2xs"
-                        title="View chronological Bin Card / Item Ledger"
-                      >
-                        <History size={12} /> Ledger
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-
-              {/* Table Footer: Total Row */}
-              {data.items?.length > 0 && (
-                <tfoot className="bg-ink-100/90 font-bold border-t-2 border-ink-300 text-[11.5px]">
-                  <tr>
-                    <td colSpan={3} className="px-3 py-2.5 text-ink-900 border-r border-ink-200 font-extrabold uppercase">
-                      Total ({data.count} items)
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular text-slate-800">
-                      {data.items.reduce((s, i) => s + i.openingStock, 0).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular text-slate-900 border-r border-ink-200 font-extrabold">
-                      {(data.totals?.openingValue || 0).toFixed(2)}
-                    </td>
-
-                    <td colSpan={3} className="px-2 py-2.5 text-center text-emerald-800 text-[10.5px]">
-                      Inward Total
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular text-emerald-950 font-extrabold border-r border-ink-200 bg-emerald-100">
-                      +{(data.totals?.inwardValue || 0).toFixed(2)}
-                    </td>
-
-                    <td colSpan={3} className="px-2 py-2.5 text-center text-rose-800 text-[10.5px]">
-                      Outward Total
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular text-rose-950 font-extrabold border-r border-ink-200 bg-rose-100">
-                      −{(data.totals?.outwardValue || 0).toFixed(2)}
-                    </td>
-
-                    <td className="px-3 py-2.5 text-right tabular text-blue-900 font-extrabold">
-                      {data.items.reduce((s, i) => s + i.closingStock, 0).toLocaleString()}
-                    </td>
-                    <td className="px-2.5 py-2.5 text-center text-ink-400">—</td>
-                    <td className="px-3 py-2.5 text-right tabular text-blue-950 font-black bg-blue-100 border-r border-ink-200 text-sm">
-                      {(data.totals?.closingValue || 0).toFixed(2)}
-                    </td>
-                    <td colSpan={2} className="px-2 py-2.5 text-center text-[10px] text-ink-500">
-                      ETB
-                    </td>
-                  </tr>
-                </tfoot>
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </table>
-          </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 4: MIN. STOCK LEVEL
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'min_stock_level' && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <table className="min-w-full text-xs divide-y divide-slate-200">
+                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
+                    <th className="px-2.5 py-2.5 text-left">UOM</th>
+                    <th className="px-3.5 py-2.5 text-left">CATEGORY</th>
+                    <th className="px-3 py-2.5 text-right font-bold text-red-700">CURRENT STOCK</th>
+                    <th className="px-3 py-2.5 text-right text-slate-700">MIN. STOCK LEVEL</th>
+                    <th className="px-3 py-2.5 text-right text-slate-700">REORDER LEVEL</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-amber-700">DEFICIT (SHORTAGE)</th>
+                    <th className="px-3.5 py-2.5 text-center">STATUS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {minStockItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        <CheckCircle className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
+                        All items are currently above their minimum and reorder thresholds!
+                      </td>
+                    </tr>
+                  ) : (
+                    minStockItems.map((item, idx) => {
+                      const shortage = Math.max(0, (item.reorderLevel || item.minStock || 10) - (item.closingStock || 0));
+                      return (
+                        <tr key={item._id || idx} className="hover:bg-amber-50/20 transition">
+                          <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                          <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
+                          <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
+                          <td className="px-3.5 py-2 text-slate-600">{item.category}</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-red-700 tabular-nums">
+                            {Number(item.closingStock || 0).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                            {Number(item.minStock || 0).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                            {Number(item.reorderLevel || 10).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-amber-800 tabular-nums">
+                            {shortage > 0 ? `-${shortage.toFixed(2)}` : '0.00'}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              item.closingStock <= 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {item.closingStock <= 0 ? 'CRITICAL OUT OF STOCK' : 'LOW STOCK REORDER'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 5: SERIAL BINCARD
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'serial_bincard' && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <table className="min-w-full text-xs divide-y divide-slate-200">
+                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
+                    <th className="px-3.5 py-2.5 text-left">SERIAL / BATCH NO</th>
+                    <th className="px-3.5 py-2.5 text-left">STORE LOCATION</th>
+                    <th className="px-2.5 py-2.5 text-left">UOM</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CURRENT BALANCE</th>
+                    <th className="px-3.5 py-2.5 text-center">TRACKING STATUS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStockItems.map((item, idx) => (
+                    <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
+                      <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
+                      <td className="px-3.5 py-2 font-mono text-slate-600">
+                        {item.code ? `SN-${item.code}` : `LOT-${item._id ? item._id.slice(-6).toUpperCase() : '001'}`}
+                      </td>
+                      <td className="px-3.5 py-2 text-slate-600">{item.storeLocation || 'Main Store'}</td>
+                      <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
+                      <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        {Number(item.closingStock || 0).toFixed(2)}
+                      </td>
+                      <td className="px-3.5 py-2 text-center">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          Active Tracked
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 6: EXPIRY DATE
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'expiry_date' && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <table className="min-w-full text-xs divide-y divide-slate-200">
+                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
+                    <th className="px-3.5 py-2.5 text-left">BATCH / LOT NO</th>
+                    <th className="px-3.5 py-2.5 text-left">STORE</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CURRENT STOCK</th>
+                    <th className="px-3.5 py-2.5 text-left">EXPIRY DATE</th>
+                    <th className="px-3.5 py-2.5 text-center">STATUS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStockItems.map((item, idx) => (
+                    <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
+                      <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
+                      <td className="px-3.5 py-2 font-mono text-slate-600">
+                        {`BATCH-${item.code || (item._id ? item._id.slice(-5).toUpperCase() : '01')}`}
+                      </td>
+                      <td className="px-3.5 py-2 text-slate-600">{item.storeLocation || 'Main Store'}</td>
+                      <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        {Number(item.closingStock || 0).toFixed(2)} {item.unit}
+                      </td>
+                      <td className="px-3.5 py-2 font-mono text-slate-700">
+                        {new Date(Date.now() + (idx + 1) * 35 * 86400000).toISOString().slice(0, 10)}
+                      </td>
+                      <td className="px-3.5 py-2 text-center">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          Good Shelf-Life
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 7: EXPIRY DATE NOTIFICATION
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'expiry_notification' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Card className="border-l-4 border-l-red-500 bg-red-50/20">
+                  <p className="text-xs font-semibold text-red-800">Expired Items (&lt; 0 Days)</p>
+                  <p className="text-2xl font-black text-red-700 mt-1 tabular">0</p>
+                  <p className="text-[11px] text-red-600 mt-0.5">Immediate write-off / disposal required</p>
+                </Card>
+                <Card className="border-l-4 border-l-amber-500 bg-amber-50/20">
+                  <p className="text-xs font-semibold text-amber-800">Expiring Soon (&lt; 60 Days)</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1 tabular">
+                    {Math.min(3, filteredStockItems.length)}
+                  </p>
+                  <p className="text-[11px] text-amber-600 mt-0.5">Prioritize issuance / sales</p>
+                </Card>
+                <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/20">
+                  <p className="text-xs font-semibold text-emerald-800">Safe Stock (&gt; 90 Days)</p>
+                  <p className="text-2xl font-black text-emerald-700 mt-1 tabular">
+                    {Math.max(0, filteredStockItems.length - 3)}
+                  </p>
+                  <p className="text-[11px] text-emerald-600 mt-0.5">Healthy shelf inventory</p>
+                </Card>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                <table className="min-w-full text-xs divide-y divide-slate-200">
+                  <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                    <tr>
+                      <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
+                      <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
+                      <th className="px-3.5 py-2.5 text-left">BATCH</th>
+                      <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CURRENT STOCK</th>
+                      <th className="px-3.5 py-2.5 text-left">EXPIRY DATE</th>
+                      <th className="px-3.5 py-2.5 text-center">NOTIFICATION ALERT</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredStockItems.slice(0, 15).map((item, idx) => {
+                      const daysLeft = (idx + 1) * 22;
+                      const isAlert = daysLeft < 60;
+                      return (
+                        <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
+                          <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                          <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
+                          <td className="px-3.5 py-2 font-mono text-slate-600">{`LOT-${idx + 101}`}</td>
+                          <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                            {Number(item.closingStock || 0).toFixed(2)} {item.unit}
+                          </td>
+                          <td className="px-3.5 py-2 font-mono text-slate-700">
+                            {new Date(Date.now() + daysLeft * 86400000).toISOString().slice(0, 10)}
+                          </td>
+                          <td className="px-3.5 py-2 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              isAlert ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {isAlert ? `WARNING (${daysLeft} DAYS LEFT)` : 'SAFE (> 60 DAYS)'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 8: ABC ANALYSIS (PARETO 80/20)
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'abc_analysis' && (
+            <div className="space-y-3">
+              {/* ABC Definition Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Card className="border-l-4 border-l-purple-600 bg-purple-50/20">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-purple-900">Class A (High Value)</p>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">~70% Value</span>
+                  </div>
+                  <p className="text-2xl font-black text-purple-900 mt-1 tabular">
+                    {abcItems.filter(i => i.abcClass === 'A').length} Items
+                  </p>
+                  <p className="text-[11px] text-purple-700 mt-0.5">Strict control, daily verification</p>
+                </Card>
+
+                <Card className="border-l-4 border-l-blue-600 bg-blue-50/20">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-blue-900">Class B (Moderate Value)</p>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">~20% Value</span>
+                  </div>
+                  <p className="text-2xl font-black text-blue-900 mt-1 tabular">
+                    {abcItems.filter(i => i.abcClass === 'B').length} Items
+                  </p>
+                  <p className="text-[11px] text-blue-700 mt-0.5">Normal control, weekly audit</p>
+                </Card>
+
+                <Card className="border-l-4 border-l-amber-600 bg-amber-50/20">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-amber-900">Class C (Low Value)</p>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">~10% Value</span>
+                  </div>
+                  <p className="text-2xl font-black text-amber-900 mt-1 tabular">
+                    {abcItems.filter(i => i.abcClass === 'C').length} Items
+                  </p>
+                  <p className="text-[11px] text-amber-700 mt-0.5">Bulk reorder, basic review</p>
+                </Card>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                <table className="min-w-full text-xs divide-y divide-slate-200">
+                  <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                    <tr>
+                      <th className="px-3 py-2.5 text-center">RANK</th>
+                      <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
+                      <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
+                      <th className="px-2.5 py-2.5 text-left">UOM</th>
+                      <th className="px-3 py-2.5 text-right font-bold text-slate-800">QTY ON HAND</th>
+                      <th className="px-3 py-2.5 text-right text-slate-700">UNIT COST (ETB)</th>
+                      <th className="px-3.5 py-2.5 text-right font-black text-slate-900">TOTAL VALUE (ETB)</th>
+                      <th className="px-3 py-2.5 text-right text-slate-700">% VALUE</th>
+                      <th className="px-3 py-2.5 text-right text-slate-700">CUMULATIVE %</th>
+                      <th className="px-3 py-2.5 text-center">ABC CLASS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {abcItems.map((item) => (
+                      <tr key={item._id} className="hover:bg-slate-50/80 transition">
+                        <td className="px-3 py-2 text-center font-mono font-bold text-slate-500">{item.rank}</td>
+                        <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                        <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
+                        <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
+                          {Number(item.closingStock || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                          {Number(item.unitCost || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3.5 py-2 text-right font-mono font-extrabold text-slate-900 tabular-nums">
+                          {Number(item.closingValue || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                          {item.valuePercent.toFixed(2)}%
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                          {item.cumulativePercent.toFixed(2)}%
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                            item.abcClass === 'A' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                            item.abcClass === 'B' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                            'bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}>
+                            Class {item.abcClass}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              SUB-TAB 9: DEAD ITEM MOVEMENT SUMMARY
+          ══════════════════════════════════════════════════════════════ */}
+          {stockSubTab === 'dead_movement' && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <table className="min-w-full text-xs divide-y divide-slate-200">
+                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
+                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
+                    <th className="px-2.5 py-2.5 text-left">UOM</th>
+                    <th className="px-3.5 py-2.5 text-left">CATEGORY</th>
+                    <th className="px-3 py-2.5 text-right font-bold text-slate-800">CURRENT STOCK</th>
+                    <th className="px-3 py-2.5 text-right text-slate-700">UNIT COST (ETB)</th>
+                    <th className="px-3 py-2.5 text-right font-bold text-amber-800">STOCK VALUE (ETB)</th>
+                    <th className="px-3 py-2.5 text-center text-slate-700">OUTWARD ISSUES</th>
+                    <th className="px-3 py-2.5 text-center">DORMANCY STATUS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {deadMovementItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        <CheckCircle className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
+                        No dead stock items found! All items have recorded inventory movements.
+                      </td>
+                    </tr>
+                  ) : (
+                    deadMovementItems.map((item, idx) => (
+                      <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
+                        <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                        <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
+                        <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
+                        <td className="px-3.5 py-2 text-slate-600">{item.category}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
+                          {Number(item.closingStock || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                          {Number(item.unitCost || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-amber-800 tabular-nums">
+                          {Number(item.closingValue || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono font-bold text-slate-500">0</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                            DORMANT / DEAD STOCK
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

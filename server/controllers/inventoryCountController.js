@@ -7,8 +7,8 @@ const StockTransaction = require('../models/StockTransaction');
 const tg = require('../utils/telegramNotifier');
 
 const MONTHS = [
-  'January','February','March','April','May','June',
-  'July','August','September','October','November','December'
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
 // ── Helper: compute WAC from approved/posted transactions up to a date ─────
@@ -28,11 +28,11 @@ async function computeWAC(materialId, upToDate) {
     if (tx.items && tx.items.length > 0) {
       const line = tx.items.find(i => String(i.material) === String(materialId));
       if (line) {
-        totalQty  += line.quantity;
+        totalQty += line.quantity;
         totalCost += (line.unitCost || 0) * line.quantity;
       }
     } else if (String(tx.material) === String(materialId)) {
-      totalQty  += tx.quantity || 0;
+      totalQty += tx.quantity || 0;
       totalCost += (tx.unitCost || 0) * (tx.quantity || 0);
     }
   }
@@ -58,7 +58,7 @@ async function getPeriodMovement(materialId, periodStart, periodEnd) {
     } else if (String(tx.material) === String(materialId)) {
       qty = tx.quantity || 0;
     }
-    if (direction === 'in')  inQty  += qty;
+    if (direction === 'in') inQty += qty;
     if (direction === 'out') outQty += qty;
   }
   return { inQty, outQty };
@@ -82,7 +82,7 @@ async function getBeginBalance(materialId, periodStart) {
     } else if (String(tx.material) === String(materialId)) {
       qty = tx.quantity || 0;
     }
-    if (direction === 'in')  balance += qty;
+    if (direction === 'in') balance += qty;
     if (direction === 'out') balance -= qty;
   }
   return Math.max(0, balance);
@@ -104,9 +104,9 @@ exports.getStores = asyncHandler(async (req, res) => {
 exports.listCounts = asyncHandler(async (req, res) => {
   const { year, month, store, status } = req.query;
   const filter = {};
-  if (year)   filter.periodYear  = Number(year);
-  if (month)  filter.periodMonth = Number(month);
-  if (store)  filter.storeLocation = store;
+  if (year) filter.periodYear = Number(year);
+  if (month) filter.periodMonth = Number(month);
+  if (store) filter.storeLocation = store;
   if (status) filter.status = status;
 
   const counts = await InventoryCount.find(filter)
@@ -153,7 +153,7 @@ exports.initializeCount = asyncHandler(async (req, res) => {
   }
 
   const periodStart = new Date(periodYear, periodMonth - 1, 1);      // first day of month
-  const periodEnd   = new Date(periodYear, periodMonth, 0, 23, 59, 59); // last day of month
+  const periodEnd = new Date(periodYear, periodMonth, 0, 23, 59, 59); // last day of month
 
   const materials = await RawMaterial.find({ storeLocation, isActive: true }).lean();
 
@@ -165,20 +165,20 @@ exports.initializeCount = asyncHandler(async (req, res) => {
       const wac = await computeWAC(mat._id, periodEnd);
 
       return {
-        material:      mat._id,
-        materialName:  mat.name,
-        unit:          mat.unit,
+        material: mat._id,
+        materialName: mat.name,
+        unit: mat.unit,
         beginBalance,
         inQty,
         outQty,
         systemBalance,
         physicalCount: null,
-        variance:      0,
-        varianceType:  null,
+        variance: 0,
+        varianceType: null,
         wac,
         varianceValue: 0,
-        isCounted:     false,
-        note:          '',
+        isCounted: false,
+        note: '',
       };
     })
   );
@@ -219,20 +219,20 @@ exports.updateLines = asyncHandler(async (req, res) => {
 
     if (upd.physicalCount !== undefined && upd.physicalCount !== null) {
       line.physicalCount = Number(upd.physicalCount);
-      line.isCounted     = true;
-      line.variance      = line.physicalCount - line.systemBalance;
+      line.isCounted = true;
+      line.variance = line.physicalCount - line.systemBalance;
       line.varianceValue = line.variance * (line.wac || 0);
-      if (line.variance > 0)       line.varianceType = 'positive';
-      else if (line.variance < 0)  line.varianceType = 'negative';
-      else                          line.varianceType = 'zero';
+      if (line.variance > 0) line.varianceType = 'positive';
+      else if (line.variance < 0) line.varianceType = 'negative';
+      else line.varianceType = 'zero';
     }
     if (upd.note !== undefined) line.note = upd.note;
   }
 
   // Recompute summary totals
-  doc.countedItems   = doc.lines.filter(l => l.isCounted).length;
+  doc.countedItems = doc.lines.filter(l => l.isCounted).length;
   doc.uncountedItems = doc.lines.length - doc.countedItems;
-  doc.totalItems     = doc.lines.length;
+  doc.totalItems = doc.lines.length;
   doc.positiveVariance = doc.lines
     .filter(l => l.varianceType === 'positive')
     .reduce((s, l) => s + l.varianceValue, 0);
@@ -256,7 +256,7 @@ exports.submitCount = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Cannot submit a count in "${doc.status}" status` });
   }
 
-  doc.status      = 'submitted';
+  doc.status = 'submitted';
   doc.submittedBy = req.user._id;
   doc.submittedAt = new Date();
   await doc.save();
@@ -290,17 +290,17 @@ exports.approveCount = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Cannot approve a count in "${doc.status}" status` });
   }
 
-  doc.status      = 'approved';
-  doc.approvedBy  = req.user._id;
-  doc.approvedAt  = new Date();
+  doc.status = 'approved';
+  doc.approvedBy = req.user._id;
+  doc.approvedAt = new Date();
   doc.closingDate = new Date();
 
   // Lock all lines: systemBalance becomes the physical count if not counted
   for (const line of doc.lines) {
     if (!line.isCounted) {
       line.physicalCount = line.systemBalance;
-      line.variance      = 0;
-      line.varianceType  = 'zero';
+      line.variance = 0;
+      line.varianceType = 'zero';
       line.varianceValue = 0;
     }
   }
@@ -323,3 +323,4 @@ exports.deleteCount = asyncHandler(async (req, res) => {
   await doc.deleteOne();
   res.json({ message: 'Count deleted' });
 });
+

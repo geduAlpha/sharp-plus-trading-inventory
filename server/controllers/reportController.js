@@ -203,7 +203,22 @@ const getSummaryReport = asyncHandler(async (req, res) => {
 // ── GET /api/reports/stock-balance ────────────────────────────────────
 // Comprehensive Stock Balance & Movements Reconciliation
 const getStockBalanceReport = asyncHandler(async (req, res) => {
-  let { from, to, month, category, search, status } = req.query;
+  let {
+    from,
+    to,
+    month,
+    category,
+    search,
+    status,
+    store,
+    gsl,
+    itemType,
+    article,
+    activeArticles = 'A',
+    enquiryDate,
+    dateCriteria = 'at_the_day_of',
+    removeZeroBalance,
+  } = req.query;
 
   let selectedMonthLabel = null;
   if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -213,17 +228,68 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     from = `${y}-${String(m).padStart(2, '0')}-01`;
     to = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
     selectedMonthLabel = firstDay.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  } else if (dateCriteria === 'at_the_day_of' || dateCriteria === 'as_of_date' || enquiryDate) {
+    if (enquiryDate) {
+      to = enquiryDate;
+      from = null;
+    }
   }
 
-  const matFilter = { isActive: true };
+  const matFilter = {};
+  // Active Articles filter: 'A' (active), 'I' (inactive), 'All' (both)
+  if (activeArticles === 'I' || activeArticles === 'inactive') {
+    matFilter.isActive = false;
+  } else if (activeArticles === 'All' || activeArticles === 'all') {
+    // include all articles
+  } else {
+    matFilter.isActive = true;
+  }
+
+  // GSL / Item Type filter
+  const resolvedType = gsl || itemType;
+  if (resolvedType && resolvedType !== 'all' && resolvedType !== 'Item') {
+    matFilter.itemType = resolvedType;
+  }
+
+  // Category filter
   if (category && category !== 'all') {
     matFilter.category = category;
   }
-  if (search) {
-    matFilter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { code: { $regex: search, $options: 'i' } },
-    ];
+
+  // Store filter
+  if (store && store !== 'all' && store.toLowerCase() !== 'all stores') {
+    matFilter.storeLocation = { $regex: new RegExp(`^${store.trim()}$`, 'i') };
+  }
+
+  // Specific Article filter
+  if (article && article !== 'all') {
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(article)) {
+      matFilter._id = article;
+    } else {
+      matFilter.$or = [
+        { code: { $regex: article, $options: 'i' } },
+        { name: { $regex: article, $options: 'i' } },
+      ];
+    }
+  }
+
+  // Search filter
+  if (search && search.trim()) {
+    const searchRegex = { $regex: search.trim(), $options: 'i' };
+    if (matFilter.$or) {
+      matFilter.$and = [
+        { $or: matFilter.$or },
+        { $or: [{ name: searchRegex }, { code: searchRegex }, { category: searchRegex }] },
+      ];
+      delete matFilter.$or;
+    } else {
+      matFilter.$or = [
+        { name: searchRegex },
+        { code: searchRegex },
+        { category: searchRegex },
+      ];
+    }
   }
 
   const materials = await RawMaterial.find(matFilter).sort({ name: 1 }).lean();
@@ -236,9 +302,14 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
       code: m.code || '',
       name: m.name,
       category: m.category || 'General',
+      itemType: m.itemType || 'Raw Material',
       unit: m.unit,
       unitCost: Number(m.unitCost || 0),
       reorderLevel: Number(m.reorderLevel || 0),
+      minStock: Number(m.minStock || 0),
+      storeLocation: m.storeLocation || 'Main Store',
+      storeBalances: m.storeBalances || [],
+      isActive: m.isActive !== false,
       currentStock: Number(m.currentStock || 0),
       // movements in period
       cash_grv: { qty: 0, cost: 0 },
@@ -370,6 +441,11 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
       continue;
     }
 
+    // Remove zero balance items if filter is active
+    if ((removeZeroBalance === 'true' || removeZeroBalance === true || removeZeroBalance === '1') && closingStock <= 0) {
+      continue;
+    }
+
     totalOpeningVal += openingValue;
     totalInVal += totalInCost;
     totalOutVal += totalOutCost;
@@ -377,12 +453,18 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
 
     rows.push({
       _id: item._id,
-      code: item.code,
+      code: item.code || (item._id ? 'ART-' + item._id.toString().slice(-5).toUpperCase() : '—'),
       name: item.name,
       category: item.category,
+      itemType: item.itemType || 'Raw Material',
       unit: item.unit,
       unitCost: item.unitCost,
       reorderLevel: item.reorderLevel,
+      minStock: item.minStock || 0,
+      storeLocation: item.storeLocation || 'Main Store',
+      storeBalances: item.storeBalances || [],
+      mainStoreStock: closingStock,
+      isActive: item.isActive !== false,
       openingStock,
       openingValue,
       cashGrvQty: Number(item.cash_grv.qty.toFixed(4)),
@@ -410,21 +492,41 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     });
   }
 
-  const categories = await RawMaterial.distinct('category', { isActive: true });
+  const [categories, stores, itemTypes, allArticles] = await Promise.all([
+    RawMaterial.distinct('category', { isActive: true }),
+    RawMaterial.distinct('storeLocation'),
+    RawMaterial.distinct('itemType'),
+    RawMaterial.find({ isActive: true }).select('code name category unit storeLocation').sort({ name: 1 }).lean(),
+  ]);
+
+  const uniqueStores = ['Main store', ...stores.filter(s => s && s.toLowerCase() !== 'main store' && s.toLowerCase() !== 'main store')];
 
   res.json({
     from: from || null,
     to: to || null,
     month: month || null,
     monthLabel: selectedMonthLabel || null,
+    enquiryDate: enquiryDate || to || null,
+    dateCriteria: dateCriteria || 'at_the_day_of',
     count: rows.length,
     totals: {
       openingValue: Number(totalOpeningVal.toFixed(2)),
       inwardValue: Number(totalInVal.toFixed(2)),
       outwardValue: Number(totalOutVal.toFixed(2)),
       closingValue: Number(totalClosingVal.toFixed(2)),
+      totalQty: Number(rows.reduce((sum, r) => sum + (r.closingStock || 0), 0).toFixed(2)),
     },
     categories: ['all', ...categories.filter(Boolean)],
+    stores: ['all', ...Array.from(new Set(uniqueStores))],
+    gslList: ['Item', 'Raw Material', 'Finished Product', 'Trading Item'],
+    articles: allArticles.map(a => ({
+      _id: a._id,
+      code: a.code || 'ART-' + a._id.toString().slice(-5).toUpperCase(),
+      name: a.name,
+      category: a.category,
+      unit: a.unit,
+      storeLocation: a.storeLocation,
+    })),
     items: rows,
   });
 });
