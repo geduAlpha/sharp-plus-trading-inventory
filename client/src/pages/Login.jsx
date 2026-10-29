@@ -160,24 +160,21 @@ export default function Login() {
       setBackendStatus('online');
       setUserId(res.data.userId || '');
       setMaskedName(res.data.maskedName || '');
-      if (res.data.otpCode) {
-        setOtp(String(res.data.otpCode));
-      } else {
-        setOtp('');
-      }
+      setOtp(''); // OTP cannot auto-fill; strictly filled by the user from Telegram
       setStep('otp');
       setResendTimer(60);
+      setTimeout(() => otpRefs[0]?.current?.focus(), 100);
     } catch (err) {
       const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
       if (serverMsg) {
         setOtpError(serverMsg);
       } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setOtpError('Request timed out. Please check that the server is active or sign in directly with password.');
+        setOtpError('Request timed out. Please check that the server is active.');
       } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
         setBackendStatus('offline');
-        setOtpError('Backend server connection issue. Please ensure the backend is running on port 5000, or use Password Sign-in below.');
+        setOtpError('Backend server connection issue. Please ensure the backend is running on port 5000.');
       } else {
-        setOtpError('Failed to send OTP. Please check your phone number or sign in with password.');
+        setOtpError('Failed to send OTP. Please check your phone number and ensure you started @SharpPlusBot on Telegram.');
       }
     } finally { setOtpLoading(false); }
   };
@@ -185,7 +182,7 @@ export default function Login() {
   // ── Step 2: Verify OTP from Telegram Bot ────────────────────
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (otp.length < 6) { setOtpError('Please enter the full 6-digit OTP (e.g. 123456).'); return; }
+    if (otp.length < 6) { setOtpError('Please enter the full 6-digit OTP code received from @SharpPlusBot.'); return; }
     setOtpLoading(true); setOtpError('');
     try {
       const res = await api.post('/auth/verify-otp', { userId, otp });
@@ -195,13 +192,13 @@ export default function Login() {
         setEmail(res.data.user.email);
       }
       setOtpToken(res.data.otpToken || res.data?.user?.token || 'verified_token');
-      // Advance to Step 2: Username & Password
+      // Advance to Step 2: Username & Password entrance page
       setAuthMode('password');
       setOtp('');
       setServerError('');
       setTimeout(() => passwordRef.current?.focus(), 100);
     } catch (err) {
-      const msg = err.response?.data?.message || 'Invalid OTP code. Please try again or try emergency code 123456.';
+      const msg = err.response?.data?.message || 'Invalid OTP code. Please check @SharpPlusBot and try again.';
       setOtpError(msg);
       otpRefs[0]?.current?.focus();
     } finally { setOtpLoading(false); }
@@ -240,7 +237,7 @@ export default function Login() {
         setServerError('Connection timed out. Please check that the backend server is running on port 5000.');
       } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
         setBackendStatus('offline');
-        setServerError('Backend server connection issue. Please make sure the backend server is running with "npm run dev:server" on port 5000.');
+        setServerError('Backend server connection issue. Please make sure the backend server is running on port 5000.');
       } else {
         setServerError('Invalid credentials. Please verify your email and password.');
       }
@@ -249,32 +246,14 @@ export default function Login() {
     }
   };
 
-  const handleQuickFill = async (role) => {
+  const handleQuickFill = (role) => {
     setEmail(role.email);
     setPassword('admin123');
     setActiveRole(role.label);
     setServerError('');
     setTouched({ email: false, password: false });
-    
-    // Direct sign-in as selected role (Developer, Admin, etc.)
-    setLoading(true);
-    try {
-      await login(role.email, 'admin123', otpToken || undefined);
-      setBackendStatus('online');
-      navigate(location.state?.from || '/', { replace: true });
-    } catch (err) {
-      setLoading(false);
-      const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
-      if (serverMsg) {
-        setServerError(serverMsg);
-      } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
-        setBackendStatus('offline');
-        setServerError('Backend server connection issue. Please make sure the backend server is running on port 5000 with "npm run dev:server".');
-      } else {
-        setServerError(`Unable to sign in as ${role.label}. Please verify your credentials or server connection.`);
-      }
-      setTimeout(() => passwordRef.current?.focus(), 0);
-    }
+    // Fills input fields only — user must explicitly click the "Sign in" button to log in
+    setTimeout(() => passwordRef.current?.focus(), 50);
   };
 
   return (
@@ -1072,22 +1051,13 @@ export default function Login() {
                     <div className="otp-step">
                       <h2 className="otp-step__title">Step 1: Verify via Telegram Bot</h2>
                       <p className="otp-step__sub">
-                        Enter your registered phone number to receive a one-time login code via <strong>@SharpPlusBot</strong>.
+                        Enter your registered phone number to receive a one-time verification code via <strong>@SharpPlusBot</strong>.
                       </p>
 
                       {otpError && (
-                        <div className="login-server-error flex flex-col gap-1.5" role="alert">
-                          <div className="flex items-start gap-2">
-                            <span aria-hidden="true">⚠</span>
-                            <span>{otpError}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => { setAuthMode('password'); setOtpError(''); }}
-                            className="text-xs font-bold text-red-700 underline text-left hover:text-red-900 mt-1 cursor-pointer"
-                          >
-                            👉 Or sign in directly with Email &amp; Password
-                          </button>
+                        <div className="login-server-error flex items-start gap-2" role="alert">
+                          <span aria-hidden="true">⚠</span>
+                          <span>{otpError}</span>
                         </div>
                       )}
 
@@ -1120,16 +1090,6 @@ export default function Login() {
                           )}
                         </button>
                       </form>
-
-                      <div className="mt-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => { setAuthMode('password'); setOtpError(''); }}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-bold transition"
-                        >
-                          Prefer direct password login? Click here
-                        </button>
-                      </div>
                     </div>
                   )}
 
@@ -1138,33 +1098,14 @@ export default function Login() {
                     <div className="otp-step">
                       <h2 className="otp-step__title">Enter OTP Code</h2>
                       <p className="otp-step__sub">
-                        A 6-digit code was sent to <strong>{maskedName ? maskedName + "'s" : 'your'}</strong> Telegram.{' '}
-                        Check <strong>@SharpPlusBot</strong> and enter the code below.
+                        A 6-digit verification code was sent to <strong>{maskedName ? maskedName + "'s" : 'your'}</strong> Telegram.{' '}
+                        Check <strong>@SharpPlusBot</strong> and enter the code below to proceed to username &amp; password sign-in.
                       </p>
 
                       {otpError && (
-                        <div className="login-server-error flex flex-col gap-1.5" role="alert">
-                          <div className="flex items-start gap-2">
-                            <span aria-hidden="true">⚠</span>
-                            <span>{otpError}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <button
-                              type="button"
-                              onClick={() => { setOtp('123456'); setOtpError(''); }}
-                              className="text-xs font-bold text-red-700 underline hover:text-red-900 cursor-pointer"
-                            >
-                              Try emergency code 123456
-                            </button>
-                            <span className="text-slate-400">|</span>
-                            <button
-                              type="button"
-                              onClick={() => { setAuthMode('password'); setOtpError(''); }}
-                              className="text-xs font-bold text-red-700 underline hover:text-red-900 cursor-pointer"
-                            >
-                              Sign in with Password
-                            </button>
-                          </div>
+                        <div className="login-server-error flex items-start gap-2" role="alert">
+                          <span aria-hidden="true">⚠</span>
+                          <span>{otpError}</span>
                         </div>
                       )}
 
@@ -1202,35 +1143,23 @@ export default function Login() {
                           className="login-btn-primary"
                         >
                           {otpLoading ? (
-                            <><span className="login-spinner" aria-hidden="true" />Verifying…</>
-                          ) : 'Verify & Sign In'}
+                            <><span className="login-spinner" aria-hidden="true" />Verifying OTP…</>
+                          ) : (
+                            <>Verify OTP &amp; Continue <ArrowRight size={16} /></>
+                          )}
                         </button>
                       </form>
 
                       <div className="otp-resend">
                         {resendTimer > 0
-                          ? <span>Resend in {resendTimer}s</span>
+                          ? <span>Resend code in {resendTimer}s</span>
                           : <>
-                            <span>Didn't receive it? </span>
+                            <span>Didn't receive code? </span>
                             <button type="button" onClick={() => { setStep('phone'); setOtp(''); setOtpError(''); }}>
-                              Go back &amp; resend
-                            </button>
-                            <span className="mx-2 text-slate-300">·</span>
-                            <button type="button" onClick={() => { setOtp('123456'); }} className="text-blue-600 font-bold">
-                              Emergency Code (123456)
+                              Change phone &amp; resend
                             </button>
                           </>
                         }
-                      </div>
-
-                      <div className="mt-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => { setAuthMode('password'); setOtpError(''); }}
-                          className="text-xs text-slate-500 hover:text-slate-800 font-medium underline"
-                        >
-                          Cancel and sign in with email &amp; password
-                        </button>
                       </div>
                     </div>
                   )}

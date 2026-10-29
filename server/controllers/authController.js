@@ -491,10 +491,9 @@ const requestOtp = asyncHandler(async (req, res) => {
 
   res.json({
     message: delivered
-      ? 'OTP sent to your Telegram.'
-      : 'OTP code generated. If Telegram message is delayed, you can sign in directly with password or use code 123456.',
+      ? 'OTP sent to your Telegram (@SharpPlusBot).'
+      : 'OTP code generated and sent via Telegram. Please check @SharpPlusBot on your phone.',
     delivered,
-    otpCode: !delivered || process.env.NODE_ENV !== 'production' ? otp : undefined,
     maskedName: matchedSub?.name
       ? matchedSub.name.split(' ')[0] + ' ' + (matchedSub.name.split(' ')[1]?.[0] || '') + '.'
       : 'User',
