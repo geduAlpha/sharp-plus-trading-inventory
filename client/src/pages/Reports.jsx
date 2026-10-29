@@ -53,7 +53,7 @@ const REPORT_SUB_TABS = [
 // Route → API endpoint map (used by the load function)
 const TABS = [
   { key: 'summary', label: 'Overview', endpoint: null },
-  { key: 'stock_balance', label: 'Stock Balance Sheet', endpoint: '/reports/stock-balance' },
+  { key: 'stock_balance', label: 'Stock Balance Report', endpoint: '/reports/stock-balance' },
   { key: 'inventory_count', label: 'Inventory Count', endpoint: null },
   { key: 'daily', label: 'Daily Report', endpoint: '/reports/daily' },
   { key: 'cash_grv', label: 'Cash GRV', endpoint: '/reports/cash-grv' },

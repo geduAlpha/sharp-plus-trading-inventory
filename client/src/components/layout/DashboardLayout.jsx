@@ -22,7 +22,7 @@ const titles = {
   '/suppliers': 'Suppliers Directory',
   '/reports': 'Reports & Analytics',
   '/reports/summary': 'Overview Summary Report',
-  '/reports/stock-balance': 'Stock Balance Sheet',
+  '/reports/stock-balance': 'Stock Balance Report',
   '/reports/inventory-count': 'Inventory Count',
   '/reports/daily': 'Daily Movement Report',
   '/reports/cash-grv': 'Cash GRV Report',

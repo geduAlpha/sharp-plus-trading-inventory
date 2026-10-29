@@ -339,7 +339,7 @@ export const DEFAULT_SIDEBAR_CONFIG = [
     visible: true,
     children: [
       { id: 'report_summary', label: 'Overview', to: '/reports/summary', icon: 'BarChartRounded', iconType: 'mui', order: 1, visible: true },
-      { id: 'report_balance', label: 'Stock Balance Sheet', to: '/reports/stock-balance', icon: 'BalanceRounded', iconType: 'mui', order: 2, visible: true },
+      { id: 'report_balance', label: 'Stock Balance Report', to: '/reports/stock-balance', icon: 'BalanceRounded', iconType: 'mui', order: 2, visible: true },
       { id: 'report_inventory_count', label: 'Inventory Count', to: '/reports/inventory-count', icon: 'FactCheckRounded', iconType: 'mui', order: 3, visible: true },
       { id: 'report_daily', label: 'Daily Report', to: '/reports/daily', icon: 'TodayRounded', iconType: 'mui', order: 4, visible: true },
       { id: 'report_cash_grv', label: 'Cash GRV Report', to: '/reports/cash-grv', icon: 'ShoppingBagRounded', iconType: 'mui', order: 5, visible: true },
@@ -395,7 +395,10 @@ export const sanitizeSidebarConfig = (config) => {
     let children = item.children;
     if (Array.isArray(children)) {
       children = children.map((c) => {
-        if (avoidedIds.includes(c.id) || c.to === '/transactions/disposal' || c.to === '/consumption' || c.to === '/reports/disposal') {
+        if (c.id === 'report_balance' || c.to === '/reports/stock-balance') {
+        c = { ...c, label: 'Stock Balance Report' };
+      }
+      if (avoidedIds.includes(c.id) || c.to === '/transactions/disposal' || c.to === '/consumption' || c.to === '/reports/disposal') {
           return { ...c, visible: false };
         }
         if (heldSubIds.includes(c.id)) {
