@@ -526,16 +526,18 @@ const createTransaction = asyncHandler(async (req, res) => {
     paymentStatus: assignedPaymentStatus,
     amountPaid: initialAmountPaid,
     dueDate: dueDate ? new Date(dueDate) : null,
-    stockApplied: Boolean(isSale), // Only direct sales immediately affect stock; GRVs, Adjustments & non-sales wait for approval
-    status: isSale ? 'posted' : 'pending',
-    postedBy: isSale ? req.user._id : undefined,
-    postedAt: isSale ? new Date() : undefined,
+    stockApplied: false, // Sales now require formal review & approval before inventory deduction
+    status: 'pending',
+    postedBy: undefined,
+    postedAt: undefined,
     trail: [{
-      action: isSale ? 'posted' : 'pending',
+      action: 'pending',
       by: req.user._id,
       byName: req.user.name,
       byRole: req.user.role,
-      note: isSale ? `${voucherType === 'credit_sale' ? 'Credit' : 'Cash'} sale completed & stock deducted` : 'Voucher prepared (awaiting approval before stock balance update)',
+      note: isSale
+        ? `${voucherType === 'credit_sale' ? 'Credit' : 'Cash'} sale recorded (awaiting review & approval before posting)`
+        : 'Voucher prepared (awaiting approval before stock balance update)',
     }],
   };
 
@@ -552,13 +554,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     const [createdTxn] = await StockTransaction.create([txnData], session ? { session } : {});
     transaction = createdTxn;
 
-    // Direct sales immediately reduce stock atomically; GRVs, Adjustments, and non-sale vouchers wait for approval
-    if (isSale) {
-      await applyStockMovement(resolvedItems, direction, session, {
-        defaultStore: assignedStoreLocation,
-        updateWac: false,
-      });
-    }
+    // Note: Stock balance is NOT deducted here. Stock balance only updates upon formal approval/posting by an authorized reviewer.
 
     // If this is a direct sale, also create companion SalesRecord
     if (isSale) {
@@ -620,12 +616,40 @@ const createTransaction = asyncHandler(async (req, res) => {
 
   invalidateDashboardCache();
   tg.notifyTransaction(populated, req.user);
+
+  // Notify privileged users who have approval/review rights
+  try {
+    const approvers = await User.find({
+      role: { $in: ['developer', 'admin', 'manager'] },
+      isActive: true,
+    }).select('_id name role');
+
+    for (const approver of approvers) {
+      if (approver._id.toString() !== req.user._id.toString()) {
+        notify.push({
+          type: 'transaction',
+          title: isSale
+            ? `${voucherType === 'credit_sale' ? 'Credit' : 'Cash'} Sale Awaiting Approval`
+            : 'Voucher Awaiting Approval',
+          message: `${req.user.name} recorded ${populated.voucherNo} (${isSale ? (voucherType === 'credit_sale' ? 'Credit Sale' : 'Cash Sale') : 'Voucher'}) — ETB ${(populated.totalRevenue || populated.totalAmount).toLocaleString()} requiring review & approval.`,
+          icon: '⏳',
+          link: isSale ? (voucherType === 'credit_sale' ? '/sales/credit' : '/sales/cash') : '/transactions',
+          severity: 'warning',
+          userId: approver._id,
+        });
+      }
+    }
+  } catch (nErr) {
+    console.warn('[Sale Notify] Failed to notify approvers:', nErr.message);
+  }
+
+  // Notify the submitting user
   notify.push({
     type: 'transaction',
-    title: isSale ? (voucherType === 'cash_sale' ? 'New Cash Sale' : 'New Credit Sale') : 'New Stock Transaction',
-    message: `${req.user.name} recorded ${populated.voucherNo} (${populated.items?.length || 1} item(s)) — ETB ${(populated.totalRevenue || populated.totalAmount).toLocaleString()}`,
-    icon: isSale ? '💰' : (populated.type === 'in' ? '📥' : '📤'),
-    link: isSale ? '/sales' : '/transactions',
+    title: isSale ? 'Sale Submitted for Approval' : 'New Stock Transaction',
+    message: `${populated.voucherNo} recorded and sent for review & approval before inventory deduction.`,
+    icon: isSale ? '📝' : (populated.type === 'in' ? '📥' : '📤'),
+    link: isSale ? (voucherType === 'credit_sale' ? '/sales/credit' : '/sales/cash') : '/transactions',
     severity: 'info',
     userId: req.user._id
   });
@@ -1121,16 +1145,35 @@ const advanceTransaction = asyncHandler(async (req, res) => {
     .populate('performedBy checkedBy approvedBy postedBy', 'name role email');
 
   tg.notifyTransactionAdvanced(populated, action, actor);
-  if (['void','approve','post'].includes(action)) {
+  const isSaleVoucher = ['cash_sale', 'credit_sale'].includes(populated.voucherType);
+  const voucherTargetLink = isSaleVoucher
+    ? (populated.voucherType === 'credit_sale' ? '/sales/credit' : '/sales/cash')
+    : '/transactions';
+
+  if (['void', 'approve', 'post', 'check'].includes(action)) {
     notify.push({
       type: 'transaction',
-      title: `Voucher ${action.toUpperCase()}ED`,
+      title: `Voucher ${action.toUpperCase()}${action.endsWith('e') ? 'D' : (action.endsWith('k') ? 'ED' : 'ED')}`,
       message: `${actor.name} ${action}ed ${populated.voucherNo || 'voucher'}`,
-      icon: action === 'void' ? '🔴' : (action === 'post' ? '✅' : '🟣'),
-      link: '/transactions',
+      icon: action === 'void' ? '🔴' : (action === 'post' ? '✅' : (action === 'approve' ? '🟣' : '👁️')),
+      link: voucherTargetLink,
       severity: action === 'void' ? 'error' : 'success',
       userId: actor._id
     });
+
+    // Notify the voucher creator about the approval progress
+    const creatorId = populated.performedBy?._id?.toString() || populated.performedBy?.toString();
+    if (creatorId && creatorId !== actor._id.toString()) {
+      notify.push({
+        type: 'transaction',
+        title: `Voucher ${action.toUpperCase()}`,
+        message: `${actor.name} (${actor.role}) has ${action}ed your ${isSaleVoucher ? (populated.voucherType === 'credit_sale' ? 'Credit Sale' : 'Cash Sale') : 'voucher'} ${populated.voucherNo || ''}.`,
+        icon: action === 'void' ? '🔴' : (action === 'post' ? '✅' : (action === 'approve' ? '🟣' : '👁️')),
+        link: voucherTargetLink,
+        severity: action === 'void' ? 'error' : 'success',
+        userId: creatorId,
+      });
+    }
   }
   res.json({ message: `Voucher moved from "${prev}" → "${rule.to}"`, transaction: populated });
 });

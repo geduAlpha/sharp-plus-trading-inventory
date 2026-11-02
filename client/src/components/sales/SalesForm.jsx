@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Modal from '../ui/Modal';
+import WorkflowBadge from '../ui/WorkflowBadge';
+import ApproveModal from '../ui/ApproveModal';
 import ThermalBillModal from './ThermalBillModal';
 import {
   ShoppingBag,
@@ -70,7 +72,46 @@ const CREDIT_TERMS_OPTIONS = [
 ];
 
 export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale' }) {
-  const { user } = useAuth();
+  const { user, isDeveloper, isAdmin, can, canApprove } = useAuth();
+
+  // Workflow Approval Modal State for Authorized Reviewers
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approveTxn, setApproveTxn] = useState(null);
+  const [approveAction, setApproveAction] = useState('approve');
+  const [approveLoading, setApproveLoading] = useState(false);
+  const [approveError, setApproveError] = useState(null);
+  const [workflowSuccessMsg, setWorkflowSuccessMsg] = useState('');
+
+  const openApproveModal = (sale, action) => {
+    setApproveTxn(sale);
+    setApproveAction(action);
+    setApproveError(null);
+    setApproveOpen(true);
+  };
+
+  const handleAdvanceConfirm = async (password, note) => {
+    if (!approveTxn) return;
+    setApproveLoading(true);
+    setApproveError(null);
+    try {
+      const res = await api.post(`/transactions/${approveTxn._id}/advance`, {
+        action: approveAction,
+        password,
+        note,
+      });
+      setApproveOpen(false);
+      setWorkflowSuccessMsg(
+        `Voucher ${res.data?.transaction?.voucherNo || approveTxn.voucherNo} successfully advanced to "${res.data?.transaction?.status || approveAction}"!`
+      );
+      setTimeout(() => setWorkflowSuccessMsg(''), 5000);
+      loadRecentSales();
+      loadMaterials();
+    } catch (err) {
+      setApproveError(err.response?.data?.message || 'Workflow action failed.');
+    } finally {
+      setApproveLoading(false);
+    }
+  };
 
   // Active sales mode: 'cash_sale' or 'credit_sale'
   const [salesMode, setSalesMode] = useState(initialVoucherType);
@@ -1724,12 +1765,12 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                 ) : isCredit ? (
                   <>
                     <CreditCard size={18} />
-                    <span>Authorize &amp; Post Credit Sale</span>
+                    <span>Submit Credit Sale (Requires Approval)</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle size={18} />
-                    <span>Complete Sale &amp; Post Ledger</span>
+                    <span>Submit Cash Sale (Requires Approval)</span>
                   </>
                 )}
               </button>
@@ -1785,6 +1826,13 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
           </div>
         </div>
 
+        {workflowSuccessMsg && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+            <CheckCircle size={16} className="text-emerald-600 shrink-0" />
+            <span>{workflowSuccessMsg}</span>
+          </div>
+        )}
+
         {showRecentTable && (
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-xs border-collapse">
@@ -1796,13 +1844,14 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                   <th className="py-2.5 px-3 text-center">Items</th>
                   <th className="py-2.5 px-3 text-right">Total Revenue (15% VAT)</th>
                   <th className="py-2.5 px-3 text-center">Settlement</th>
+                  <th className="py-2.5 px-3 text-center">Status</th>
                   <th className="py-2.5 px-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {recentSales.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                    <td colSpan={8} className="py-8 text-center text-slate-400">
                       {loadingRecent ? 'Syncing sales records...' : 'No sales records found in journal.'}
                     </td>
                   </tr>
@@ -1840,7 +1889,10 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                         </Badge>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                        <WorkflowBadge status={sale.status || 'pending'} />
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           <button
                             type="button"
                             onClick={() => {
@@ -1861,6 +1913,42 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                           >
                             <FileText size={14} />
                           </button>
+
+                          {/* Approval Actions for Reviewers */}
+                          {sale.status !== 'posted' && sale.status !== 'voided' && (
+                            <div className="flex items-center gap-1 ml-1 pl-1 border-l border-slate-200">
+                              {sale.status === 'pending' && (isAdmin || isDeveloper || can('checkReview')) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openApproveModal(sale, 'check')}
+                                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 hover:bg-blue-200 text-blue-800 transition"
+                                  title="Check & review this sale voucher"
+                                >
+                                  Check
+                                </button>
+                              )}
+                              {(sale.status === 'pending' || sale.status === 'checked') && (isAdmin || isDeveloper || can('approveGoods')) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openApproveModal(sale, 'approve')}
+                                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 transition"
+                                  title="Approve this sale voucher (updates stock balance)"
+                                >
+                                  Approve
+                                </button>
+                              )}
+                              {(sale.status === 'approved' || sale.status === 'checked' || sale.status === 'pending') && (isAdmin || isDeveloper || can('postLedger')) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openApproveModal(sale, 'post')}
+                                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition"
+                                  title="Post voucher to general ledger"
+                                >
+                                  Post
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2001,21 +2089,39 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
         <Modal
           open={Boolean(successVoucher)}
           onClose={() => setSuccessVoucher(null)}
-          title="Sales Invoice Posted Successfully"
+          title={
+            successVoucher.status === 'pending'
+              ? 'Sales Invoice Submitted (Awaiting Approval)'
+              : 'Sales Invoice Posted Successfully'
+          }
           width="max-w-2xl"
         >
           <div className="space-y-6">
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900">
-              <CheckCircle size={24} className="text-emerald-600 shrink-0" />
-              <div>
-                <h4 className="font-bold text-sm">
-                  Invoice {successVoucher.voucherNo} Posted ({successVoucher.fsNo || 'FS Auto'})
-                </h4>
-                <p className="text-xs text-emerald-700 mt-0.5">
-                  Stock has been deducted from store inventory and recorded in the permanent sales ledger.
-                </p>
+            {successVoucher.status === 'pending' ? (
+              <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900">
+                <Clock size={24} className="text-amber-600 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-sm">
+                    Invoice {successVoucher.voucherNo} Recorded (Awaiting Approval)
+                  </h4>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    This sale has been submitted to authorized approvers. Stock balance will be deducted once reviewed and approved.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900">
+                <CheckCircle size={24} className="text-emerald-600 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-sm">
+                    Invoice {successVoucher.voucherNo} Posted ({successVoucher.fsNo || 'FS Auto'})
+                  </h4>
+                  <p className="text-xs text-emerald-700 mt-0.5">
+                    Stock has been deducted from store inventory and recorded in the permanent sales ledger.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Printable Voucher Preview */}
             <div
@@ -2147,6 +2253,19 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
         onClose={() => setThermalBillOpen(false)}
         sale={currentBillSale}
       />
+
+      {/* ── MODAL: WORKFLOW APPROVAL / ADVANCE ── */}
+      {approveOpen && approveTxn && (
+        <ApproveModal
+          open={approveOpen}
+          onClose={() => setApproveOpen(false)}
+          action={approveAction}
+          txn={approveTxn}
+          onConfirm={handleAdvanceConfirm}
+          loading={approveLoading}
+          error={approveError}
+        />
+      )}
     </div>
   );
 }

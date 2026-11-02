@@ -170,6 +170,10 @@ function notifyTransaction(txn, user) {
     ? `💰 <b>Sale Total:</b>  ${etb(txn.totalRevenue || txn.totalAmount)}\n🧾 <b>Taxable Base:</b> ${etb(taxableVal)}\n📊 <b>VAT (15%):</b>    ${etb(vatVal)}\n📦 <b>Stock Cost:</b>   ${etb(txn.totalAmount)}`
     : `💰 <b>Total:</b>       ${etb(txn.totalAmount)}`;
 
+  const statusLine = txn.status === 'pending'
+    ? '📋 <b>Status:</b>     ⏳ <b>PENDING APPROVAL</b> (Awaiting Review)'
+    : `📋 <b>Status:</b>     ${(txn.status || 'posted').toUpperCase()}`;
+
   sendTelegram(
     `🏨 <b>${company}</b>
 ━━━━━━━━━━━━━━━━━━━━
@@ -179,7 +183,7 @@ ${emoji} <b>NEW ${label.toUpperCase()}</b>
 ↕️  <b>Direction:</b>  ${direction}
 ${partyLine}
 ${valueLine}
-📋 <b>Status:</b>     ${(txn.status || 'posted').toUpperCase()}
+${statusLine}
 
 📦 <b>Items:</b>
 ${items || '  —'}
