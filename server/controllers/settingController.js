@@ -5,16 +5,16 @@ const { clearSettingsCache, DEFAULT_ROLE_PERMISSIONS } = require('../middleware/
 const tg = require('../utils/telegramNotifier');
 
 const DEFAULT_NAV_VISIBILITY = {
-  dashboard: { storekeeper: true, manager: true, admin: true },
-  Items: { storekeeper: true, manager: true, admin: true },
-  items: { storekeeper: true, manager: true, admin: true },
-  products: { storekeeper: true, manager: true, admin: true },
-  stockMovements: { storekeeper: true, manager: true, admin: true },
-  suppliers: { storekeeper: false, manager: true, admin: true },
-  consumption: { storekeeper: true, manager: true, admin: true },
-  reports: { storekeeper: false, manager: true, admin: true },
-  analytics: { storekeeper: false, manager: true, admin: true },
-  staffAccounts: { storekeeper: false, manager: false, admin: true },
+  dashboard: { cashier: true, storekeeper: true, manager: true, admin: true },
+  Items: { cashier: false, storekeeper: true, manager: true, admin: true },
+  items: { cashier: false, storekeeper: true, manager: true, admin: true },
+  products: { cashier: true, storekeeper: true, manager: true, admin: true },
+  stockMovements: { cashier: false, storekeeper: true, manager: true, admin: true },
+  suppliers: { cashier: false, storekeeper: false, manager: true, admin: true },
+  consumption: { cashier: false, storekeeper: true, manager: true, admin: true },
+  reports: { cashier: false, storekeeper: false, manager: true, admin: true },
+  analytics: { cashier: false, storekeeper: false, manager: true, admin: true },
+  staffAccounts: { cashier: false, storekeeper: false, manager: false, admin: true },
 };
 
 // @desc   Get system settings (creates default if none exists)
@@ -52,6 +52,19 @@ const getSettings = asyncHandler(async (req, res) => {
       settings.navVisibility = DEFAULT_NAV_VISIBILITY;
       settings.markModified('navVisibility');
       modified = true;
+    } else {
+      // Ensure cashier and standard roles are populated on all nav sections if missing
+      for (const [navKey, val] of Object.entries(DEFAULT_NAV_VISIBILITY)) {
+        if (!settings.navVisibility[navKey]) {
+          settings.navVisibility[navKey] = { ...val };
+          settings.markModified('navVisibility');
+          modified = true;
+        } else if (settings.navVisibility[navKey].cashier === undefined) {
+          settings.navVisibility[navKey].cashier = val.cashier;
+          settings.markModified('navVisibility');
+          modified = true;
+        }
+      }
     }
     if (!settings.themeConfig || Object.keys(settings.themeConfig).length === 0) {
       settings.themeConfig = DEFAULT_THEME_CONFIG;

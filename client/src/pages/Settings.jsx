@@ -150,15 +150,15 @@ export default function Settings() {
       manageAccounts: { storekeeper: false, manager: false, admin: true }
     },
     navVisibility: {
-      dashboard: { storekeeper: true, manager: true, admin: true },
-      Items: { storekeeper: true, manager: true, admin: true },
-      products: { storekeeper: true, manager: true, admin: true },
-      stockMovements: { storekeeper: true, manager: true, admin: true },
-      suppliers: { storekeeper: false, manager: true, admin: true },
-      consumption: { storekeeper: true, manager: true, admin: true },
-      reports: { storekeeper: false, manager: true, admin: true },
-      analytics: { storekeeper: false, manager: true, admin: true },
-      staffAccounts: { storekeeper: false, manager: false, admin: true },
+      dashboard: { cashier: true, storekeeper: true, manager: true, admin: true },
+      Items: { cashier: false, storekeeper: true, manager: true, admin: true },
+      products: { cashier: true, storekeeper: true, manager: true, admin: true },
+      stockMovements: { cashier: false, storekeeper: true, manager: true, admin: true },
+      suppliers: { cashier: false, storekeeper: false, manager: true, admin: true },
+      consumption: { cashier: false, storekeeper: true, manager: true, admin: true },
+      reports: { cashier: false, storekeeper: false, manager: true, admin: true },
+      analytics: { cashier: false, storekeeper: false, manager: true, admin: true },
+      staffAccounts: { cashier: false, storekeeper: false, manager: false, admin: true },
     },
     notes: '',
   });
@@ -1535,6 +1535,7 @@ export default function Settings() {
                   <thead>
                     <tr className="border-b border-ink-100 bg-ink-50/70 text-ink-600 font-semibold">
                       <th className="py-2.5 px-3">Sidebar Section</th>
+                      <th className="py-2.5 px-3 text-center">Cashier</th>
                       <th className="py-2.5 px-3 text-center">Storekeeper</th>
                       <th className="py-2.5 px-3 text-center">Manager</th>
                       <th className="py-2.5 px-3 text-center">Admin</th>
@@ -1544,29 +1545,35 @@ export default function Settings() {
                     {NAV_ITEMS.map((nav) => (
                       <tr key={nav.key}>
                         <td className="py-2.5 px-3 font-medium">{nav.label}</td>
-                        {['storekeeper', 'manager', 'admin'].map((r) => (
-                          <td key={r} className="py-2.5 px-3 text-center">
-                            <input
-                              type="checkbox"
-                              disabled={!hasRole('admin')}
-                              checked={systemForm.navVisibility?.[nav.key]?.[r] ?? true}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setSystemForm((prev) => ({
-                                  ...prev,
-                                  navVisibility: {
-                                    ...prev.navVisibility,
-                                    [nav.key]: {
-                                      ...prev.navVisibility?.[nav.key],
-                                      [r]: checked,
+                        {['cashier', 'storekeeper', 'manager', 'admin'].map((r) => {
+                          const isChecked = systemForm.navVisibility?.[nav.key]?.[r] !== undefined
+                            ? Boolean(systemForm.navVisibility[nav.key][r])
+                            : (r === 'cashier' ? (['dashboard', 'products'].includes(nav.key)) : true);
+
+                          return (
+                            <td key={r} className="py-2.5 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                disabled={!hasRole('admin')}
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setSystemForm((prev) => ({
+                                    ...prev,
+                                    navVisibility: {
+                                      ...prev.navVisibility,
+                                      [nav.key]: {
+                                        ...prev.navVisibility?.[nav.key],
+                                        [r]: checked,
+                                      },
                                     },
-                                  },
-                                }));
-                              }}
-                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                          </td>
-                        ))}
+                                  }));
+                                }}
+                                className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              />
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>

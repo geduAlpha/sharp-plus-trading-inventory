@@ -1,16 +1,16 @@
 const mongoose = require('mongoose');
 
 const DEFAULT_NAV_VISIBILITY = {
-  dashboard: { employee: true, storekeeper: true, manager: true, admin: true },
-  Items: { employee: true, storekeeper: true, manager: true, admin: true },
-  items: { employee: true, storekeeper: true, manager: true, admin: true },
-  products: { employee: true, storekeeper: true, manager: true, admin: true },
-  stockMovements: { employee: true, storekeeper: true, manager: true, admin: true },
-  suppliers: { employee: false, storekeeper: false, manager: true, admin: true },
-  consumption: { employee: false, storekeeper: false, manager: false, admin: false },
-  reports: { employee: false, storekeeper: false, manager: true, admin: true },
-  analytics: { employee: false, storekeeper: false, manager: true, admin: true },
-  staffAccounts: { employee: false, storekeeper: false, manager: false, admin: true },
+  dashboard: { employee: true, cashier: true, storekeeper: true, manager: true, admin: true },
+  Items: { employee: true, cashier: false, storekeeper: true, manager: true, admin: true },
+  items: { employee: true, cashier: false, storekeeper: true, manager: true, admin: true },
+  products: { employee: true, cashier: true, storekeeper: true, manager: true, admin: true },
+  stockMovements: { employee: true, cashier: false, storekeeper: true, manager: true, admin: true },
+  suppliers: { employee: false, cashier: false, storekeeper: false, manager: true, admin: true },
+  consumption: { employee: false, cashier: false, storekeeper: false, manager: false, admin: false },
+  reports: { employee: false, cashier: false, storekeeper: false, manager: true, admin: true },
+  analytics: { employee: false, cashier: false, storekeeper: false, manager: true, admin: true },
+  staffAccounts: { employee: false, cashier: false, storekeeper: false, manager: false, admin: true },
 };
 
 const settingSchema = new mongoose.Schema(
