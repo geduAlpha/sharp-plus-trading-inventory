@@ -142,7 +142,8 @@ const DynamicCollapsibleNav = ({
 
 /* ── Dynamic Sidebar ── */
 export default function Sidebar({ open, onClose, collapsed = false }) {
-  const { user, canSeeNav, companyInfo, modulesEnabled: authModulesEnabled } = useAuth();
+  const { user, isDeveloper, canSeeNav, companyInfo, modulesEnabled: authModulesEnabled } = useAuth();
+  const isDev = Boolean(isDeveloper || user?.role === 'developer');
   const { activeTheme, activeSidebar, modulesEnabled: themeModulesEnabled } = useThemeSidebar();
   const modulesEnabled = themeModulesEnabled || authModulesEnabled;
   const location = useLocation();
@@ -282,6 +283,11 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     if (isAvoidedNavItem(item)) return false;
     if (item.visible === false) return false;
 
+    // STRICT REQUIREMENT: Hide all on-hold sidebar buttons from other users rather than System Developer side only!
+    if (!isDev && isItemOnHold(item)) {
+      return false;
+    }
+
     // Company-level Sales & Marketing gate: Owner must have enabled it for company users to see it
     const isSales =
       item.id === 'salesMarketing' ||
@@ -292,14 +298,14 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
       item.id === 'sales_credit' ||
       (typeof item.to === 'string' && (item.to.startsWith('/sales') || item.to === '/sales-import'));
 
-    if (isSales && modulesEnabled?.salesMarketing === false && user?.role !== 'developer') {
+    if (isSales && modulesEnabled?.salesMarketing === false && !isDev) {
       return false;
     }
 
     const resolvedKey = resolveItemNavKey(item);
     if (resolvedKey && !canSeeNav(resolvedKey)) return false;
     return true;
-  }, [canSeeNav, modulesEnabled?.salesMarketing, user?.role]);
+  }, [canSeeNav, isDev, modulesEnabled?.salesMarketing]);
 
   // Group items by section — respect modulesEnabled and role privileges
   const sections = useMemo(() => {
@@ -318,7 +324,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
 
       // If salesMarketing module is disabled, hide the salesMarketing sidebar section
       if (item.id === 'salesMarketing' || item.navKey === 'salesMarketing') {
-        if (modulesEnabled?.salesMarketing === false && user?.role !== 'developer') return;
+        if (modulesEnabled?.salesMarketing === false && !isDev) return;
       }
 
       const sec = (item.section || 'main').toLowerCase();
@@ -328,7 +334,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     });
 
     return { main, operations, admin };
-  }, [sortedSidebar, canDisplayItem, modulesEnabled, user?.role]);
+  }, [sortedSidebar, canDisplayItem, modulesEnabled, isDev]);
 
   // Check if a group currently has an active child
   const isGroupActive = (item) => {
@@ -381,10 +387,11 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     const itemColor = getItemAccent(item);
 
     if (isHeld) {
+      if (!isDev) return null;
       return (
         <div
           key={item.id}
-          title={`${item.label} — Feature on hold / inactive`}
+          title={`${item.label} — Feature on hold / Developer view`}
           className={`group flex items-center justify-between gap-2.5 rounded-xl ${spacingClass} text-xs select-none cursor-not-allowed opacity-50 transition-all ${
             collapsed ? 'justify-center' : ''
           } ${
@@ -496,10 +503,11 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
           const isHeld = isItemOnHold(sub);
 
           if (isHeld) {
+            if (!isDev) return null;
             return (
               <div
                 key={sub.id}
-                title={`${sub.label} — Feature on hold / inactive`}
+                title={`${sub.label} — Feature on hold / Developer view`}
                 className={`group flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs select-none cursor-not-allowed opacity-55 transition-all ${
                   isDark
                     ? 'text-slate-400 bg-white/[0.02]'
@@ -732,18 +740,20 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
           </NavLink>
           {!collapsed && (
             <>
-              <div
-                title="Stock Issue & Request (On Hold)"
-                className={`p-1.5 rounded-lg select-none cursor-not-allowed opacity-40 transition ${
-                  isDark ? 'text-slate-500' : 'text-slate-400'
-                }`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-              >
-                <MuiIconResolver name="CallSplitRounded" size={17} />
-              </div>
+              {isDev && (
+                <div
+                  title="Stock Issue & Request (On Hold - Developer Preview)"
+                  className={`p-1.5 rounded-lg select-none cursor-not-allowed opacity-40 transition ${
+                    isDark ? 'text-slate-500' : 'text-slate-400'
+                  }`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  <MuiIconResolver name="CallSplitRounded" size={17} />
+                </div>
+              )}
               <NavLink
                 to="/settings?tab=security"
                 title="Security & Passwords"

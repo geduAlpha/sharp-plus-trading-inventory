@@ -57,7 +57,8 @@ export default function CommandPalette({ onToggleSidebarCollapse }) {
   const [materialResults, setMaterialResults] = useState([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
 
-  const { user, hasRole } = useAuth();
+  const { user, isDeveloper, hasRole } = useAuth();
+  const isDev = Boolean(isDeveloper || user?.role === 'developer');
   const { activeTheme, saveThemeAndSidebar, themeConfig, sidebarConfig } = useThemeSidebar();
   const navigate = useNavigate();
 
@@ -255,16 +256,20 @@ export default function CommandPalette({ onToggleSidebarCollapse }) {
         keywords: 'credit grv invoice supplier receiving',
         action: () => navigate('/transactions/credit-grv'),
       },
-      {
-        id: 'nav-stock-requests',
-        title: 'Stock Issue & Requests',
-        subtitle: 'Department requisition, transfer approvals, issuance',
-        category: 'nav',
-        icon: ClipboardList,
-        color: 'text-teal-500 bg-teal-500/10',
-        keywords: 'stock request issue dispatch requisition transfer',
-        action: () => navigate('/stock-requests'),
-      },
+      ...(isDev
+        ? [
+            {
+              id: 'nav-stock-requests',
+              title: 'Stock Issue & Requests',
+              subtitle: 'Department requisition, transfer approvals, issuance (On Hold)',
+              category: 'nav',
+              icon: ClipboardList,
+              color: 'text-teal-500 bg-teal-500/10',
+              keywords: 'stock request issue dispatch requisition transfer on hold',
+              action: () => navigate('/stock-requests'),
+            },
+          ]
+        : []),
       ...(isManagerOrAdmin
         ? [
             {
@@ -464,26 +469,30 @@ export default function CommandPalette({ onToggleSidebarCollapse }) {
         keywords: 'dispose disposal damaged expired goods scrap remove',
         action: () => navigate('/transactions/disposal'),
       },
-      {
-        id: 'act-start-inventory-count',
-        title: 'Start Physical Stock Count',
-        subtitle: 'Conduct warehouse stock check and record physical counts',
-        category: 'action',
-        icon: ClipboardList,
-        color: 'text-cyan-500 bg-cyan-500/10',
-        keywords: 'inventory count physical stocktake audit verify reconcile',
-        action: () => navigate('/reports/inventory-count'),
-      },
-      {
-        id: 'act-new-stock-request',
-        title: 'Issue / Request Stock',
-        subtitle: 'Submit or approve a departmental stock transfer requisition',
-        category: 'action',
-        icon: ClipboardList,
-        color: 'text-blue-500 bg-blue-500/10',
-        keywords: 'request issue stock transfer requisition dispatch',
-        action: () => navigate('/stock-requests'),
-      },
+      ...(isDev
+        ? [
+            {
+              id: 'act-start-inventory-count',
+              title: 'Start Physical Stock Count',
+              subtitle: 'Conduct warehouse stock check and record physical counts (On Hold)',
+              category: 'action',
+              icon: ClipboardList,
+              color: 'text-cyan-500 bg-cyan-500/10',
+              keywords: 'inventory count physical stocktake audit verify reconcile on hold',
+              action: () => navigate('/reports/inventory-count'),
+            },
+            {
+              id: 'act-new-stock-request',
+              title: 'Issue / Request Stock',
+              subtitle: 'Submit or approve a departmental stock transfer requisition (On Hold)',
+              category: 'action',
+              icon: ClipboardList,
+              color: 'text-blue-500 bg-blue-500/10',
+              keywords: 'request issue stock transfer requisition dispatch on hold',
+              action: () => navigate('/stock-requests'),
+            },
+          ]
+        : []),
     ];
 
     const frameList = [
