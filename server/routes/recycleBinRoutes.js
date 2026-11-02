@@ -11,8 +11,8 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 router.use(protect);
 
-// Viewing Recycle Bin: admin, manager, developer
-router.get('/', authorize('admin', 'manager', 'developer'), getRecycleBin);
+// Viewing Recycle Bin: strictly Developer/Owner and Admin only
+router.get('/', authorize('admin', 'developer'), getRecycleBin);
 
 // Restore: developer and admin (controller checks explicit owner-delegated authority)
 router.post('/:type/:id/restore', authorize('admin', 'developer'), restoreItem);

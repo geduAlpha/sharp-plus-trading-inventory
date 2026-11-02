@@ -8,6 +8,10 @@ const Consumption = require('../models/Consumption');
 const StockRequest = require('../models/StockRequest');
 const Employee = require('../models/Employee');
 const Customer = require('../models/Customer');
+const Category = require('../models/Category');
+const InventoryCount = require('../models/InventoryCount');
+const SalesRecord = require('../models/SalesRecord');
+const User = require('../models/User');
 const { invalidateDashboardCache } = require('./dashboardController');
 const { VOUCHER_DIRECTION } = require('../models/StockTransaction');
 const tg = require('../utils/telegramNotifier');
@@ -15,25 +19,10 @@ const notify = require('../utils/notificationHelper');
 const { logAudit } = require('../utils/auditLogger');
 
 // ── Privilege Check Helper ──────────────────────────────────────────
-// Developer/Owner has unrestricted authority.
-// Admin is only authorized if Developer/Owner has granted explicit privilege in Settings.
+// System Developer & Owner and Admin have full recovery & recycle bin authority.
 const checkOwnerOrAdminPrivilege = async (user, actionDesc = 'perform this action') => {
-  if (user?.role === 'developer') return true;
-  if (user?.role === 'admin') {
-    const Setting = require('../models/Setting');
-    const settings = await Setting.findOne().lean();
-    const adminAllowed = Boolean(
-      settings?.allowAdminVoidDelete ||
-      settings?.rolePermissions?.voidTransactions?.admin
-    );
-    if (adminAllowed) return true;
-    const err = new Error(
-      `Access denied: System Developer & Owner has not granted Admin permission to ${actionDesc}. Please contact the Developer/Owner to enable Admin void/delete/restore privileges.`
-    );
-    err.statusCode = 403;
-    throw err;
-  }
-  const err = new Error(`Access denied: Only System Developer & Owner or authorized Admin can ${actionDesc}.`);
+  if (user?.role === 'developer' || user?.role === 'admin') return true;
+  const err = new Error(`Access denied: Only System Developer/Owner and Admin can ${actionDesc}.`);
   err.statusCode = 403;
   throw err;
 };
@@ -51,6 +40,10 @@ const getRecycleBin = asyncHandler(async (req, res) => {
     stockRequests,
     employees,
     customers,
+    categories,
+    inventoryCounts,
+    salesRecords,
+    users,
   ] = await Promise.all([
     RawMaterial.find({
       $or: [{ isActive: false, deletedAt: { $ne: null } }, { deletedAt: { $ne: null } }],
@@ -97,6 +90,17 @@ const getRecycleBin = asyncHandler(async (req, res) => {
     Customer.find({
       $or: [{ isActive: false, deletedAt: { $ne: null } }, { deletedAt: { $ne: null } }],
     }).lean().catch(() => []),
+
+    Category.find({ deletedAt: { $ne: null } }).lean().catch(() => []),
+
+    InventoryCount.find({ deletedAt: { $ne: null } }).lean().catch(() => []),
+
+    SalesRecord.find({ deletedAt: { $ne: null } })
+      .populate('importedBy', 'name email')
+      .populate('stockTransaction', 'voucherNo status')
+      .lean().catch(() => []),
+
+    User.find({ deletedAt: { $ne: null } }).select('-password').lean().catch(() => []),
   ]);
 
   const items = [
@@ -124,7 +128,7 @@ const getRecycleBin = asyncHandler(async (req, res) => {
     ...transactions.map((t) => ({
       ...t,
       _type: 'transaction',
-      _typeLabel: 'Stock Transaction',
+      _typeLabel: t.voucherType === 'credit_sale' ? 'Credit Sale' : (t.voucherType === 'cash_sale' ? 'Cash Sale' : 'Stock Transaction'),
       deletedAt: t.deletedAt || t.updatedAt,
       isVoided: t.status === 'voided',
     })),
@@ -161,6 +165,37 @@ const getRecycleBin = asyncHandler(async (req, res) => {
       _type: 'customer',
       _typeLabel: 'Customer',
       deletedAt: c.deletedAt || c.updatedAt,
+      isVoided: false,
+    })),
+    ...categories.map((cat) => ({
+      ...cat,
+      _type: 'category',
+      _typeLabel: 'Category',
+      deletedAt: cat.deletedAt || cat.updatedAt,
+      isVoided: false,
+    })),
+    ...inventoryCounts.map((cnt) => ({
+      ...cnt,
+      _type: 'inventoryCount',
+      _typeLabel: 'Inventory Count',
+      name: `${cnt.title || cnt.storeLocation} (${cnt.periodMonth}/${cnt.periodYear})`,
+      deletedAt: cnt.deletedAt || cnt.updatedAt,
+      isVoided: false,
+    })),
+    ...salesRecords.map((s) => ({
+      ...s,
+      _type: 'salesRecord',
+      _typeLabel: 'Sales Record',
+      name: `${s.reference || 'POS Sale'} — ETB ${Number(s.totalRevenue || 0).toLocaleString()}`,
+      deletedAt: s.deletedAt || s.updatedAt,
+      isVoided: false,
+    })),
+    ...users.map((u) => ({
+      ...u,
+      _type: 'user',
+      _typeLabel: 'Staff Account',
+      name: `${u.name} (${u.role})`,
+      deletedAt: u.deletedAt || u.updatedAt,
       isVoided: false,
     })),
   ].sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
@@ -254,10 +289,18 @@ const restoreItem = asyncHandler(async (req, res) => {
     });
     await doc.save();
 
+    // If companion SalesRecord exists, restore it to origin as well
+    try {
+      await SalesRecord.updateMany(
+        { stockTransaction: doc._id },
+        { deletedAt: null, deletedBy: null, deletedFrom: null }
+      );
+    } catch { }
+
     tg.notifyRestored('Transaction', doc.voucherNo || doc._id.toString().slice(-6), req.user);
     invalidateDashboardCache();
     await logAudit({ req, action: 'RECYCLE_RESTORE', module: 'transaction', resourceId: id, resourceName: doc.voucherNo || String(id) });
-    return res.json({ message: `Transaction "${doc.voucherNo || id}" restored and stock re-applied.` });
+    return res.json({ message: `Transaction "${doc.voucherNo || id}" restored to origin.` });
   }
 
   if (type === 'purchase') {
@@ -353,6 +396,68 @@ const restoreItem = asyncHandler(async (req, res) => {
     return res.json({ message: `Customer "${doc.name}" restored.` });
   }
 
+  if (type === 'category') {
+    const doc = await Category.findById(id);
+    if (!doc) { res.status(404); throw new Error('Category not found'); }
+    doc.isActive = true;
+    doc.deletedAt = null;
+    doc.deletedBy = null;
+    doc.deletedFrom = null;
+    await doc.save();
+    invalidateDashboardCache();
+    await logAudit({ req, action: 'RECYCLE_RESTORE', module: 'category', resourceId: id, resourceName: doc.name });
+    return res.json({ message: `Category "${doc.name}" restored to origin.` });
+  }
+
+  if (type === 'inventoryCount') {
+    const doc = await InventoryCount.findById(id);
+    if (!doc) { res.status(404); throw new Error('Inventory count not found'); }
+    doc.deletedAt = null;
+    doc.deletedBy = null;
+    doc.deletedFrom = null;
+    await doc.save();
+    invalidateDashboardCache();
+    await logAudit({ req, action: 'RECYCLE_RESTORE', module: 'inventoryCount', resourceId: id, resourceName: doc.title || doc.storeLocation });
+    return res.json({ message: `Inventory count "${doc.title || doc.storeLocation}" restored to origin.` });
+  }
+
+  if (type === 'salesRecord') {
+    const doc = await SalesRecord.findById(id);
+    if (!doc) { res.status(404); throw new Error('Sales record not found'); }
+    doc.deletedAt = null;
+    doc.deletedBy = null;
+    doc.deletedFrom = null;
+    await doc.save();
+
+    // If companion stock transaction exists, unvoid and restore it
+    if (doc.stockTransaction) {
+      const txn = await StockTransaction.findById(doc.stockTransaction);
+      if (txn) {
+        if (txn.status === 'voided') txn.status = 'pending';
+        txn.deletedAt = null;
+        txn.deletedBy = null;
+        txn.deletedFrom = null;
+        await txn.save();
+      }
+    }
+    invalidateDashboardCache();
+    await logAudit({ req, action: 'RECYCLE_RESTORE', module: 'salesRecord', resourceId: id, resourceName: doc.reference || String(id) });
+    return res.json({ message: `Sales record "${doc.reference || id}" restored to origin.` });
+  }
+
+  if (type === 'user') {
+    const doc = await User.findById(id);
+    if (!doc) { res.status(404); throw new Error('User account not found'); }
+    doc.isActive = true;
+    doc.deletedAt = null;
+    doc.deletedBy = null;
+    doc.deletedFrom = null;
+    await doc.save();
+    invalidateDashboardCache();
+    await logAudit({ req, action: 'RECYCLE_RESTORE', module: 'user', resourceId: id, resourceName: doc.name });
+    return res.json({ message: `User account "${doc.name}" restored to origin.` });
+  }
+
   res.status(400);
   throw new Error(`Unknown type: ${type}`);
 });
@@ -372,6 +477,10 @@ const permanentDelete = asyncHandler(async (req, res) => {
     stockRequest: StockRequest,
     employee: Employee,
     customer: Customer,
+    category: Category,
+    inventoryCount: InventoryCount,
+    salesRecord: SalesRecord,
+    user: User,
   };
 
   const Model = modelMap[type];
@@ -382,7 +491,7 @@ const permanentDelete = asyncHandler(async (req, res) => {
   await doc.deleteOne();
   invalidateDashboardCache();
 
-  const name = doc.name || doc.voucherNo || doc.invoiceNumber || doc.firstName || String(id);
+  const name = doc.name || doc.voucherNo || doc.invoiceNumber || doc.firstName || doc.title || String(id);
   tg.notifyPermanentDeleted(type, name, req.user);
   notify.push({
     type: 'system',
@@ -412,6 +521,10 @@ const emptyRecycleBin = asyncHandler(async (req, res) => {
     StockRequest.deleteMany({ deletedAt: { $ne: null } }),
     Employee.deleteMany({ deletedAt: { $ne: null } }),
     Customer.deleteMany({ $or: [{ isActive: false }, { deletedAt: { $ne: null } }] }),
+    Category.deleteMany({ deletedAt: { $ne: null } }),
+    InventoryCount.deleteMany({ deletedAt: { $ne: null } }),
+    SalesRecord.deleteMany({ deletedAt: { $ne: null } }),
+    User.deleteMany({ deletedAt: { $ne: null } }),
   ]);
 
   invalidateDashboardCache();

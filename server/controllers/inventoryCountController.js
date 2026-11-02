@@ -103,7 +103,7 @@ exports.getStores = asyncHandler(async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 exports.listCounts = asyncHandler(async (req, res) => {
   const { year, month, store, status } = req.query;
-  const filter = {};
+  const filter = { deletedAt: null };
   if (year) filter.periodYear = Number(year);
   if (month) filter.periodMonth = Number(month);
   if (store) filter.storeLocation = store;
@@ -317,10 +317,10 @@ exports.approveCount = asyncHandler(async (req, res) => {
 exports.deleteCount = asyncHandler(async (req, res) => {
   const doc = await InventoryCount.findById(req.params.id);
   if (!doc) return res.status(404).json({ message: 'Count not found' });
-  if (doc.status !== 'draft') {
-    return res.status(400).json({ message: 'Only draft counts can be deleted' });
-  }
-  await doc.deleteOne();
-  res.json({ message: 'Count deleted' });
+  doc.deletedAt = new Date();
+  doc.deletedBy = req.user?.name || 'System';
+  doc.deletedFrom = 'inventory-count';
+  await doc.save();
+  res.json({ message: 'Count moved to recycle bin' });
 });
 

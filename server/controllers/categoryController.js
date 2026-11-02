@@ -31,7 +31,7 @@ const escapeRegex = (str) => String(str).replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\
 // GET /api/categories
 const getCategories = asyncHandler(async (req, res) => {
   const { search } = req.query;
-  const filter = { isActive: true };
+  const filter = { isActive: true, deletedAt: null };
   if (search) {
     const escaped = escapeRegex(search.trim());
     filter.name = { $regex: new RegExp(escaped, 'i') };
@@ -156,8 +156,12 @@ const deleteCategory = asyncHandler(async (req, res) => {
     );
   }
 
-  await category.deleteOne();
-  res.json({ message: `Category "${category.name}" removed successfully.` });
+  category.isActive = false;
+  category.deletedAt = new Date();
+  category.deletedBy = req.user?.name || 'System';
+  category.deletedFrom = 'categories';
+  await category.save();
+  res.json({ message: `Category "${category.name}" moved to recycle bin.` });
 });
 
 module.exports = {

@@ -64,6 +64,9 @@ const inventoryCountSchema = new mongoose.Schema(
     approvedAt:  { type: Date },
 
     notes: { type: String, default: '' },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: String, default: null },
+    deletedFrom: { type: String, default: null },
   },
   { timestamps: true }
 );

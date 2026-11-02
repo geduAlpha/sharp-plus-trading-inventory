@@ -22,6 +22,9 @@ const userSchema = new mongoose.Schema(
     // OTP fields for 2-step login
     otpHash:   { type: String, default: null },
     otpExpiry: { type: Date,   default: null },
+    deletedAt: { type: Date,   default: null },
+    deletedBy: { type: String, default: null },
+    deletedFrom: { type: String, default: null },
   },
   { timestamps: true }
 );

@@ -10,7 +10,7 @@ const getUsers = asyncHandler(async (req, res) => {
     return res.json(user ? [user] : []);
   }
 
-  const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+  const users = await User.find({ deletedAt: null }).select('-password').sort({ createdAt: -1 });
   res.json(users);
 });
 
@@ -190,8 +190,12 @@ const deleteUser = asyncHandler(async (req, res) => {
   });
 
   tg.notifyUserDeleted(user, req.user);
-  await user.deleteOne();
-  res.json({ message: 'User removed successfully' });
+  user.isActive = false;
+  user.deletedAt = new Date();
+  user.deletedBy = req.user?.name || 'System';
+  user.deletedFrom = 'users';
+  await user.save();
+  res.json({ message: 'User moved to recycle bin successfully' });
 });
 
 module.exports = { getUsers, updateUser, deleteUser };

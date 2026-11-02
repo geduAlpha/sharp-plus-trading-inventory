@@ -6,7 +6,7 @@ const StockTransaction = require('../models/StockTransaction');
 
 // ── Date match helper ──────────────────────────────────────────────────
 const buildDateMatch = (from, to) => {
-  const match = {};
+  const match = { deletedAt: null };
   if (from || to) {
     match.saleDate = {};
     if (from) {
@@ -388,13 +388,36 @@ const deleteSalesRecord = asyncHandler(async (req, res) => {
     throw new Error('Sales record not found');
   }
 
-  // If a stock transaction exists, optionally delete or leave audit
+  // If a linked stock transaction exists, move it to recycle bin and reverse stock if applied
   if (record.stockTransaction) {
-    await StockTransaction.findByIdAndDelete(record.stockTransaction);
+    const txn = await StockTransaction.findById(record.stockTransaction);
+    if (txn) {
+      if (txn.stockApplied) {
+        try {
+          const { reverseStockMovement } = require('../services/transactionService');
+          const items = txn.items?.length
+            ? txn.items
+            : [{ material: txn.material, quantity: txn.quantity, storeLocation: txn.storeLocation }];
+          await reverseStockMovement(items, txn.type || 'out', null, { defaultStore: txn.storeLocation });
+          txn.stockApplied = false;
+        } catch (rErr) {
+          console.warn('[Delete Sale] Could not reverse stock:', rErr.message);
+        }
+      }
+      txn.status = 'voided';
+      txn.deletedAt = new Date();
+      txn.deletedBy = req.user?.name || 'System';
+      txn.deletedFrom = 'sales';
+      await txn.save();
+    }
   }
 
-  await record.deleteOne();
-  res.json({ message: 'Sales record deleted successfully' });
+  record.deletedAt = new Date();
+  record.deletedBy = req.user?.name || 'System';
+  record.deletedFrom = 'sales';
+  await record.save();
+
+  res.json({ message: 'Sales record moved to recycle bin successfully' });
 });
 
 module.exports = {

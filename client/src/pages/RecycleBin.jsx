@@ -26,15 +26,19 @@ import { useAuth } from '../context/AuthContext';
 
 /* ── Type Configurations ─────────────────────────────────────────── */
 const TYPE_META = {
-  material:     { label: 'Item / Material',   icon: Boxes,          color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  supplier:     { label: 'Supplier',          icon: Truck,          color: 'bg-sky-50 text-sky-700 border-sky-200' },
-  product:      { label: 'Product',           icon: UtensilsCrossed,color: 'bg-violet-50 text-violet-700 border-violet-200' },
-  transaction:  { label: 'Transaction',       icon: ArrowLeftRight, color: 'bg-rose-50 text-rose-700 border-rose-200' },
-  purchase:     { label: 'Purchase Order',    icon: ShoppingBag,    color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  consumption:  { label: 'Consumption',       icon: UtensilsCrossed,color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  stockRequest: { label: 'Stock Request',     icon: ClipboardList,  color: 'bg-orange-50 text-orange-700 border-orange-200' },
-  employee:     { label: 'Employee',          icon: Users,          color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
-  customer:     { label: 'Customer',          icon: UserCheck,      color: 'bg-teal-50 text-teal-700 border-teal-200' },
+  material:       { label: 'Item / Material',   icon: Boxes,          color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  supplier:       { label: 'Supplier',          icon: Truck,          color: 'bg-sky-50 text-sky-700 border-sky-200' },
+  product:        { label: 'Product',           icon: UtensilsCrossed,color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  transaction:    { label: 'Transaction / Voided Voucher', icon: ArrowLeftRight, color: 'bg-rose-50 text-rose-700 border-rose-200' },
+  purchase:       { label: 'Purchase Order',    icon: ShoppingBag,    color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  consumption:    { label: 'Consumption',       icon: UtensilsCrossed,color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  stockRequest:   { label: 'Stock Request',     icon: ClipboardList,  color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  employee:       { label: 'Employee',          icon: Users,          color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  customer:       { label: 'Customer',          icon: UserCheck,      color: 'bg-teal-50 text-teal-700 border-teal-200' },
+  category:       { label: 'Category',          icon: ClipboardList,  color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' },
+  inventoryCount: { label: 'Inventory Count',   icon: FileText,       color: 'bg-lime-50 text-lime-700 border-lime-200' },
+  salesRecord:    { label: 'Sales Record',      icon: ShoppingBag,    color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  user:           { label: 'Staff Account',     icon: Users,          color: 'bg-blue-50 text-blue-700 border-blue-200' },
 };
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleString() : '—');
@@ -47,12 +51,11 @@ const itemName = (item) =>
   `${item._typeLabel} #${item._id?.slice(-6)}`;
 
 export default function RecycleBin() {
-  const { user, isDeveloper, hasRole, can, allowAdminVoidDelete } = useAuth();
+  const { user, isDeveloper, hasRole } = useAuth();
   const isDev = Boolean(isDeveloper || user?.role === 'developer');
-  const hasOwnerPrivilege = isDev || Boolean(allowAdminVoidDelete || can('voidTransactions'));
   const isAdmin = Boolean(hasRole('admin') || isDev);
-  const canRestore = hasOwnerPrivilege;
-  const canDeleteOrEmpty = hasOwnerPrivilege;
+  const canRestore = isAdmin;
+  const canDeleteOrEmpty = isAdmin;
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -313,43 +316,19 @@ export default function RecycleBin() {
 
           {isAdmin && (
             <button
-              onClick={() => {
-                if (!hasOwnerPrivilege) {
-                  showToast('Access Denied: System Developer & Owner has not granted Admin permission to void/delete all data.', 'error');
-                  return;
-                }
-                setShowDeleteAllModal(true);
-              }}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition shadow-2xs ${
-                hasOwnerPrivilege
-                  ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 cursor-pointer'
-                  : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
-              }`}
-              title={
-                hasOwnerPrivilege
-                  ? 'Move all active transactions and operational data to Recycle Bin safely'
-                  : 'Requires System Developer/Owner privilege'
-              }
+              onClick={() => setShowDeleteAllModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 px-3.5 py-2 text-xs font-bold transition shadow-2xs cursor-pointer"
+              title="Move all active transactions and operational data to Recycle Bin safely"
             >
-              <AlertTriangle size={14} className={hasOwnerPrivilege ? 'text-amber-600' : 'text-slate-400'} /> Void &amp; Move All Data to Bin
+              <AlertTriangle size={14} className="text-amber-600" /> Void &amp; Move All Data to Bin
             </button>
           )}
 
           {isAdmin && items.length > 0 && (
             <button
-              onClick={() => {
-                if (!canDeleteOrEmpty) {
-                  showToast('Access Denied: Owner privileges required to empty the Recycle Bin.', 'error');
-                  return;
-                }
-                handleEmptyBin();
-              }}
-              disabled={working || !canDeleteOrEmpty}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition shadow-2xs ${
-                canDeleteOrEmpty
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-75'
-              }`}
+              onClick={handleEmptyBin}
+              disabled={working}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 text-xs font-bold transition shadow-2xs cursor-pointer disabled:opacity-50"
             >
               <Trash size={14} /> Empty Bin
             </button>
@@ -358,56 +337,20 @@ export default function RecycleBin() {
       </div>
 
       {/* ── Security Policy Notification Card ── */}
-      <div
-        className={`rounded-2xl border p-4 shadow-2xs transition-all ${
-          hasOwnerPrivilege
-            ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
-            : 'border-amber-200 bg-amber-50/70 text-amber-950'
-        }`}
-      >
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 text-emerald-950 p-4 shadow-2xs transition-all">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 shrink-0">
-            {hasOwnerPrivilege ? (
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white">
-                <ShieldCheck size={18} />
-              </div>
-            ) : (
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-600 text-white">
-                <Lock size={16} />
-              </div>
-            )}
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white">
+              <ShieldCheck size={18} />
+            </div>
           </div>
           <div className="flex-1 text-xs leading-relaxed">
-            {isDev ? (
-              <>
-                <p className="font-extrabold text-sm text-emerald-900">
-                  Developer &amp; Owner Authorised Recovery Zone
-                </p>
-                <p className="text-emerald-800 mt-0.5">
-                  You are logged in with <strong>System Developer &amp; Owner</strong> privileges. You have exclusive
-                  rights to void/delete all system data, restore any soft-deleted records back to the active database, or empty the bin. Restored records automatically re-synchronize stock movements and origin views.
-                </p>
-              </>
-            ) : hasOwnerPrivilege ? (
-              <>
-                <p className="font-extrabold text-sm text-emerald-900">
-                  Admin Authorized — Operating Under Owner-Granted Privileges
-                </p>
-                <p className="text-emerald-800 mt-0.5">
-                  The System Developer &amp; Owner has granted you administrative authority to void transactions, move system data to the Recycle Bin, and restore records back to origin.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-extrabold text-sm text-amber-900">
-                  Access Restricted — Restoration Reserved for Developer/Owner
-                </p>
-                <p className="text-amber-800 mt-0.5">
-                  When administrators delete or void data, records are safely moved here and excluded from all active origin views and reports. Under system policy,{' '}
-                  <strong className="underline">only the System Developer &amp; Owner (or Admin with owner privileges)</strong> has authorization to restore records from the Recycle Bin.
-                </p>
-              </>
-            )}
+            <p className="font-extrabold text-sm text-emerald-900">
+              {isDev ? 'System Developer & Owner Authorized Recovery Zone' : 'Administrator Authorized Recovery Zone'}
+            </p>
+            <p className="text-emerald-800 mt-0.5">
+              Every voided or soft-deleted action across the entire system (sales, stock transactions, items, products, categories, suppliers, inventory counts, and accounts) is safely archived here and removed from active views. As an authorized <strong>System Owner or Administrator</strong>, you can review and restore any record back to its active origin at any time.
+            </p>
           </div>
         </div>
       </div>

@@ -124,8 +124,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
     update: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },
   recycleBin: {
-    view: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
-    read: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+    view: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+    read: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
     restore: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
     delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
   },

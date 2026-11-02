@@ -45,6 +45,9 @@ const salesRecordSchema = new mongoose.Schema(
     stockTransaction: { type: mongoose.Schema.Types.ObjectId, ref: 'StockTransaction', default: null },
 
     importedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    deletedAt:     { type: Date, default: null },
+    deletedBy:     { type: String, default: null },
+    deletedFrom:   { type: String, default: null },
   },
   { timestamps: true }
 );
