@@ -378,24 +378,6 @@ export const DEFAULT_SIDEBAR_CONFIG = [
           },
         ],
       },
-      {
-        id: 'stockManagementVoucherReportDirect',
-        label: 'Stock Management Voucher Report',
-        to: '/sub-system/stock-management-voucher-report',
-        icon: 'AssessmentRounded',
-        iconType: 'mui',
-        order: 3,
-        visible: true,
-      },
-      {
-        id: 'salesMarketingVoucherReportDirect',
-        label: 'Sales & Marketing Voucher Report',
-        to: '/sub-system/sales-marketing-voucher-report',
-        icon: 'ReceiptLongRounded',
-        iconType: 'mui',
-        order: 4,
-        visible: true,
-      },
     ]
   },
   {
@@ -538,24 +520,6 @@ export const sanitizeSidebarConfig = (config) => {
             },
           ],
         },
-        {
-          id: 'stockManagementVoucherReportDirect',
-          label: 'Stock Management Voucher Report',
-          to: '/sub-system/stock-management-voucher-report',
-          icon: 'AssessmentRounded',
-          iconType: 'mui',
-          order: 3,
-          visible: true,
-        },
-        {
-          id: 'salesMarketingVoucherReportDirect',
-          label: 'Sales & Marketing Voucher Report',
-          to: '/sub-system/sales-marketing-voucher-report',
-          icon: 'ReceiptLongRounded',
-          iconType: 'mui',
-          order: 4,
-          visible: true,
-        },
       ],
     };
     const salesIdx = sanitized.findIndex((i) => i.id === 'salesMarketing');
@@ -657,37 +621,13 @@ export const sanitizeSidebarConfig = (config) => {
         });
       }
 
-      // 3. Ensure direct shortcuts exist
-      const hasStockDirect = kids.some((c) => !c.isGroup && (c.id === 'stockManagementVoucherReportDirect' || c.to === '/sub-system/stock-management-voucher-report'));
-      if (!hasStockDirect) {
-        kids.push({
-          id: 'stockManagementVoucherReportDirect',
-          label: 'Stock Management Voucher Report',
-          to: '/sub-system/stock-management-voucher-report',
-          icon: 'AssessmentRounded',
-          iconType: 'mui',
-          order: 3,
-          visible: true,
-        });
-      }
-
-      const hasSalesDirect = kids.some((c) => !c.isGroup && (c.id === 'salesMarketingVoucherReport' || c.id === 'salesMarketingVoucherReportDirect' || c.to === '/sub-system/sales-marketing-voucher-report'));
-      if (!hasSalesDirect) {
-        kids.push({
-          id: 'salesMarketingVoucherReportDirect',
-          label: 'Sales & Marketing Voucher Report',
-          to: '/sub-system/sales-marketing-voucher-report',
-          icon: 'ReceiptLongRounded',
-          iconType: 'mui',
-          order: 4,
-          visible: true,
-        });
-      }
+      // 3. Remove direct loose items under Sub System so only sub-system groups are shown
+      const cleanKids = kids.filter((c) => c.isGroup);
 
       return {
         ...item,
         isGroup: true,
-        children: kids,
+        children: cleanKids,
       };
     }
     return item;

@@ -1665,3 +1665,4 @@ export default function StockManagementVoucherReport() {
     </div>
   );
 }
+
