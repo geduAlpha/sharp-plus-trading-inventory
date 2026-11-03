@@ -26,6 +26,7 @@ import CreditSales from './pages/CreditSales';
 import RegisterCompany from './pages/RegisterCompany';
 import DeveloperConsole from './pages/DeveloperConsole';
 import ModuleGuard from './components/ModuleGuard';
+import SalesMarketingVoucherReport from './pages/SalesMarketingVoucherReport';
 
 function App() {
   return (
@@ -102,6 +103,16 @@ function App() {
             <Route path="/reports/neg-adjustment" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="neg_adjustment" /></ProtectedRoute>} />
             <Route path="/reports/stock-levels" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="stock" /></ProtectedRoute>} />
             <Route path="/reports/purchases" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="purchases" /></ProtectedRoute>} />
+            <Route
+              path="/sub-system/sales-marketing-voucher-report"
+              element={
+                <ProtectedRoute>
+                  <SalesMarketingVoucherReport />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/sub-system/sales-vouchers" element={<Navigate to="/sub-system/sales-marketing-voucher-report" replace />} />
+            <Route path="/sub-system" element={<Navigate to="/sub-system/sales-marketing-voucher-report" replace />} />
             <Route
               path="/users"
               element={

@@ -328,6 +328,27 @@ export const DEFAULT_SIDEBAR_CONFIG = [
     ]
   },
   {
+    id: 'subSystem',
+    label: 'Sub System',
+    icon: 'LayersRounded',
+    iconType: 'mui',
+    section: 'operations',
+    isGroup: true,
+    order: 5.5,
+    visible: true,
+    children: [
+      {
+        id: 'salesMarketingVoucherReport',
+        label: 'Sales & Marketing Voucher Report',
+        to: '/sub-system/sales-marketing-voucher-report',
+        icon: 'ReceiptLongRounded',
+        iconType: 'mui',
+        order: 1,
+        visible: true,
+      },
+    ]
+  },
+  {
     id: 'reports',
     label: 'Reports',
     icon: 'AssessmentRounded',
@@ -390,7 +411,7 @@ export const sanitizeSidebarConfig = (config) => {
   const avoidedIds = ['movements_disposal', 'consumption', 'report_disposal'];
   const heldSubIds = ['report_inventory_count', 'movements_all', 'stock_requests'];
 
-  return config.map((item) => {
+  const sanitized = config.map((item) => {
     const isAvoided = avoidedIds.includes(item.id) || item.to === '/transactions/disposal' || item.to === '/consumption' || item.to === '/reports/disposal';
     let children = item.children;
     if (Array.isArray(children)) {
@@ -412,6 +433,65 @@ export const sanitizeSidebarConfig = (config) => {
       ...(isAvoided ? { visible: false } : {}),
       ...(children ? { children } : {}),
     };
+  });
+
+  // Ensure "Sub System" -> "Sales & Marketing Voucher Report" is present
+  const subSystemExists = sanitized.some((i) => i.id === 'subSystem' || i.label === 'Sub System');
+  if (!subSystemExists) {
+    const subSystemEntry = {
+      id: 'subSystem',
+      label: 'Sub System',
+      icon: 'LayersRounded',
+      iconType: 'mui',
+      section: 'operations',
+      isGroup: true,
+      order: 5.5,
+      visible: true,
+      children: [
+        {
+          id: 'salesMarketingVoucherReport',
+          label: 'Sales & Marketing Voucher Report',
+          to: '/sub-system/sales-marketing-voucher-report',
+          icon: 'ReceiptLongRounded',
+          iconType: 'mui',
+          order: 1,
+          visible: true,
+        },
+      ],
+    };
+    const salesIdx = sanitized.findIndex((i) => i.id === 'salesMarketing');
+    if (salesIdx !== -1) {
+      sanitized.splice(salesIdx + 1, 0, subSystemEntry);
+    } else {
+      sanitized.push(subSystemEntry);
+    }
+    return sanitized;
+  }
+
+  return sanitized.map((item) => {
+    if (item.id === 'subSystem' || item.label === 'Sub System') {
+      const kids = Array.isArray(item.children) ? [...item.children] : [];
+      const hasVoucherReport = kids.some(
+        (c) => c.id === 'salesMarketingVoucherReport' || c.to === '/sub-system/sales-marketing-voucher-report'
+      );
+      if (!hasVoucherReport) {
+        kids.push({
+          id: 'salesMarketingVoucherReport',
+          label: 'Sales & Marketing Voucher Report',
+          to: '/sub-system/sales-marketing-voucher-report',
+          icon: 'ReceiptLongRounded',
+          iconType: 'mui',
+          order: 1,
+          visible: true,
+        });
+      }
+      return {
+        ...item,
+        isGroup: true,
+        children: kids,
+      };
+    }
+    return item;
   });
 };
 
