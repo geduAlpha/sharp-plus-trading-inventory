@@ -26,6 +26,7 @@ const VOUCHER_TYPES = [
   'credit_sale',
   'cash_sales',
   'credit_sales',
+  'zeroing',
 ];
 
 // Direction each voucher type moves stock
@@ -43,6 +44,7 @@ const VOUCHER_DIRECTION = {
   credit_sale:    'out',
   cash_sales:     'out',
   credit_sales:   'out',
+  zeroing:        'out',
 };
 
 const lineItemSchema = new mongoose.Schema(
@@ -178,6 +180,7 @@ const stockTransactionSchema = new mongoose.Schema(
     isVatInclusive:  { type: Boolean, default: true },
     fsNo:            { type: String, trim: true, default: '' },
     fsNumber:        { type: Number, default: 0 },
+    mrc:             { type: String, trim: true, default: '' },
     // Recycle bin fields
     deletedAt:   { type: Date, default: null },
     deletedBy:   { type: String, default: null },

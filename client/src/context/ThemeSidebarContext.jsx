@@ -338,12 +338,32 @@ export const DEFAULT_SIDEBAR_CONFIG = [
     visible: true,
     children: [
       {
-        id: 'salesMarketingVoucherReport',
+        id: 'subsystem_sales_marketing',
+        label: 'Sales and Marketing Management System',
+        icon: 'PointOfSaleRounded',
+        iconType: 'mui',
+        isGroup: true,
+        order: 1,
+        visible: true,
+        children: [
+          {
+            id: 'salesMarketingVoucherReport',
+            label: 'Sales & Marketing Voucher Report',
+            to: '/sub-system/sales-marketing-voucher-report',
+            icon: 'ReceiptLongRounded',
+            iconType: 'mui',
+            order: 1,
+            visible: true,
+          },
+        ],
+      },
+      {
+        id: 'salesMarketingVoucherReportDirect',
         label: 'Sales & Marketing Voucher Report',
         to: '/sub-system/sales-marketing-voucher-report',
         icon: 'ReceiptLongRounded',
         iconType: 'mui',
-        order: 1,
+        order: 2,
         visible: true,
       },
     ]
@@ -435,7 +455,7 @@ export const sanitizeSidebarConfig = (config) => {
     };
   });
 
-  // Ensure "Sub System" -> "Sales & Marketing Voucher Report" is present
+  // Ensure "Sub System" -> "Sales and Marketing Management System" -> "Sales & Marketing Voucher Report" is present
   const subSystemExists = sanitized.some((i) => i.id === 'subSystem' || i.label === 'Sub System');
   if (!subSystemExists) {
     const subSystemEntry = {
@@ -449,12 +469,32 @@ export const sanitizeSidebarConfig = (config) => {
       visible: true,
       children: [
         {
-          id: 'salesMarketingVoucherReport',
+          id: 'subsystem_sales_marketing',
+          label: 'Sales and Marketing Management System',
+          icon: 'PointOfSaleRounded',
+          iconType: 'mui',
+          isGroup: true,
+          order: 1,
+          visible: true,
+          children: [
+            {
+              id: 'salesMarketingVoucherReport',
+              label: 'Sales & Marketing Voucher Report',
+              to: '/sub-system/sales-marketing-voucher-report',
+              icon: 'ReceiptLongRounded',
+              iconType: 'mui',
+              order: 1,
+              visible: true,
+            },
+          ],
+        },
+        {
+          id: 'salesMarketingVoucherReportDirect',
           label: 'Sales & Marketing Voucher Report',
           to: '/sub-system/sales-marketing-voucher-report',
           icon: 'ReceiptLongRounded',
           iconType: 'mui',
-          order: 1,
+          order: 2,
           visible: true,
         },
       ],
@@ -471,17 +511,38 @@ export const sanitizeSidebarConfig = (config) => {
   return sanitized.map((item) => {
     if (item.id === 'subSystem' || item.label === 'Sub System') {
       const kids = Array.isArray(item.children) ? [...item.children] : [];
-      const hasVoucherReport = kids.some(
-        (c) => c.id === 'salesMarketingVoucherReport' || c.to === '/sub-system/sales-marketing-voucher-report'
-      );
-      if (!hasVoucherReport) {
+      const hasSubsystemGroup = kids.some((c) => c.id === 'subsystem_sales_marketing' || c.label === 'Sales and Marketing Management System');
+      if (!hasSubsystemGroup) {
+        kids.unshift({
+          id: 'subsystem_sales_marketing',
+          label: 'Sales and Marketing Management System',
+          icon: 'PointOfSaleRounded',
+          iconType: 'mui',
+          isGroup: true,
+          order: 1,
+          visible: true,
+          children: [
+            {
+              id: 'salesMarketingVoucherReport',
+              label: 'Sales & Marketing Voucher Report',
+              to: '/sub-system/sales-marketing-voucher-report',
+              icon: 'ReceiptLongRounded',
+              iconType: 'mui',
+              order: 1,
+              visible: true,
+            },
+          ],
+        });
+      }
+      const hasDirect = kids.some((c) => !c.isGroup && (c.id === 'salesMarketingVoucherReport' || c.id === 'salesMarketingVoucherReportDirect' || c.to === '/sub-system/sales-marketing-voucher-report'));
+      if (!hasDirect) {
         kids.push({
-          id: 'salesMarketingVoucherReport',
+          id: 'salesMarketingVoucherReportDirect',
           label: 'Sales & Marketing Voucher Report',
           to: '/sub-system/sales-marketing-voucher-report',
           icon: 'ReceiptLongRounded',
           iconType: 'mui',
-          order: 1,
+          order: 2,
           visible: true,
         });
       }

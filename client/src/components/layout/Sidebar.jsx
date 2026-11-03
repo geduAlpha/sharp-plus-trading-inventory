@@ -250,8 +250,9 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     return accentHex;
   };
 
-  // Accordion state
+  // Accordion state (top-level and sub-level)
   const [openMenu, setOpenMenu] = useState(null);
+  const [openSubMenu, setOpenSubMenu] = useState(null);
 
   // Auto-detect which group is active on initial load or route change
   React.useEffect(() => {
@@ -262,15 +263,23 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
         item.children?.some(
           (c) =>
             currentPath === c.to ||
-            (c.to !== '/' && currentPath.startsWith(c.to))
+            (c.to !== '/' && currentPath.startsWith(c.to)) ||
+            (c.isGroup && c.children?.some(sc => currentPath === sc.to || (sc.to !== '/' && currentPath.startsWith(sc.to))))
         )
     );
     if (matchingGroup) {
       setOpenMenu(matchingGroup.id);
+      const matchingSub = matchingGroup.children?.find(
+        (c) => c.isGroup && c.children?.some(sc => currentPath === sc.to || (sc.to !== '/' && currentPath.startsWith(sc.to)))
+      );
+      if (matchingSub) {
+        setOpenSubMenu(matchingSub.id);
+      }
     }
   }, [location.pathname, activeSidebar]);
 
   const toggleMenu = (key) => setOpenMenu((prev) => (prev === key ? null : key));
+  const toggleSubMenu = (key) => setOpenSubMenu((prev) => (prev === key ? null : key));
 
   // Sort top-level items by order
   const sortedSidebar = useMemo(() => {
@@ -336,15 +345,19 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     return { main, operations, admin };
   }, [sortedSidebar, canDisplayItem, modulesEnabled, isDev]);
 
-  // Check if a group currently has an active child
+  // Check if a group currently has an active child (including nested sub-groups)
   const isGroupActive = (item) => {
     if (!item.children) return false;
     return item.children.some(
       (c) =>
-        !isItemOnHold(c) && (
+        (!isItemOnHold(c) && (
           location.pathname === c.to ||
           (c.to !== '/' && location.pathname.startsWith(c.to))
-        )
+        )) ||
+        (c.isGroup && c.children?.some(sc => !isItemOnHold(sc) && (
+          location.pathname === sc.to ||
+          (sc.to !== '/' && location.pathname.startsWith(sc.to))
+        )))
     );
   };
 
@@ -465,7 +478,8 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     if (visibleChildren.length === 0) return null;
 
     if (collapsed) {
-      const firstActiveChild = visibleChildren.find((c) => !isItemOnHold(c)) || visibleChildren[0];
+      const allLeaves = visibleChildren.flatMap(c => c.isGroup ? (c.children || []) : [c]);
+      const firstActiveChild = allLeaves.find((c) => !isItemOnHold(c)) || allLeaves[0];
       return (
         <NavLink
           key={group.id}
@@ -500,6 +514,84 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
         accentHex={groupColor}
       >
         {visibleChildren.map((sub) => {
+          // Render Nested Sub-Accordion (e.g. Subsystems -> Sales and Marketing Management System)
+          if (sub.isGroup && sub.children?.length > 0) {
+            const visibleKids = sub.children.filter(canDisplayItem);
+            if (visibleKids.length === 0) return null;
+            const isSubActive = visibleKids.some(
+              (c) => location.pathname === c.to || (c.to !== '/' && location.pathname.startsWith(c.to))
+            );
+            const isSubOpen = openSubMenu === sub.id || isSubActive;
+
+            return (
+              <div key={sub.id} className="mt-1 space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => toggleSubMenu(sub.id)}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    isSubActive
+                      ? isDark
+                        ? 'bg-white/10 text-white font-bold'
+                        : 'bg-indigo-50/90 text-indigo-900 font-bold'
+                      : isDark
+                      ? 'text-slate-300 hover:bg-white/5 hover:text-white'
+                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full transition-colors shrink-0 ${
+                        isSubActive ? 'bg-indigo-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
+                      }`}
+                    />
+                    <MuiIconResolver name={sub.icon} size={Math.max(12, resolvedIconSize - 3)} className="shrink-0 text-slate-400" />
+                    <span className="truncate">{sub.label}</span>
+                  </div>
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform duration-200 text-slate-400 shrink-0 ${isSubOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {isSubOpen && (
+                  <div className={`ml-3.5 pl-2 space-y-0.5 border-l-2 ${isDark ? 'border-slate-800' : 'border-slate-200/80'}`}>
+                    {visibleKids.map((kid) => (
+                      <NavLink
+                        key={kid.id}
+                        to={kid.to}
+                        end={Boolean(kid.exact)}
+                        onClick={onClose}
+                        className={({ isActive }) =>
+                          `group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-all duration-150 ${
+                            isActive
+                              ? isDark
+                                ? 'bg-white/15 text-white font-bold'
+                                : 'bg-indigo-50 text-indigo-700 font-bold'
+                              : isDark
+                              ? 'text-slate-400 hover:bg-white/5 hover:text-white font-medium'
+                              : 'text-slate-500 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
+                          }`
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full transition-colors shrink-0 ${
+                                isActive ? 'bg-indigo-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
+                              }`}
+                              style={isActive ? { backgroundColor: groupColor } : undefined}
+                            />
+                            <MuiIconResolver name={kid.icon} size={Math.max(11, resolvedIconSize - 4)} className="shrink-0" />
+                            <span className="truncate">{kid.label}</span>
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           const isHeld = isItemOnHold(sub);
 
           if (isHeld) {

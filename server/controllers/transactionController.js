@@ -147,7 +147,7 @@ const getTransactions = asyncHandler(async (req, res) => {
   }
 
   if (voucherType === 'sales') {
-    filter.voucherType = { $in: ['cash_sale', 'credit_sale'] };
+    filter.voucherType = { $in: ['cash_sale', 'credit_sale', 'cash_sales', 'credit_sales', 'zeroing', 'sales_import'] };
   } else if (voucherType) {
     filter.voucherType = voucherType;
   }
@@ -474,6 +474,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     voucherNo: assignedVoucherNo,
     fsNo: assignedFsNo,
     fsNumber: assignedFsNumber,
+    mrc: req.body.mrc || 'SPM00000189',
     supplier:  supplier || undefined,
     employee:  assignedEmployee || undefined,
     employeeName: assignedEmployeeName,
