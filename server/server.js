@@ -202,6 +202,9 @@ app.use('/api/employees', require('./routes/employeeRoutes'));
 app.use('/api/stock-requests', require('./routes/stockRequestRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/sales-closing', require('./routes/salesClosingRoutes'));
+app.use('/api/sales-routes', require('./routes/salesRouteRoutes'));
+app.use('/api/sales-security', require('./routes/salesSecurityRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
 app.use('/api/backup', require('./routes/backupRoutes'));
 

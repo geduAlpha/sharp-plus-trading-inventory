@@ -28,6 +28,7 @@ import DeveloperConsole from './pages/DeveloperConsole';
 import ModuleGuard from './components/ModuleGuard';
 import SalesMarketingVoucherReport from './pages/SalesMarketingVoucherReport';
 import StockManagementVoucherReport from './pages/StockManagementVoucherReport';
+import SalesMarketingSubsystem from './pages/SalesMarketingSubsystem';
 
 function App() {
   return (
@@ -112,6 +113,14 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Sales & Marketing Subsystem 6 Functional Menus */}
+            <Route path="/sub-system/sales-marketing" element={<Navigate to="/sub-system/sales-marketing/cash-sales" replace />} />
+            <Route path="/sub-system/sales-marketing/cash-sales" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
+            <Route path="/sub-system/sales-marketing/credit-sales" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
+            <Route path="/sub-system/sales-marketing/zeroing-voucher" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
+            <Route path="/sub-system/sales-marketing/security-report" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
+            <Route path="/sub-system/sales-marketing/sales-closing" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
+            <Route path="/sub-system/sales-marketing/sales-route-mapping" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
             <Route
               path="/sub-system/stock-management-voucher-report"
               element={

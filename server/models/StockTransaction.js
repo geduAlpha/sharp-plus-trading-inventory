@@ -185,6 +185,24 @@ const stockTransactionSchema = new mongoose.Schema(
     fsNo:            { type: String, trim: true, default: '' },
     fsNumber:        { type: Number, default: 0 },
     mrc:             { type: String, trim: true, default: '' },
+    // Cross-module unified transaction workflow fields
+    assignedRoute:   { type: String, trim: true, default: 'Default Route' },
+    zeroedRef:       { type: String, trim: true, default: '' },
+    isZeroed:        { type: Boolean, default: false },
+    zeroedAt:        { type: Date, default: null },
+    zeroedBy:        { type: String, default: null },
+    zeroingReason:   { type: String, default: '' },
+    salesClosingSession: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesClosing', default: null },
+    collectionPayments: [
+      {
+        amount:        { type: Number, required: true },
+        date:          { type: Date, default: Date.now },
+        receivedBy:    { type: String, default: 'Cashier' },
+        paymentMethod: { type: String, default: 'Cash' },
+        note:          { type: String, default: '' },
+        reference:     { type: String, default: '' },
+      },
+    ],
     // Recycle bin fields
     deletedAt:   { type: Date, default: null },
     deletedBy:   { type: String, default: null },

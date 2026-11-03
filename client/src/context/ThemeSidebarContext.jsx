@@ -368,12 +368,57 @@ export const DEFAULT_SIDEBAR_CONFIG = [
         visible: true,
         children: [
           {
-            id: 'salesMarketingVoucherReport',
-            label: 'Sales & Marketing Voucher Report',
-            to: '/sub-system/sales-marketing-voucher-report',
-            icon: 'ReceiptLongRounded',
+            id: 'subsystem_cash_sales',
+            label: 'Cash Sales Voucher',
+            to: '/sub-system/sales-marketing/cash-sales',
+            icon: 'PaymentsRounded',
             iconType: 'mui',
             order: 1,
+            visible: true,
+          },
+          {
+            id: 'subsystem_credit_sales',
+            label: 'Credit Sales Voucher',
+            to: '/sub-system/sales-marketing/credit-sales',
+            icon: 'ReceiptLongRounded',
+            iconType: 'mui',
+            order: 2,
+            visible: true,
+          },
+          {
+            id: 'subsystem_zeroing_voucher',
+            label: 'Zeroing Voucher',
+            to: '/sub-system/sales-marketing/zeroing-voucher',
+            icon: 'RotateLeftRounded',
+            iconType: 'mui',
+            order: 3,
+            visible: true,
+          },
+          {
+            id: 'subsystem_security_report',
+            label: 'Security Report',
+            to: '/sub-system/sales-marketing/security-report',
+            icon: 'SecurityRounded',
+            iconType: 'mui',
+            order: 4,
+            visible: true,
+          },
+          {
+            id: 'subsystem_sales_closing',
+            label: 'Sales Closing',
+            to: '/sub-system/sales-marketing/sales-closing',
+            icon: 'FactCheckRounded',
+            iconType: 'mui',
+            order: 5,
+            visible: true,
+          },
+          {
+            id: 'subsystem_sales_route_mapping',
+            label: 'Sales Route Mapping',
+            to: '/sub-system/sales-marketing/sales-route-mapping',
+            icon: 'AltRouteRounded',
+            iconType: 'mui',
+            order: 6,
             visible: true,
           },
         ],
@@ -509,15 +554,12 @@ export const sanitizeSidebarConfig = (config) => {
           order: 2,
           visible: true,
           children: [
-            {
-              id: 'salesMarketingVoucherReport',
-              label: 'Sales & Marketing Voucher Report',
-              to: '/sub-system/sales-marketing-voucher-report',
-              icon: 'ReceiptLongRounded',
-              iconType: 'mui',
-              order: 1,
-              visible: true,
-            },
+            { id: 'subsystem_cash_sales', label: 'Cash Sales Voucher', to: '/sub-system/sales-marketing/cash-sales', icon: 'PaymentsRounded', iconType: 'mui', order: 1, visible: true },
+            { id: 'subsystem_credit_sales', label: 'Credit Sales Voucher', to: '/sub-system/sales-marketing/credit-sales', icon: 'ReceiptLongRounded', iconType: 'mui', order: 2, visible: true },
+            { id: 'subsystem_zeroing_voucher', label: 'Zeroing Voucher', to: '/sub-system/sales-marketing/zeroing-voucher', icon: 'RotateLeftRounded', iconType: 'mui', order: 3, visible: true },
+            { id: 'subsystem_security_report', label: 'Security Report', to: '/sub-system/sales-marketing/security-report', icon: 'SecurityRounded', iconType: 'mui', order: 4, visible: true },
+            { id: 'subsystem_sales_closing', label: 'Sales Closing', to: '/sub-system/sales-marketing/sales-closing', icon: 'FactCheckRounded', iconType: 'mui', order: 5, visible: true },
+            { id: 'subsystem_sales_route_mapping', label: 'Sales Route Mapping', to: '/sub-system/sales-marketing/sales-route-mapping', icon: 'AltRouteRounded', iconType: 'mui', order: 6, visible: true },
           ],
         },
       ],
@@ -596,9 +638,18 @@ export const sanitizeSidebarConfig = (config) => {
         }
       }
 
-      // 2. Ensure subsystem_sales_marketing exists
-      const hasSalesSubsystem = kids.some((c) => c.id === 'subsystem_sales_marketing' || c.label === 'Sales and Marketing Management System');
-      if (!hasSalesSubsystem) {
+      // 2. Ensure subsystem_sales_marketing exists with all 6 functional menus
+      const targetSalesKids = [
+        { id: 'subsystem_cash_sales', label: 'Cash Sales Voucher', to: '/sub-system/sales-marketing/cash-sales', icon: 'PaymentsRounded', iconType: 'mui', order: 1, visible: true },
+        { id: 'subsystem_credit_sales', label: 'Credit Sales Voucher', to: '/sub-system/sales-marketing/credit-sales', icon: 'ReceiptLongRounded', iconType: 'mui', order: 2, visible: true },
+        { id: 'subsystem_zeroing_voucher', label: 'Zeroing Voucher', to: '/sub-system/sales-marketing/zeroing-voucher', icon: 'RotateLeftRounded', iconType: 'mui', order: 3, visible: true },
+        { id: 'subsystem_security_report', label: 'Security Report', to: '/sub-system/sales-marketing/security-report', icon: 'SecurityRounded', iconType: 'mui', order: 4, visible: true },
+        { id: 'subsystem_sales_closing', label: 'Sales Closing', to: '/sub-system/sales-marketing/sales-closing', icon: 'FactCheckRounded', iconType: 'mui', order: 5, visible: true },
+        { id: 'subsystem_sales_route_mapping', label: 'Sales Route Mapping', to: '/sub-system/sales-marketing/sales-route-mapping', icon: 'AltRouteRounded', iconType: 'mui', order: 6, visible: true },
+      ];
+
+      const salesGroupIdx = kids.findIndex((c) => c.id === 'subsystem_sales_marketing' || c.label === 'Sales and Marketing Management System');
+      if (salesGroupIdx === -1) {
         kids.push({
           id: 'subsystem_sales_marketing',
           label: 'Sales and Marketing Management System',
@@ -607,18 +658,13 @@ export const sanitizeSidebarConfig = (config) => {
           isGroup: true,
           order: 2,
           visible: true,
-          children: [
-            {
-              id: 'salesMarketingVoucherReport',
-              label: 'Sales & Marketing Voucher Report',
-              to: '/sub-system/sales-marketing-voucher-report',
-              icon: 'ReceiptLongRounded',
-              iconType: 'mui',
-              order: 1,
-              visible: true,
-            },
-          ],
+          children: targetSalesKids,
         });
+      } else {
+        kids[salesGroupIdx] = {
+          ...kids[salesGroupIdx],
+          children: targetSalesKids,
+        };
       }
 
       // 3. Remove direct loose items under Sub System so only sub-system groups are shown

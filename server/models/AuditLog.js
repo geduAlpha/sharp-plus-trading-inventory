@@ -45,6 +45,10 @@ const auditLogSchema = new mongoose.Schema(
         'RECORD_RECOVERY',
         'MODULE_TOGGLE',
         'THEME_CHANGE',
+        'ZEROING',
+        'SALES_CLOSING',
+        'CREDIT_COLLECTION',
+        'SECURITY_ALERT',
       ],
     },
     module: {
@@ -67,6 +71,9 @@ const auditLogSchema = new mongoose.Schema(
         'recycleBin',
         'backup',
         'system',
+        'sales',
+        'salesMarketing',
+        'security',
       ],
     },
     resourceId: {
