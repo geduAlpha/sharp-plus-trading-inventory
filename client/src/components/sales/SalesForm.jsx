@@ -42,6 +42,8 @@ import {
   Sliders,
   ChevronRight,
   TrendingUp,
+  Ban,
+  Pencil,
 } from 'lucide-react';
 
 const formatETB = (n) =>
@@ -198,10 +200,95 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
   const [thermalBillOpen, setThermalBillOpen] = useState(false);
   const [currentBillSale, setCurrentBillSale] = useState(null);
 
-  // Recent Sales Table
+  // Recent Sales Table & Bulk Selection
   const [recentSales, setRecentSales] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [showRecentTable, setShowRecentTable] = useState(true);
+  const [selectedSales, setSelectedSales] = useState(new Set());
+  const [editingSale, setEditingSale] = useState(null);
+
+  // Handle start editing an existing sale voucher (Unrestricted for Developer & Admin)
+  const handleStartEditSale = (sale) => {
+    setEditingSale(sale);
+    const mode = sale.voucherType === 'credit_sale' ? 'credit_sale' : 'cash_sale';
+    setSalesMode(mode);
+    setVoucherNo(sale.voucherNo || '');
+    setReference(sale.reference || '');
+    setNotes(sale.notes || '');
+    setSelectedStore(sale.storeLocation || sale.store || 'Main Store');
+    if (sale.taxRate !== undefined) setTaxRate(sale.taxRate);
+    if (sale.isVatInclusive !== undefined) setIsVatInclusive(sale.isVatInclusive);
+    if (sale.amountPaid !== undefined) {
+      setAmountPaid(sale.amountPaid);
+      setCashReceived(sale.amountPaid ? String(sale.amountPaid) : '');
+    }
+    if (sale.customer) {
+      setSelectedCustomer(typeof sale.customer === 'object' ? sale.customer : { _id: sale.customer, name: sale.customerName });
+    } else if (sale.customerName) {
+      setSelectedCustomer({ name: sale.customerName });
+    }
+    if (Array.isArray(sale.items) && sale.items.length > 0) {
+      const mappedItems = sale.items.map((it) => {
+        const mat = it.material || {};
+        const matId = typeof mat === 'object' ? mat._id : mat;
+        const liveMat = materials.find((m) => String(m._id) === String(matId));
+        return {
+          material: matId || '',
+          code: liveMat?.code || mat.code || it.code || '',
+          description: liveMat?.name || mat.name || it.description || 'Item',
+          category: liveMat?.category || mat.category || '',
+          uom: liveMat?.unit || mat.unit || it.uom || 'Pcs',
+          currentStock: liveMat?.currentStock ?? 0,
+          quantity: Number(it.quantity) || 1,
+          sellingPrice: Number(it.sellingPrice ?? it.unitCost ?? 0),
+          discount: Number(it.discount) || 0,
+          discountType: it.discountType || 'percent',
+          total: Number(it.totalCost ?? (Number(it.quantity) * Number(it.sellingPrice || 0))),
+        };
+      });
+      setItems(mappedItems);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEditSale = () => {
+    setEditingSale(null);
+    fetchNextVoucherNo(salesMode);
+    setReference('');
+    setNotes('');
+    setCashReceived('');
+    setSelectedCustomer(null);
+    setItems([
+      {
+        material: '',
+        code: '',
+        description: '',
+        category: '',
+        uom: '',
+        currentStock: 0,
+        quantity: 1,
+        sellingPrice: 0,
+        discount: 0,
+        discountType: 'percent',
+        total: 0,
+      },
+    ]);
+  };
+
+  const handleBulkDeleteSales = async () => {
+    if (!selectedSales.size) return;
+    if (!confirm(`Move ${selectedSales.size} selected sale voucher(s) to Recycle Bin?`)) return;
+    try {
+      await api.delete('/transactions/bulk', { data: { ids: Array.from(selectedSales) } });
+      setSelectedSales(new Set());
+      setWorkflowSuccessMsg(`${selectedSales.size} voucher(s) moved to Recycle Bin.`);
+      setTimeout(() => setWorkflowSuccessMsg(''), 5000);
+      loadRecentSales();
+      loadMaterials();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Bulk void failed');
+    }
+  };
 
   // ── Load System Settings, Customers, Materials, and Recent Sales ─────────
   const loadSettings = async () => {
@@ -773,9 +860,19 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
     };
 
     try {
-      const res = await api.post('/transactions', payload);
-      setSuccessVoucher(res.data);
-      setCurrentBillSale(res.data);
+      let savedSale = null;
+      if (editingSale) {
+        const res = await api.put(`/transactions/${editingSale._id}`, payload);
+        savedSale = res.data;
+        setEditingSale(null);
+        setWorkflowSuccessMsg(`Sale Voucher ${savedSale.voucherNo || ''} updated successfully!`);
+        setTimeout(() => setWorkflowSuccessMsg(''), 5000);
+      } else {
+        const res = await api.post('/transactions', payload);
+        savedSale = res.data;
+      }
+      setSuccessVoucher(savedSale);
+      setCurrentBillSale(savedSale);
 
       // Clear draft after successful posting
       localStorage.removeItem(draftKey);
@@ -836,6 +933,7 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
       setNotes('');
       setCashReceived('');
       setSelectedCustomer(null);
+      setEditingSale(null);
       setError('');
       handleDiscardDraft();
     }
@@ -843,6 +941,34 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-12">
+      {/* ── Editing Sale Banner ── */}
+      {editingSale && (
+        <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-xl text-amber-700">
+              <Pencil size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm">Editing Voucher #{editingSale.voucherNo}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">
+                  Status: {editingSale.status || 'pending'}
+                </span>
+              </div>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Modify customer, line items, prices or payment terms and click &quot;Save Changes&quot; to apply updates.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleCancelEditSale}
+            className="self-start sm:self-center px-3.5 py-1.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-100 text-amber-900 font-bold text-xs transition"
+          >
+            Cancel Edit
+          </button>
+        </div>
+      )}
       {/* ── Top Header Banner with Mode Switcher & Quick Actions ── */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 p-5 sm:p-6 text-white shadow-xl border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1760,7 +1886,12 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                 {submitting ? (
                   <>
                     <RefreshCw size={17} className="animate-spin" />
-                    <span>Processing Sale...</span>
+                    <span>Saving Changes...</span>
+                  </>
+                ) : editingSale ? (
+                  <>
+                    <Save size={18} />
+                    <span>Save Changes to Sale Voucher</span>
                   </>
                 ) : isCredit ? (
                   <>
@@ -1833,11 +1964,46 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
           </div>
         )}
 
+        {/* Bulk Action Bar for Selected Sales */}
+        {(isDeveloper || isAdmin) && selectedSales.size > 0 && (
+          <div className="flex items-center justify-between p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs">
+            <span className="font-bold text-rose-800">{selectedSales.size} sale voucher(s) selected</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBulkDeleteSales}
+                className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold flex items-center gap-1 transition shadow-xs"
+              >
+                <Trash2 size={13} />
+                <span>Void Selected to Recycle Bin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedSales(new Set())}
+                className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 font-semibold transition"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {showRecentTable && (
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-[11px] uppercase">
                 <tr>
+                  <th className="py-2.5 px-3 w-8 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedSales.size > 0 && selectedSales.size === recentSales.length}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedSales(new Set(recentSales.map((s) => s._id)));
+                        else setSelectedSales(new Set());
+                      }}
+                      className="rounded border-slate-300 text-blue-600"
+                    />
+                  </th>
                   <th className="py-2.5 px-3">Voucher #</th>
                   <th className="py-2.5 px-3">Date</th>
                   <th className="py-2.5 px-3">Customer</th>
@@ -1851,13 +2017,26 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
               <tbody className="divide-y divide-slate-100">
                 {recentSales.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400">
+                    <td colSpan={9} className="py-8 text-center text-slate-400">
                       {loadingRecent ? 'Syncing sales records...' : 'No sales records found in journal.'}
                     </td>
                   </tr>
                 ) : (
                   recentSales.map((sale) => (
                     <tr key={sale._id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSales.has(sale._id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedSales);
+                            if (e.target.checked) next.add(sale._id);
+                            else next.delete(sale._id);
+                            setSelectedSales(next);
+                          }}
+                          className="rounded border-slate-300 text-blue-600"
+                        />
+                      </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-blue-700">
                         {sale.voucherNo}
                       </td>
@@ -1913,6 +2092,30 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                           >
                             <FileText size={14} />
                           </button>
+
+                          {/* Edit Sale Action (Unrestricted for Developer & Admin) */}
+                          {(sale.status === 'pending' || isDeveloper || isAdmin) && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditSale(sale)}
+                              className="p-1 rounded text-slate-400 hover:text-amber-600 transition"
+                              title="Edit sale details and items"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
+
+                          {/* Void Sale Action (Developer & Admin) */}
+                          {(isDeveloper || isAdmin) && sale.status !== 'voided' && (
+                            <button
+                              type="button"
+                              onClick={() => openApproveModal(sale, 'void')}
+                              className="p-1 rounded text-slate-400 hover:text-rose-600 transition"
+                              title="Void sale voucher (reverses stock and moves to Recycle Bin)"
+                            >
+                              <Ban size={14} />
+                            </button>
+                          )}
 
                           {/* Approval Actions for Reviewers */}
                           {sale.status !== 'posted' && sale.status !== 'voided' && (
@@ -2222,7 +2425,7 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
               </table>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setSuccessVoucher(null)}
@@ -2230,6 +2433,36 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
               >
                 Close
               </button>
+              {(isDeveloper || isAdmin) && successVoucher.status !== 'voided' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const v = successVoucher;
+                    setSuccessVoucher(null);
+                    openApproveModal(v, 'void');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white flex items-center gap-1.5 shadow transition"
+                  title="Void this voucher and reverse stock to Recycle Bin"
+                >
+                  <Ban size={14} />
+                  Void to Recycle Bin
+                </button>
+              )}
+              {(isDeveloper || isAdmin || successVoucher.status === 'pending') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const v = successVoucher;
+                    setSuccessVoucher(null);
+                    handleStartEditSale(v);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-xs font-bold text-white flex items-center gap-1.5 shadow transition"
+                  title="Edit details of this sale voucher"
+                >
+                  <Pencil size={14} />
+                  Edit Sale
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {

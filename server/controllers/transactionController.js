@@ -663,7 +663,8 @@ const updateTransaction = asyncHandler(async (req, res) => {
     throw new Error('Transaction not found');
   }
 
-  if (transaction.status !== 'pending') {
+  // System Developer & Owner has unrestricted authority to edit any transaction/task
+  if (transaction.status !== 'pending' && req.user?.role !== 'developer') {
     res.status(400);
     throw new Error(`Cannot edit transaction in "${transaction.status}" status. Only pending transactions can be edited.`);
   }
@@ -696,6 +697,70 @@ const updateTransaction = asyncHandler(async (req, res) => {
   if ((voucherType === 'cash_grv' || voucherType === 'credit_grv') && !supplier) {
     res.status(400);
     throw new Error('Supplier is required for Goods Receiving Vouchers.');
+  }
+
+  const assignedStoreLocation = (req.body.storeLocation || req.body.consigneeUnit || transaction.storeLocation || 'Main Store').trim();
+  const assignedTaxRate = typeof req.body.taxRate === 'number' ? Number(req.body.taxRate) : (transaction.taxRate || 15);
+  const isTaxInclusive = req.body.isVatInclusive !== false;
+
+  const resolvedItems = [];
+  for (const item of items) {
+    const mat = await RawMaterial.findById(item.material);
+    if (!mat) {
+      res.status(404);
+      throw new Error(`Material not found: ${item.material}`);
+    }
+    const unitCost = Number(item.unitCost) || mat.unitCost || 0;
+    const discount = Number(item.discount) || 0;
+    const additionalCharge = Number(item.additionalCharge) || 0;
+    const serialNumber = (item.serialNumber || '').trim();
+    const category = (item.category || mat.category || '').trim();
+    const itemLocation = (item.storeLocation || mat.storeLocation || assignedStoreLocation || '').trim();
+    const sellingPrice = Number(item.sellingPrice) || unitCost;
+    const rawCost = unitCost * Number(item.quantity);
+    const lineTotal = Math.max(0, rawCost - discount + additionalCharge);
+    const totalCost = lineTotal;
+    const totalRevenue = sellingPrice * Number(item.quantity);
+
+    const itemTaxRate = item.taxRate !== undefined ? Number(item.taxRate) : assignedTaxRate;
+    let itemSubTotal = item.subTotal !== undefined ? Number(item.subTotal) : lineTotal;
+    let itemTaxAmount = item.taxAmount !== undefined ? Number(item.taxAmount) : 0;
+    if (itemTaxRate > 0 && !itemTaxAmount) {
+      if (isTaxInclusive) {
+        itemSubTotal = Number((lineTotal / (1 + itemTaxRate / 100)).toFixed(2));
+        itemTaxAmount = Number((lineTotal - itemSubTotal).toFixed(2));
+      } else {
+        itemSubTotal = lineTotal;
+        itemTaxAmount = Number((itemSubTotal * (itemTaxRate / 100)).toFixed(2));
+      }
+    }
+
+    const systemStock = item.systemStock !== undefined ? Number(item.systemStock) : (mat.currentStock || 0);
+    const physicalCount = (item.physicalCount !== null && item.physicalCount !== undefined && item.physicalCount !== '') ? Number(item.physicalCount) : null;
+    const projectedBalance = item.projectedBalance !== undefined ? Number(item.projectedBalance) : (newDirection === 'in' ? systemStock + Number(item.quantity) : systemStock - Number(item.quantity));
+    const reconciliationNote = (item.reconciliationNote || '').trim();
+
+    resolvedItems.push({
+      material: mat._id,
+      quantity: Number(item.quantity),
+      uom: item.uom || mat.unit || '',
+      unitCost,
+      discount,
+      additionalCharge,
+      serialNumber,
+      category,
+      storeLocation: itemLocation,
+      systemStock,
+      physicalCount,
+      projectedBalance,
+      reconciliationNote,
+      taxRate: itemTaxRate,
+      taxAmount: itemTaxAmount,
+      subTotal: itemSubTotal,
+      sellingPrice,
+      totalCost,
+      totalRevenue,
+    });
   }
 
   let session = null;
@@ -758,6 +823,11 @@ const updateTransaction = asyncHandler(async (req, res) => {
     transaction.voucherType = voucherType;
     if (voucherNo) transaction.voucherNo = voucherNo;
     transaction.supplier    = supplier || undefined;
+    if (req.body.customer !== undefined) transaction.customer = req.body.customer || undefined;
+    if (req.body.customerName !== undefined) transaction.customerName = req.body.customerName;
+    if (req.body.paymentStatus !== undefined) transaction.paymentStatus = req.body.paymentStatus;
+    if (req.body.dueDate !== undefined) transaction.dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null;
+    if (req.body.amountPaid !== undefined) transaction.amountPaid = Number(req.body.amountPaid);
     if (req.body.employee !== undefined) transaction.employee = req.body.employee || undefined;
     if (req.body.employeeName !== undefined) transaction.employeeName = req.body.employeeName;
     if (req.body.employeeCode !== undefined) transaction.employeeCode = req.body.employeeCode;
@@ -791,13 +861,36 @@ const updateTransaction = asyncHandler(async (req, res) => {
 
     if (!transaction.trail) transaction.trail = [];
     transaction.trail.push({
-      action: 'pending',
+      action: req.user?.role === 'developer' && transaction.status !== 'pending' ? 'updated' : 'pending',
       by: req.user._id,
       byName: req.user.name,
       byRole: req.user.role,
       note: 'Voucher details updated and stock movement re-applied',
       at: new Date(),
     });
+
+    // Synchronize companion SalesRecord if this is a sales voucher
+    if (['cash_sale', 'credit_sale'].includes(transaction.voucherType)) {
+      try {
+        const SalesRecord = require('../models/SalesRecord');
+        const salesDoc = await SalesRecord.findOne({ voucherNo: transaction.voucherNo });
+        if (salesDoc) {
+          salesDoc.customerName = transaction.customerName;
+          salesDoc.totalRevenue = transaction.totalAmount;
+          salesDoc.totalAmount = transaction.totalAmount;
+          salesDoc.paymentStatus = transaction.paymentStatus || salesDoc.paymentStatus;
+          salesDoc.items = resolvedItems.map(i => ({
+            material: i.material,
+            quantity: i.quantity,
+            unitPrice: i.sellingPrice || i.unitCost,
+            totalPrice: (i.sellingPrice || i.unitCost) * i.quantity,
+          }));
+          await salesDoc.save({ session: session || undefined });
+        }
+      } catch (err) {
+        console.warn('Could not update companion sales record:', err.message);
+      }
+    }
 
     await transaction.save({ session: session || undefined });
 

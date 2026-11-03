@@ -36,7 +36,7 @@ const emptyForm = {
 const etb = (n) => `ETB ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Consumption() {
-  const { can, hasRole } = useAuth();
+  const { can, hasRole, user, isDeveloper } = useAuth();
   const canCreate = can('recordGoods');
   const canApprove = can('approveGoods');
   const canVoid = can('voidTransactions');
@@ -378,8 +378,8 @@ export default function Consumption() {
                           className="rounded-md p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700" title="View detail">
                           <Eye size={13} />
                         </button>
-                        {/* Edit — only pending */}
-                        {canCreate && r.status === 'pending' && (
+                        {/* Edit — pending or developer unrestricted */}
+                        {canCreate && (r.status === 'pending' || isDeveloper || user?.role === 'developer') && (
                           <button onClick={() => openEdit(r)}
                             className="inline-flex items-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-600 px-2 py-1 text-xs font-semibold text-white transition">
                             <Pencil size={11} /> Edit
@@ -393,16 +393,17 @@ export default function Consumption() {
                           </button>
                         )}
                         {/* Void */}
-                        {canVoid && ['pending', 'approved'].includes(r.status) && (
+                        {(canVoid || isDeveloper || user?.role === 'developer') && ['pending', 'approved'].includes(r.status) && (
                           <button onClick={() => openAction(r, 'void')}
                             className="inline-flex items-center gap-1 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-1 text-xs font-semibold text-red-600 transition">
                             <Ban size={11} /> Void
                           </button>
                         )}
                         {/* Delete */}
-                        {canVoid && ['pending', 'voided'].includes(r.status) && (
+                        {(canVoid || isDeveloper || user?.role === 'developer') && (
                           <button onClick={() => handleDelete(r._id)}
-                            className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600 transition">
+                            className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600 transition"
+                            title="Move to recycle bin">
                             <Trash2 size={13} />
                           </button>
                         )}

@@ -439,9 +439,9 @@ export default function StockTransactions({ defaultVoucher } = {}) {
     setViewMode('preparation');
   }, [activeVoucherKey, isAdjustmentVoucher, employees, fetchNextVoucherNo]);
 
-  // ── Open Form to Edit an Existing Voucher (Only in Prepared/Pending status) ──
+  // ── Open Form to Edit an Existing Voucher (Only in Prepared/Pending status, or unrestricted for Developer) ──
   const handleOpenEdit = useCallback((txn) => {
-    if (txn.status && txn.status !== 'pending') {
+    if (txn.status && txn.status !== 'pending' && user?.role !== 'developer') {
       alert(`Cannot edit voucher in "${txn.status}" status. Only Prepared (pending) vouchers can be modified.`);
       return;
     }
@@ -1451,7 +1451,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                   </button>
                 )}
 
-                {editingTxn.status !== 'voided' && canDelete && (
+                {editingTxn.status !== 'voided' && (canDelete || user?.role === 'developer' || isAdmin) && (
                   <button
                     type="button"
                     onClick={() => openApproveModal(editingTxn, 'void')}
@@ -2437,7 +2437,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
             </div>
 
             {/* Quick Bulk Actions */}
-            {canDelete && selectedBulk.size > 0 && (
+            {(canDelete || user?.role === 'developer' || isAdmin) && selectedBulk.size > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 font-medium">{selectedBulk.size} selected</span>
                 <button
@@ -2556,7 +2556,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                               >
                                 <Eye size={14} />
                               </button>
-                              {t.status === 'pending' && canEdit && (
+                              {(t.status === 'pending' || user?.role === 'developer') && canEdit && (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEdit(t)}
@@ -2566,7 +2566,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                                   <Pencil size={14} />
                                 </button>
                               )}
-                              {canDelete && (
+                              {(canDelete || user?.role === 'developer' || isAdmin) && (
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteTxn(t._id)}
@@ -3171,7 +3171,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                 Print Voucher
               </Button>
               <div className="flex gap-2">
-                {detailTxn.status !== 'voided' && canDelete && (
+                {detailTxn.status !== 'voided' && (canDelete || user?.role === 'developer' || isAdmin) && (
                   <Button
                     variant="danger"
                     onClick={() => {
@@ -3184,7 +3184,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                     Void Voucher
                   </Button>
                 )}
-                {detailTxn.status === 'pending' && canEdit && (
+                {(detailTxn.status === 'pending' || user?.role === 'developer') && canEdit && (
                   <Button variant="primary" onClick={() => { setDetailOpen(false); handleOpenEdit(detailTxn); }}>
                     Edit in Preparation
                   </Button>

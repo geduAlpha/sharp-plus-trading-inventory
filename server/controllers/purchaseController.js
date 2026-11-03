@@ -195,7 +195,7 @@ const advancePurchase = asyncHandler(async (req, res) => {
 const deletePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findById(req.params.id);
   if (!purchase) { res.status(404); throw new Error('Purchase not found'); }
-  if (purchase.status === 'received') {
+  if (purchase.status === 'received' && req.user?.role !== 'developer') {
     res.status(400);
     throw new Error('Cannot delete a received purchase. Cancel it first if needed.');
   }

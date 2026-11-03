@@ -194,7 +194,7 @@ const updateStockRequest = asyncHandler(async (req, res) => {
   if (!request || request.deletedAt) {
     res.status(404); throw new Error('Stock request not found');
   }
-  if (request.status !== 'pending') {
+  if (request.status !== 'pending' && req.user?.role !== 'developer') {
     res.status(400); throw new Error('Only pending requests can be edited');
   }
 
@@ -415,12 +415,12 @@ const cancelStockRequest = asyncHandler(async (req, res) => {
   if (!request || request.deletedAt) {
     res.status(404); throw new Error('Stock request not found');
   }
-  if (!['pending'].includes(request.status)) {
+  if (!['pending'].includes(request.status) && req.user?.role !== 'developer') {
     res.status(400); throw new Error('Only pending requests can be cancelled');
   }
-  // Only the requester or admin can cancel
+  // Only the requester or admin/developer can cancel
   const isOwner = request.requestedBy.toString() === req.user._id.toString();
-  if (!isOwner && req.user.role !== 'admin') {
+  if (!isOwner && req.user.role !== 'admin' && req.user.role !== 'developer') {
     res.status(403); throw new Error('Only the requester or admin can cancel this request');
   }
 
@@ -446,7 +446,7 @@ const deleteStockRequest = asyncHandler(async (req, res) => {
   if (!request || request.deletedAt) {
     res.status(404); throw new Error('Stock request not found');
   }
-  if (!['rejected', 'cancelled'].includes(request.status)) {
+  if (!['rejected', 'cancelled'].includes(request.status) && req.user?.role !== 'developer') {
     res.status(400); throw new Error('Only rejected or cancelled requests can be deleted');
   }
   request.deletedAt = new Date();

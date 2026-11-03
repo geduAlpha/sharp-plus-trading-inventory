@@ -207,7 +207,7 @@ exports.initializeCount = asyncHandler(async (req, res) => {
 exports.updateLines = asyncHandler(async (req, res) => {
   const doc = await InventoryCount.findById(req.params.id);
   if (!doc) return res.status(404).json({ message: 'Count not found' });
-  if (doc.status === 'approved' || doc.status === 'closed') {
+  if ((doc.status === 'approved' || doc.status === 'closed') && req.user?.role !== 'developer') {
     return res.status(400).json({ message: 'Cannot edit an approved or closed count' });
   }
 

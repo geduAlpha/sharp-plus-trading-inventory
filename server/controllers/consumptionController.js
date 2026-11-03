@@ -132,7 +132,7 @@ const createConsumption = asyncHandler(async (req, res) => {
 const updateConsumption = asyncHandler(async (req, res) => {
   const record = await Consumption.findById(req.params.id);
   if (!record) { res.status(404); throw new Error('Record not found'); }
-  if (record.status !== 'pending') {
+  if (record.status !== 'pending' && req.user?.role !== 'developer') {
     res.status(400); throw new Error('Only pending records can be edited');
   }
 
@@ -260,7 +260,7 @@ const voidConsumption = asyncHandler(async (req, res) => {
 const deleteConsumption = asyncHandler(async (req, res) => {
   const record = await Consumption.findById(req.params.id);
   if (!record) { res.status(404); throw new Error('Record not found'); }
-  if (!['pending', 'voided'].includes(record.status)) {
+  if (!['pending', 'voided'].includes(record.status) && req.user?.role !== 'developer') {
     res.status(400); throw new Error('Only pending or voided records can be deleted');
   }
   record.deletedAt = new Date();
