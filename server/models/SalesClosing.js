@@ -42,3 +42,4 @@ salesClosingSchema.index({ closingCode: 1 });
 salesClosingSchema.index({ storeLocation: 1 });
 
 module.exports = mongoose.model('SalesClosing', salesClosingSchema);
+

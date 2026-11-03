@@ -577,7 +577,7 @@ export default function SalesMarketingSubsystem() {
         {[
           { key: 'cash-sales', label: 'Cash Sales Voucher', icon: ShoppingBag, color: 'emerald' },
           { key: 'credit-sales', label: 'Credit Sales Voucher', icon: CreditCard, color: 'blue' },
-          { key: 'zeroing-voucher', label: 'Zeroing Voucher', icon: RotateLeft, color: 'purple' },
+          { key: 'zeroing-voucher', label: 'Zeroing Voucher', icon: RotateCcw, color: 'purple' },
           { key: 'security-report', label: 'Security Report', icon: Shield, color: 'rose' },
           { key: 'sales-closing', label: 'Sales Closing', icon: Lock, color: 'amber' },
           { key: 'sales-route-mapping', label: 'Sales Route Mapping', icon: MapPin, color: 'indigo' },

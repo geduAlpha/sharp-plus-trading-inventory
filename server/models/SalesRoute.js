@@ -23,3 +23,4 @@ salesRouteSchema.index({ name: 1 });
 salesRouteSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('SalesRoute', salesRouteSchema);
+

@@ -18,3 +18,4 @@ router.post('/collect-credit', recordCreditCollection);
 router.get('/credit-ledger', getCustomerCreditLedger);
 
 module.exports = router;
+

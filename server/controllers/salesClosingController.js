@@ -246,3 +246,4 @@ module.exports = {
   getUnclosedSalesStats,
   createSalesClosing,
 };
+

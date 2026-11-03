@@ -16,3 +16,4 @@ router.get('/unclosed-stats', getUnclosedSalesStats);
 router.post('/', createSalesClosing);
 
 module.exports = router;
+

@@ -20,3 +20,4 @@ router.post('/assign-customers', assignCustomersToRoute);
 router.get('/report', getRouteWiseSalesReport);
 
 module.exports = router;
+
