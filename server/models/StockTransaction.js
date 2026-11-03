@@ -27,6 +27,8 @@ const VOUCHER_TYPES = [
   'cash_sales',
   'credit_sales',
   'zeroing',
+  'inventory_count',
+  'inventory_closing',
 ];
 
 // Direction each voucher type moves stock
@@ -45,6 +47,8 @@ const VOUCHER_DIRECTION = {
   cash_sales:     'out',
   credit_sales:   'out',
   zeroing:        'out',
+  inventory_count: 'in',
+  inventory_closing: 'in',
 };
 
 const lineItemSchema = new mongoose.Schema(

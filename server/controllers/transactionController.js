@@ -148,6 +148,21 @@ const getTransactions = asyncHandler(async (req, res) => {
 
   if (voucherType === 'sales') {
     filter.voucherType = { $in: ['cash_sale', 'credit_sale', 'cash_sales', 'credit_sales', 'zeroing', 'sales_import'] };
+  } else if (voucherType === 'stock') {
+    filter.voucherType = {
+      $in: [
+        'cash_grv',
+        'credit_grv',
+        'pos_adjustment',
+        'neg_adjustment',
+        'psav',
+        'nsav',
+        'disposal',
+        'fresh_bazaar',
+        'inventory_count',
+        'inventory_closing',
+      ],
+    };
   } else if (voucherType) {
     filter.voucherType = voucherType;
   }
@@ -241,7 +256,64 @@ const getTransactions = asyncHandler(async (req, res) => {
     .limit(500)
     .lean();
 
-  res.json(transactions);
+  let inventoryCountTxns = [];
+  if (voucherType === 'stock' || voucherType === 'inventory_count' || voucherType === 'inventory_closing') {
+    try {
+      const InventoryCount = require('../models/InventoryCount');
+      const countFilter = { deletedAt: null };
+      if (requestedStatus && requestedStatus !== 'all' && requestedStatus !== 'all states') {
+        countFilter.status = requestedStatus === 'pending' ? { $in: ['draft', 'submitted'] } : requestedStatus;
+      }
+      if (reqStore && reqStore !== 'all') {
+        countFilter.storeLocation = reqStore;
+      }
+      const counts = await InventoryCount.find(countFilter)
+        .populate('createdBy', 'name role email')
+        .populate('approvedBy', 'name role')
+        .populate('lines.material', 'name code unit unitCost category currentStock storeLocation')
+        .lean();
+
+      inventoryCountTxns = counts.map((c) => {
+        const isClosing = c.status === 'closed' || Boolean(c.closingDate);
+        const vType = isClosing ? 'inventory_closing' : 'inventory_count';
+        const vNo = c.title || (isClosing ? `ICL-${c.periodYear}-${String(c.periodMonth).padStart(2, '0')}` : `IC-${c.periodYear}-${String(c.periodMonth).padStart(2, '0')}`);
+        const items = (c.lines || []).map((l) => ({
+          material: l.material || { _id: l.material, name: l.materialName, unit: l.unit },
+          quantity: Math.abs(l.variance || 0) || Number(l.physicalCount || l.systemBalance || 0),
+          uom: l.unit || l.material?.unit || 'Pcs',
+          unitCost: l.wac || l.material?.unitCost || 0,
+          storeLocation: c.storeLocation,
+          systemBalance: l.systemBalance,
+          physicalCount: l.physicalCount,
+          variance: l.variance,
+        }));
+        return {
+          _id: c._id,
+          voucherNo: vNo,
+          voucherType: vType,
+          type: (c.netVarianceValue >= 0) ? 'in' : 'out',
+          status: c.status === 'draft' || c.status === 'submitted' ? 'pending' : c.status,
+          date: c.closingDate || c.approvedAt || c.submittedAt || c.createdAt,
+          storeLocation: c.storeLocation,
+          consigneeUnit: c.storeLocation,
+          items,
+          quantity: c.totalItems || items.length,
+          totalAmount: Math.abs(c.netVarianceValue || 0),
+          performedBy: c.createdBy,
+          approvedBy: c.approvedBy,
+          notes: c.notes || `Inventory count session for ${c.storeLocation}`,
+          createdAt: c.createdAt,
+        };
+      });
+    } catch (err) {
+      console.warn('Failed to fetch InventoryCount auxiliary records:', err.message);
+    }
+  }
+
+  const combined = [...transactions, ...inventoryCountTxns];
+  combined.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+
+  res.json(combined);
 });
 
 

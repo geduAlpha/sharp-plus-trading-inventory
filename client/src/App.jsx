@@ -27,6 +27,7 @@ import RegisterCompany from './pages/RegisterCompany';
 import DeveloperConsole from './pages/DeveloperConsole';
 import ModuleGuard from './components/ModuleGuard';
 import SalesMarketingVoucherReport from './pages/SalesMarketingVoucherReport';
+import StockManagementVoucherReport from './pages/StockManagementVoucherReport';
 
 function App() {
   return (
@@ -111,6 +112,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/sub-system/stock-management-voucher-report"
+              element={
+                <ProtectedRoute>
+                  <StockManagementVoucherReport />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/sub-system/stock-vouchers" element={<Navigate to="/sub-system/stock-management-voucher-report" replace />} />
+            <Route path="/stock-management-voucher-report" element={<Navigate to="/sub-system/stock-management-voucher-report" replace />} />
             <Route path="/sub-system/sales-vouchers" element={<Navigate to="/sub-system/sales-marketing-voucher-report" replace />} />
             <Route path="/sub-system" element={<Navigate to="/sub-system/sales-marketing-voucher-report" replace />} />
             <Route

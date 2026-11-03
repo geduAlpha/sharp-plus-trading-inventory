@@ -310,6 +310,7 @@ export const DEFAULT_SIDEBAR_CONFIG = [
       { id: 'movements_all', label: 'All Documents', to: '/transactions', icon: 'SwapHorizRounded', iconType: 'mui', navKey: 'stockMovements', order: 6, visible: true, exact: true, onHold: true, disabled: true },
       { id: 'movements_sales_import', label: 'Import Sales Report', to: '/sales-import', icon: 'CloudUploadRounded', iconType: 'mui', navKey: 'stockMovements', order: 7, visible: true },
       { id: 'stock_requests', label: 'Stock Issue & Request', to: '/stock-requests', icon: 'CallSplitRounded', iconType: 'mui', navKey: 'stockRequests', order: 8, visible: true, onHold: true, disabled: true },
+      { id: 'stockManagementVoucherReportUnderStoreOps', label: 'Stock Management Voucher Report', to: '/sub-system/stock-management-voucher-report', icon: 'AssessmentRounded', iconType: 'mui', navKey: 'stockMovements', order: 9, visible: true },
     ]
   },
   {
@@ -338,12 +339,32 @@ export const DEFAULT_SIDEBAR_CONFIG = [
     visible: true,
     children: [
       {
+        id: 'subsystem_stock_management',
+        label: 'Stock Management System',
+        icon: 'AllInboxRounded',
+        iconType: 'mui',
+        isGroup: true,
+        order: 1,
+        visible: true,
+        children: [
+          {
+            id: 'stockManagementVoucherReport',
+            label: 'Stock Management Voucher Report',
+            to: '/sub-system/stock-management-voucher-report',
+            icon: 'AssessmentRounded',
+            iconType: 'mui',
+            order: 1,
+            visible: true,
+          },
+        ],
+      },
+      {
         id: 'subsystem_sales_marketing',
         label: 'Sales and Marketing Management System',
         icon: 'PointOfSaleRounded',
         iconType: 'mui',
         isGroup: true,
-        order: 1,
+        order: 2,
         visible: true,
         children: [
           {
@@ -358,12 +379,21 @@ export const DEFAULT_SIDEBAR_CONFIG = [
         ],
       },
       {
+        id: 'stockManagementVoucherReportDirect',
+        label: 'Stock Management Voucher Report',
+        to: '/sub-system/stock-management-voucher-report',
+        icon: 'AssessmentRounded',
+        iconType: 'mui',
+        order: 3,
+        visible: true,
+      },
+      {
         id: 'salesMarketingVoucherReportDirect',
         label: 'Sales & Marketing Voucher Report',
         to: '/sub-system/sales-marketing-voucher-report',
         icon: 'ReceiptLongRounded',
         iconType: 'mui',
-        order: 2,
+        order: 4,
         visible: true,
       },
     ]
@@ -455,7 +485,7 @@ export const sanitizeSidebarConfig = (config) => {
     };
   });
 
-  // Ensure "Sub System" -> "Sales and Marketing Management System" -> "Sales & Marketing Voucher Report" is present
+  // Ensure "Sub System" -> "Stock Management System" and "Sales and Marketing MS" are present
   const subSystemExists = sanitized.some((i) => i.id === 'subSystem' || i.label === 'Sub System');
   if (!subSystemExists) {
     const subSystemEntry = {
@@ -469,12 +499,32 @@ export const sanitizeSidebarConfig = (config) => {
       visible: true,
       children: [
         {
+          id: 'subsystem_stock_management',
+          label: 'Stock Management System',
+          icon: 'AllInboxRounded',
+          iconType: 'mui',
+          isGroup: true,
+          order: 1,
+          visible: true,
+          children: [
+            {
+              id: 'stockManagementVoucherReport',
+              label: 'Stock Management Voucher Report',
+              to: '/sub-system/stock-management-voucher-report',
+              icon: 'AssessmentRounded',
+              iconType: 'mui',
+              order: 1,
+              visible: true,
+            },
+          ],
+        },
+        {
           id: 'subsystem_sales_marketing',
           label: 'Sales and Marketing Management System',
           icon: 'PointOfSaleRounded',
           iconType: 'mui',
           isGroup: true,
-          order: 1,
+          order: 2,
           visible: true,
           children: [
             {
@@ -489,12 +539,21 @@ export const sanitizeSidebarConfig = (config) => {
           ],
         },
         {
+          id: 'stockManagementVoucherReportDirect',
+          label: 'Stock Management Voucher Report',
+          to: '/sub-system/stock-management-voucher-report',
+          icon: 'AssessmentRounded',
+          iconType: 'mui',
+          order: 3,
+          visible: true,
+        },
+        {
           id: 'salesMarketingVoucherReportDirect',
           label: 'Sales & Marketing Voucher Report',
           to: '/sub-system/sales-marketing-voucher-report',
           icon: 'ReceiptLongRounded',
           iconType: 'mui',
-          order: 2,
+          order: 4,
           visible: true,
         },
       ],
@@ -509,17 +568,80 @@ export const sanitizeSidebarConfig = (config) => {
   }
 
   return sanitized.map((item) => {
+    if (item.id === 'storeOps' || item.label === 'Stock Management System') {
+      const kids = Array.isArray(item.children) ? [...item.children] : [];
+      const hasReport = kids.some((c) => c.id === 'stockManagementVoucherReportUnderStoreOps' || c.to === '/sub-system/stock-management-voucher-report');
+      if (!hasReport) {
+        kids.push({
+          id: 'stockManagementVoucherReportUnderStoreOps',
+          label: 'Stock Management Voucher Report',
+          to: '/sub-system/stock-management-voucher-report',
+          icon: 'AssessmentRounded',
+          iconType: 'mui',
+          navKey: 'stockMovements',
+          order: 9,
+          visible: true,
+        });
+      }
+      return { ...item, children: kids };
+    }
+
     if (item.id === 'subSystem' || item.label === 'Sub System') {
       const kids = Array.isArray(item.children) ? [...item.children] : [];
-      const hasSubsystemGroup = kids.some((c) => c.id === 'subsystem_sales_marketing' || c.label === 'Sales and Marketing Management System');
-      if (!hasSubsystemGroup) {
+
+      // 1. Ensure subsystem_stock_management exists
+      const hasStockSubsystem = kids.some((c) => c.id === 'subsystem_stock_management' || c.label === 'Stock Management System');
+      if (!hasStockSubsystem) {
         kids.unshift({
+          id: 'subsystem_stock_management',
+          label: 'Stock Management System',
+          icon: 'AllInboxRounded',
+          iconType: 'mui',
+          isGroup: true,
+          order: 1,
+          visible: true,
+          children: [
+            {
+              id: 'stockManagementVoucherReport',
+              label: 'Stock Management Voucher Report',
+              to: '/sub-system/stock-management-voucher-report',
+              icon: 'AssessmentRounded',
+              iconType: 'mui',
+              order: 1,
+              visible: true,
+            },
+          ],
+        });
+      } else {
+        // Ensure child report exists inside subsystem_stock_management
+        const smGroup = kids.find((c) => c.id === 'subsystem_stock_management' || c.label === 'Stock Management System');
+        if (smGroup && smGroup.isGroup) {
+          const smKids = Array.isArray(smGroup.children) ? [...smGroup.children] : [];
+          if (!smKids.some((c) => c.to === '/sub-system/stock-management-voucher-report')) {
+            smKids.push({
+              id: 'stockManagementVoucherReport',
+              label: 'Stock Management Voucher Report',
+              to: '/sub-system/stock-management-voucher-report',
+              icon: 'AssessmentRounded',
+              iconType: 'mui',
+              order: 1,
+              visible: true,
+            });
+            smGroup.children = smKids;
+          }
+        }
+      }
+
+      // 2. Ensure subsystem_sales_marketing exists
+      const hasSalesSubsystem = kids.some((c) => c.id === 'subsystem_sales_marketing' || c.label === 'Sales and Marketing Management System');
+      if (!hasSalesSubsystem) {
+        kids.push({
           id: 'subsystem_sales_marketing',
           label: 'Sales and Marketing Management System',
           icon: 'PointOfSaleRounded',
           iconType: 'mui',
           isGroup: true,
-          order: 1,
+          order: 2,
           visible: true,
           children: [
             {
@@ -534,18 +656,34 @@ export const sanitizeSidebarConfig = (config) => {
           ],
         });
       }
-      const hasDirect = kids.some((c) => !c.isGroup && (c.id === 'salesMarketingVoucherReport' || c.id === 'salesMarketingVoucherReportDirect' || c.to === '/sub-system/sales-marketing-voucher-report'));
-      if (!hasDirect) {
+
+      // 3. Ensure direct shortcuts exist
+      const hasStockDirect = kids.some((c) => !c.isGroup && (c.id === 'stockManagementVoucherReportDirect' || c.to === '/sub-system/stock-management-voucher-report'));
+      if (!hasStockDirect) {
+        kids.push({
+          id: 'stockManagementVoucherReportDirect',
+          label: 'Stock Management Voucher Report',
+          to: '/sub-system/stock-management-voucher-report',
+          icon: 'AssessmentRounded',
+          iconType: 'mui',
+          order: 3,
+          visible: true,
+        });
+      }
+
+      const hasSalesDirect = kids.some((c) => !c.isGroup && (c.id === 'salesMarketingVoucherReport' || c.id === 'salesMarketingVoucherReportDirect' || c.to === '/sub-system/sales-marketing-voucher-report'));
+      if (!hasSalesDirect) {
         kids.push({
           id: 'salesMarketingVoucherReportDirect',
           label: 'Sales & Marketing Voucher Report',
           to: '/sub-system/sales-marketing-voucher-report',
           icon: 'ReceiptLongRounded',
           iconType: 'mui',
-          order: 2,
+          order: 4,
           visible: true,
         });
       }
+
       return {
         ...item,
         isGroup: true,
