@@ -1791,21 +1791,28 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
           </div>
 
           {/* Card: Sales Summary & Fiscal Tax Engine (5 cols) */}
-          <div className="lg:col-span-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 p-5 text-white shadow-xl space-y-4 flex flex-col justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="lg:col-span-5 rounded-2xl bg-white p-5 shadow-soft border border-slate-200/80 space-y-4 flex flex-col justify-between">
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <Calculator size={16} className="text-blue-400" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    Fiscal Summary Engine
-                  </h3>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 font-bold text-xs">
+                    <Calculator size={15} />
+                  </span>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Fiscal Summary Engine
+                    </h3>
+                    <p className="text-[10px] text-slate-400">Calculated tax &amp; total breakdown</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200/80">
                   <button
                     type="button"
                     onClick={() => setTaxRate(15)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                      taxRate === 15 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+                    className={`px-2.5 py-1 rounded text-[10px] font-bold transition ${
+                      taxRate === 15
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     15% VAT
@@ -1813,8 +1820,10 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                   <button
                     type="button"
                     onClick={() => setTaxRate(0)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                      taxRate === 0 ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400'
+                    className={`px-2.5 py-1 rounded text-[10px] font-bold transition ${
+                      taxRate === 0
+                        ? 'bg-slate-700 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     Exempt
@@ -1824,12 +1833,12 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
 
               {/* VAT Mode Toggle */}
               {taxRate > 0 && (
-                <div className="flex items-center justify-between text-[11px] text-slate-400 bg-white/5 p-2 rounded-xl">
-                  <span>Price Tax Mode:</span>
+                <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 border border-slate-200/70 px-3 py-2 rounded-xl">
+                  <span className="font-medium text-slate-600">Price Tax Mode:</span>
                   <button
                     type="button"
                     onClick={() => setIsVatInclusive(!isVatInclusive)}
-                    className="font-bold text-blue-300 hover:text-white underline"
+                    className="font-bold text-blue-600 hover:text-blue-800 underline text-[11px]"
                   >
                     {isVatInclusive ? 'VAT Inclusive (Standard Retail)' : 'VAT Exclusive (+15% added)'}
                   </button>
@@ -1837,50 +1846,50 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
               )}
 
               {/* Financial Lines */}
-              <div className="space-y-2 text-xs font-mono pt-1">
-                <div className="flex justify-between text-slate-300">
-                  <span className="font-sans">Gross Subtotal:</span>
-                  <span>{formatETB(grossSubtotal)}</span>
+              <div className="space-y-2 rounded-xl bg-slate-50/70 border border-slate-200/60 p-3.5 text-xs">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="font-medium">Gross Subtotal:</span>
+                  <span className="font-mono font-bold text-slate-800">{formatETB(grossSubtotal)}</span>
                 </div>
                 {totalDiscount > 0 && (
-                  <div className="flex justify-between text-emerald-400">
-                    <span className="font-sans">Total Discount:</span>
-                    <span>-{formatETB(totalDiscount)}</span>
+                  <div className="flex justify-between items-center text-emerald-600">
+                    <span className="font-medium">Total Discount:</span>
+                    <span className="font-mono font-bold">-{formatETB(totalDiscount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-slate-300">
-                  <span className="font-sans">Taxable Base (TXBL1):</span>
-                  <span>{formatETB(taxableAmount)}</span>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="font-medium">Taxable Base (TXBL1):</span>
+                  <span className="font-mono font-bold text-slate-800">{formatETB(taxableAmount)}</span>
                 </div>
-                <div className="flex justify-between text-slate-300">
-                  <span className="font-sans">Fiscal VAT ({taxRate}%):</span>
-                  <span className="text-emerald-400">+{formatETB(vatAmount)}</span>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="font-medium">Fiscal VAT ({taxRate}%):</span>
+                  <span className="font-mono font-bold text-emerald-600">+{formatETB(vatAmount)}</span>
                 </div>
               </div>
 
               {/* Grand Total */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-50/80 via-emerald-50/40 to-slate-50 border border-emerald-200/80 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
                     Grand Total
                   </span>
                   <p className="text-[10px] text-slate-500">Includes all taxes &amp; discounts</p>
                 </div>
-                <span className="text-2xl font-black font-mono text-emerald-400">
+                <span className="text-2xl font-black font-mono text-emerald-600 tracking-tight">
                   {formatETB(totalRevenue)}
                 </span>
               </div>
             </div>
 
             {/* Primary Action Buttons */}
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2 pt-2 border-t border-slate-100">
               <button
                 type="submit"
                 disabled={submitting}
-                className={`w-full py-3 px-4 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition active:scale-98 ${
+                className={`w-full py-3 px-4 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-md transition active:scale-98 ${
                   isCredit
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 disabled:opacity-50'
-                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white disabled:opacity-50'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white disabled:opacity-50'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white disabled:opacity-50'
                 }`}
               >
                 {submitting ? (
@@ -1910,14 +1919,14 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                 <button
                   type="button"
                   onClick={handleSaveDraft}
-                  className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition"
+                  className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-semibold text-center transition"
                 >
                   Save as Draft
                 </button>
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 font-semibold text-center transition"
+                  className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-semibold text-center transition"
                 >
                   Cancel / Clear
                 </button>
