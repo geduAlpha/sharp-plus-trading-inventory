@@ -1022,9 +1022,14 @@ const deleteTransaction = asyncHandler(async (req, res) => {
       ? transaction.items
       : [{ material: transaction.material, quantity: transaction.quantity, storeLocation: transaction.storeLocation }];
 
-    await reverseStockMovement(itemsToReverse, direction, null, {
-      defaultStore: transaction.storeLocation,
-    });
+    try {
+      await reverseStockMovement(itemsToReverse, direction, null, {
+        defaultStore: transaction.storeLocation,
+        ignoreMissing: true,
+      });
+    } catch (err) {
+      console.warn(`[deleteTransaction] Stock reversal warning for voucher ${transaction.voucherNo}:`, err.message);
+    }
     transaction.stockApplied = false;
   }
 
@@ -1069,9 +1074,14 @@ const bulkDeleteTransactions = asyncHandler(async (req, res) => {
       const items = transaction.items?.length
         ? transaction.items
         : [{ material: transaction.material, quantity: transaction.quantity, storeLocation: transaction.storeLocation }];
-      await reverseStockMovement(items, direction, null, {
-        defaultStore: transaction.storeLocation,
-      });
+      try {
+        await reverseStockMovement(items, direction, null, {
+          defaultStore: transaction.storeLocation,
+          ignoreMissing: true,
+        });
+      } catch (err) {
+        console.warn(`[bulkDeleteTransactions] Stock reversal warning for voucher ${transaction.voucherNo}:`, err.message);
+      }
       transaction.stockApplied = false;
     }
     transaction.status      = 'voided';
@@ -1290,9 +1300,14 @@ const advanceTransaction = asyncHandler(async (req, res) => {
   if (action === 'void') {
     // Only reverse stock if it was actually applied to inventory
     if (txn.stockApplied) {
-      await reverseStockMovement(stockItems, direction, null, {
-        defaultStore: txn.storeLocation,
-      });
+      try {
+        await reverseStockMovement(stockItems, direction, null, {
+          defaultStore: txn.storeLocation,
+          ignoreMissing: true,
+        });
+      } catch (err) {
+        console.warn(`[advanceTransaction:void] Stock reversal warning for voucher ${txn.voucherNo}:`, err.message);
+      }
       txn.stockApplied = false;
     }
     // Automatically move voided transaction to recycle bin

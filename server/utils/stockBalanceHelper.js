@@ -72,6 +72,9 @@ const validateStockForReduction = async (items, defaultStore, session = null) =>
     const mat = await q;
 
     if (!mat) {
+      if (options.ignoreMissing || options.isReversal) {
+        continue;
+      }
       return {
         valid: false,
         error: `Material with ID ${matId} not found during stock validation.`,
@@ -103,6 +106,10 @@ const applyStockMovement = async (items, direction, session = null, options = {}
     const mat = await q;
 
     if (!mat) {
+      if (options.ignoreMissing || options.isReversal) {
+        console.warn(`[applyStockMovement] Material ${matId} not found during stock movement/reversal. Skipping balance adjustment.`);
+        continue;
+      }
       throw new Error(`Material not found: ${matId}`);
     }
 
@@ -167,6 +174,8 @@ const reverseStockMovement = async (items, originalDirection, session = null, op
   const reversedDirection = originalDirection === 'in' ? 'out' : 'in';
   await applyStockMovement(items, reversedDirection, session, {
     ...options,
+    isReversal: true,
+    ignoreMissing: true,
     updateWac: false, // Reversal should not skew WAC cost upwards
   });
 };
