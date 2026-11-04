@@ -48,7 +48,6 @@ import {
 import api from '../api/axios';
 import Card from '../components/ui/Card';
 import { useLanguage } from '../context/LanguageContext';
-import LanguageMenu from '../components/common/LanguageMenu';
 
 const formatETB = (n) =>
   `ETB ${Number(n || 0).toLocaleString('en-US', {
@@ -289,8 +288,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 pb-8">
-      {/* ── System Language & Data Translation Bar ── */}
-      <LanguageMenu variant="dashboard-banner" />
+
       {/* ── Commercial Sales Performance Row (Cash & Credit Sales with View Icons) ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Total Cash Sales Card */}
