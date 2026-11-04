@@ -551,3 +551,223 @@ export const openThermalPrintWindow = (sale, config = {}) => {
   printWindow.document.write(html);
   printWindow.document.close();
 };
+
+/**
+ * Open high-resolution A4 standard invoice print dialog
+ */
+export const openA4PrintWindow = (sale, config = {}) => {
+  const isCredit =
+    sale?.paymentType === 'credit' ||
+    sale?.voucherType === 'credit_sale';
+
+  const invoiceNo = sale?.voucherNo || (isCredit ? 'CRSALE-00001' : 'CSALE-00001');
+  const fsNo = config.fsNo || sale?.fsNo || (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') || 'FS No.00000001';
+  const dateStr = formatFiscalDate(sale?.date);
+  const tin = config.tinNumber || '0089234125';
+  const orgName = (config.companyLines || []).join(' ') || 'Sharp Plus Trading PLC';
+  const address = `${config.addressLine1 || 'Addis Ababa, Bole'}, ${config.addressLine2 || 'Commercial Center'}`;
+  const phone = config.phone || '+251 91 100 0111';
+  const customerName = sale?.customerName || (typeof sale?.customer === 'object' ? sale?.customer?.name : sale?.customer) || 'Walk-in Customer';
+  const customerTin = sale?.tin || sale?.customerTin || '';
+  const customerPhone = sale?.customerPhone || '';
+  const operator = config.operator || sale?.performedBy?.name || 'Authorized Cashier';
+
+  const rawItems = sale?.items || [];
+  const items = rawItems.length > 0 ? rawItems : [
+    { description: 'Item', quantity: 1, sellingPrice: sale?.totalRevenue || 0, totalRevenue: sale?.totalRevenue || 0 },
+  ];
+
+  let subtotal = 0;
+  const processed = items.map((it, idx) => {
+    const desc = it.description || it.material?.name || it.name || `Item ${idx + 1}`;
+    const qty = Number(it.quantity || 1);
+    const uom = it.uom || it.material?.unit || 'Pcs';
+    const price = Number(it.sellingPrice || it.unitCost || 0);
+    const amount = Number(it.totalRevenue || it.total || qty * price);
+    subtotal += amount;
+    return { desc, qty, uom, price, amount };
+  });
+
+  const taxRate = typeof config.taxRate === 'number' ? config.taxRate : 15;
+  let taxable = subtotal;
+  let taxAmount = 0;
+  if (taxRate > 0) {
+    if (sale?.taxableAmount && sale?.vatAmount && Number(sale.taxRate) === taxRate) {
+      taxable = Number(sale.taxableAmount);
+      taxAmount = Number(sale.vatAmount);
+    } else {
+      taxable = subtotal / (1 + taxRate / 100);
+      taxAmount = subtotal - taxable;
+    }
+  }
+
+  const printWindow = window.open('', '_blank', 'width=850,height=900');
+  if (!printWindow) {
+    alert('Please allow popups to print the A4 invoice.');
+    return;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${invoiceNo} - Standard Tax Invoice</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 14mm 14mm 16mm 14mm;
+          }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #0f172a;
+            background: #ffffff;
+            font-size: 13px;
+            line-height: 1.45;
+          }
+          .invoice-box {
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .header-table { width: 100%; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 16px; }
+          .company-title { font-size: 20px; font-weight: 800; color: #1e3a8a; letter-spacing: -0.02em; }
+          .invoice-badge { display: inline-block; padding: 4px 10px; background: ${isCredit ? '#eff6ff' : '#ecfdf5'}; color: ${isCredit ? '#1d4ed8' : '#047857'}; border: 1px solid ${isCredit ? '#bfdbfe' : '#a7f3d0'}; border-radius: 6px; font-weight: 800; font-size: 12px; text-transform: uppercase; }
+          .meta-grid { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+          .meta-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; }
+          .meta-title { font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+          .data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+          .data-table th { background: #f1f5f9; color: #1e293b; font-weight: 700; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; }
+          .data-table td { padding: 8px 10px; border: 1px solid #e2e8f0; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          .summary-box { width: 320px; margin-left: auto; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-top: 12px; }
+          .summary-row { display: flex; justify-content: space-between; padding: 6px 12px; font-size: 12px; border-bottom: 1px solid #f1f5f9; }
+          .summary-total { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 14px; font-weight: 800; background: #f8fafc; color: #0f172a; border-top: 2px solid #2563eb; }
+          .sign-grid { display: flex; justify-content: space-between; margin-top: 48px; padding-top: 12px; font-size: 12px; }
+          .sign-col { width: 28%; text-align: center; border-top: 1px solid #94a3b8; padding-top: 6px; color: #475569; }
+          .footer-note { text-align: center; font-size: 11px; color: #64748b; margin-top: 32px; border-top: 1px dashed #cbd5e1; padding-top: 12px; }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none !important; }
+          }
+          .print-bar { text-align: center; margin-bottom: 20px; }
+          .print-btn { padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        </style>
+      </head>
+      <body>
+        <div class="no-print print-bar">
+          <button class="print-btn" onclick="window.print()">🖨️ Print A4 Invoice</button>
+        </div>
+        <div class="invoice-box">
+          <table class="header-table">
+            <tr>
+              <td>
+                <div class="company-title">${orgName}</div>
+                <div style="color: #475569; font-size: 12px; margin-top: 2px;">${address} | Tel: ${phone}</div>
+                <div style="font-weight: 700; color: #0f172a; font-size: 12px; margin-top: 3px;">TIN: ${tin}</div>
+              </td>
+              <td class="text-right" style="vertical-align: top;">
+                <span class="invoice-badge">${isCredit ? 'Credit Sales Invoice' : 'Cash Sales Invoice'}</span>
+                <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 6px;">${invoiceNo}</div>
+                <div style="font-size: 11px; color: #64748b; font-weight: 600;">${fsNo}</div>
+              </td>
+            </tr>
+          </table>
+
+          <div class="meta-grid">
+            <div class="meta-card">
+              <div class="meta-title">Billed To (Customer)</div>
+              <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${customerName}</div>
+              ${customerTin ? `<div>TIN: <b>${customerTin}</b></div>` : ''}
+              ${customerPhone ? `<div>Tel: ${customerPhone}</div>` : ''}
+              ${sale?.customerAddress ? `<div>Address: ${sale.customerAddress}</div>` : ''}
+            </div>
+
+            <div class="meta-card">
+              <div class="meta-title">Invoice Information</div>
+              <div>Date: <b>${dateStr}</b></div>
+              <div>Sales Slip: <b>${fsNo}</b></div>
+              <div>Cashier / Operator: <b>${operator}</b></div>
+              <div>Payment Mode: <b>${isCredit ? 'CREDIT SALE' : 'CASH SALE'}</b></div>
+              ${isCredit && sale?.dueDate ? `<div>Due Date: <b>${new Date(sale.dueDate).toLocaleDateString('en-GB')}</b></div>` : ''}
+            </div>
+          </div>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 35px;" class="text-center">#</th>
+                <th>Item Description</th>
+                <th style="width: 55px;" class="text-center">UOM</th>
+                <th style="width: 65px;" class="text-center">Qty</th>
+                <th style="width: 110px;" class="text-right">Unit Price (ETB)</th>
+                <th style="width: 120px;" class="text-right">Amount (ETB)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${processed.map((it, idx) => `
+                <tr>
+                  <td class="text-center" style="color: #64748b;">${idx + 1}</td>
+                  <td style="font-weight: 600;">${it.desc}</td>
+                  <td class="text-center">${it.uom}</td>
+                  <td class="text-center" style="font-weight: 700;">${it.qty}</td>
+                  <td class="text-right">${formatNumber(it.price, 2)}</td>
+                  <td class="text-right" style="font-weight: 700;">${formatNumber(it.amount, 2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="summary-box">
+            <div class="summary-row">
+              <span style="color: #64748b;">Subtotal (TXBL1):</span>
+              <span style="font-weight: 600;">ETB ${formatNumber(taxable, 2)}</span>
+            </div>
+            <div class="summary-row">
+              <span style="color: #64748b;">VAT (${taxRate}%):</span>
+              <span style="font-weight: 600;">ETB ${formatNumber(taxAmount, 2)}</span>
+            </div>
+            <div class="summary-total">
+              <span>Grand Total:</span>
+              <span>ETB ${formatNumber(subtotal, 2)}</span>
+            </div>
+            ${isCredit ? `
+              <div class="summary-row" style="background: #f8fafc;">
+                <span style="color: #64748b;">Advanced Paid:</span>
+                <span style="font-weight: 600; color: #047857;">ETB ${formatNumber(sale?.amountPaid || 0, 2)}</span>
+              </div>
+              <div class="summary-row" style="background: #f8fafc; font-weight: 700;">
+                <span style="color: #b91c1c;">Balance Due:</span>
+                <span style="color: #b91c1c;">ETB ${formatNumber(Math.max(0, subtotal - (Number(sale?.amountPaid) || 0)), 2)}</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="sign-grid">
+            <div class="sign-col">Prepared By / Cashier</div>
+            <div class="sign-col">Checked &amp; Approved</div>
+            <div class="sign-col">Customer Acceptance</div>
+          </div>
+
+          <div class="footer-note">
+            Thank you for your business! | Machine ID: ${config.machineNo || 'SPM00000189'} | Powered by Sharp Plus System
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+};
