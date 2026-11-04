@@ -802,7 +802,7 @@ export default function Login() {
         }
       `}</style>
 
-      <div className="login-root">
+      <div className="login-root notranslate">
 
         {/* ════════════════════ LEFT — HERO ════════════════════ */}
         <section className="login-hero" aria-label="Application branding">

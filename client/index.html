@@ -14,6 +14,26 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet" />
   <title>Sharp Plus — Inventory &amp; Stock System</title>
+  <script>
+    // Safeguard React reconciler against DOM modifications from Google Translate and browser extensions
+    if (typeof Node === 'function' && Node.prototype) {
+      const origRemove = Node.prototype.removeChild;
+      Node.prototype.removeChild = function (child) {
+        if (child && child.parentNode !== this) {
+          return child;
+        }
+        return origRemove.apply(this, arguments);
+      };
+
+      const origInsert = Node.prototype.insertBefore;
+      Node.prototype.insertBefore = function (newNode, refNode) {
+        if (refNode && refNode.parentNode !== this) {
+          return newNode;
+        }
+        return origInsert.apply(this, arguments);
+      };
+    }
+  </script>
 </head>
 
 <body>

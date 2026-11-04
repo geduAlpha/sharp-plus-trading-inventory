@@ -8,6 +8,14 @@ export default class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
+    // If caused by external DOM translation mutation during unmount/navigation, reload seamlessly
+    const msg = error?.message || '';
+    if (msg.includes('removeChild') || msg.includes('insertBefore') || msg.includes('not a child of this node')) {
+      try {
+        window.location.reload();
+        return { hasError: false, error: null };
+      } catch {}
+    }
     return { hasError: true, error };
   }
 
