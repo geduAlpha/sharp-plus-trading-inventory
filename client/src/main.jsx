@@ -5,6 +5,7 @@ import App from './App.jsx';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ThemeSidebarProvider } from './context/ThemeSidebarContext.jsx';
+import { LanguageProvider } from './context/LanguageContext.jsx';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <BrowserRouter>
         <AuthProvider>
           <ThemeSidebarProvider>
-            <App />
+            <LanguageProvider>
+              <App />
+            </LanguageProvider>
           </ThemeSidebarProvider>
         </AuthProvider>
       </BrowserRouter>

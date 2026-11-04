@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Lock, Building2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeSidebar } from '../../context/ThemeSidebarContext';
+import { useLanguage } from '../../context/LanguageContext';
 import MuiIconResolver from '../common/MuiIconResolver';
 
 /* ── Avoided / Inactive Navigation Items ── */
@@ -145,6 +146,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
   const { user, isDeveloper, canSeeNav, companyInfo, modulesEnabled: authModulesEnabled } = useAuth();
   const isDev = Boolean(isDeveloper || user?.role === 'developer');
   const { activeTheme, activeSidebar, modulesEnabled: themeModulesEnabled } = useThemeSidebar();
+  const { t } = useLanguage();
   const modulesEnabled = themeModulesEnabled || authModulesEnabled;
   const location = useLocation();
 
@@ -438,7 +440,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
         to={item.to}
         end={Boolean(item.exact)}
         onClick={onClose}
-        title={collapsed ? item.label : undefined}
+        title={collapsed ? t(item.label) : undefined}
         className={({ isActive }) => getLinkClasses(isActive)}
       >
         {({ isActive }) => (
@@ -451,7 +453,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
             </span>
             {!collapsed && (
               <span className="text-[13px] tracking-tight truncate flex-1">
-                {item.label}
+                {t(item.label)}
               </span>
             )}
             {isActive && !collapsed && (
@@ -485,7 +487,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
           key={group.id}
           to={firstActiveChild?.to || '/'}
           onClick={onClose}
-          title={group.label}
+          title={t(group.label)}
           className={({ isActive }) => getLinkClasses(isActive || active)}
         >
           {({ isActive }) => (
@@ -503,7 +505,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     return (
       <DynamicCollapsibleNav
         key={group.id}
-        label={group.label}
+        label={t(group.label)}
         iconName={group.icon}
         isOpen={isOpen}
         isActive={active}
@@ -545,7 +547,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
                       }`}
                     />
                     <MuiIconResolver name={sub.icon} size={Math.max(12, resolvedIconSize - 3)} className="shrink-0 text-slate-400" />
-                    <span className="truncate">{sub.label}</span>
+                    <span className="truncate">{t(sub.label)}</span>
                   </div>
                   <ChevronDown
                     size={12}
@@ -581,7 +583,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
                               style={isActive ? { backgroundColor: groupColor } : undefined}
                             />
                             <MuiIconResolver name={kid.icon} size={Math.max(11, resolvedIconSize - 4)} className="shrink-0" />
-                            <span className="truncate">{kid.label}</span>
+                            <span className="truncate">{t(kid.label)}</span>
                           </>
                         )}
                       </NavLink>
@@ -617,7 +619,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
                     size={Math.max(12, resolvedIconSize - 3)}
                     className="shrink-0 opacity-60 text-slate-400"
                   />
-                  <span className="truncate">{sub.label}</span>
+                  <span className="truncate">{t(sub.label)}</span>
                 </div>
                 <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/25">
                   Hold
@@ -657,7 +659,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
                     style={isActive ? { backgroundColor: groupColor } : undefined}
                   />
                   <MuiIconResolver name={sub.icon} size={Math.max(12, resolvedIconSize - 3)} className="shrink-0" />
-                  <span className="truncate">{sub.label}</span>
+                  <span className="truncate">{t(sub.label)}</span>
                 </>
               )}
             </NavLink>

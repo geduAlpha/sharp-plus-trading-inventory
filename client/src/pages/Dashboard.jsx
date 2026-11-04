@@ -47,6 +47,8 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageMenu from '../components/common/LanguageMenu';
 
 const formatETB = (n) =>
   `ETB ${Number(n || 0).toLocaleString('en-US', {
@@ -160,6 +162,7 @@ let cachedDashboardData = getStoredDashboardData();
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [data, setData] = useState(cachedDashboardData);
   const [loading, setLoading] = useState(!cachedDashboardData);
   const [movementView, setMovementView] = useState('bar'); // 'bar' | 'area' (Bar Chart as default)
@@ -286,6 +289,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 pb-8">
+      {/* ── System Language & Data Translation Bar ── */}
+      <LanguageMenu variant="dashboard-banner" />
       {/* ── Commercial Sales Performance Row (Cash & Credit Sales with View Icons) ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Total Cash Sales Card */}
@@ -293,7 +298,7 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/90 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
-                <Banknote size={13} className="text-emerald-700" /> Cash Sales
+                <Banknote size={13} className="text-emerald-700" /> {t('cash_sales', 'Cash Sales')}
               </span>
               <p className="mt-2.5 text-2xl font-black text-slate-900 tracking-tight tabular-nums">
                 {formatETB(data.totalCashSales || 0)}
@@ -310,13 +315,13 @@ export default function Dashboard() {
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-emerald-100/80 pt-3 text-xs">
             <span className="font-semibold text-slate-500">
-              {data.cashSalesCount || 0} completed transactions
+              {data.cashSalesCount || 0} {t('completed_transactions', 'completed transactions')}
             </span>
             <button
               onClick={() => navigate('/transactions?voucherType=cash_sale')}
               className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-900 transition"
             >
-              View Transactions <ArrowRight size={12} />
+              {t('view_transactions', 'View Transactions')} <ArrowRight size={12} />
             </button>
           </div>
         </div>
@@ -326,7 +331,7 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100/90 px-2.5 py-0.5 text-[11px] font-bold text-indigo-800 border border-indigo-200">
-                <CreditCard size={13} className="text-indigo-700" /> Credit Sales
+                <CreditCard size={13} className="text-indigo-700" /> {t('credit_sales', 'Credit Sales')}
               </span>
               <p className="mt-2.5 text-2xl font-black text-slate-900 tracking-tight tabular-nums">
                 {formatETB(data.totalCreditSales || 0)}
@@ -343,13 +348,13 @@ export default function Dashboard() {
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-indigo-100/80 pt-3 text-xs">
             <span className="font-semibold text-slate-500">
-              {data.creditSalesCount || 0} credit records
+              {data.creditSalesCount || 0} {t('credit_records', 'credit records')}
             </span>
             <button
               onClick={() => navigate('/transactions?voucherType=credit_sale')}
               className="inline-flex items-center gap-1 font-bold text-indigo-700 hover:text-indigo-900 transition"
             >
-              View Transactions <ArrowRight size={12} />
+              {t('view_transactions', 'View Transactions')} <ArrowRight size={12} />
             </button>
           </div>
         </div>
@@ -359,7 +364,7 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100/90 px-2.5 py-0.5 text-[11px] font-bold text-blue-800 border border-blue-200">
-                <BadgeDollarSign size={13} className="text-blue-700" /> Total Sales (Cash + Credit)
+                <BadgeDollarSign size={13} className="text-blue-700" /> {t('total_sales', 'Total Sales (Cash + Credit)')}
               </span>
               <p className="mt-2.5 text-2xl font-black text-slate-900 tracking-tight tabular-nums">
                 {formatETB(data.totalSales || 0)}
@@ -376,13 +381,13 @@ export default function Dashboard() {
           </div>
           <div className="mt-4 flex items-center justify-between border-t border-blue-100/80 pt-3 text-xs">
             <span className="font-semibold text-slate-500">
-              {data.totalSalesCount || 0} total sales vouchers
+              {data.totalSalesCount || 0} {t('total_sales_vouchers', 'total sales vouchers')}
             </span>
             <button
               onClick={() => navigate('/transactions?voucherType=sales')}
               className="inline-flex items-center gap-1 font-bold text-blue-700 hover:text-blue-900 transition"
             >
-              View All Sales <ArrowRight size={12} />
+              {t('view_all_sales', 'View All Sales')} <ArrowRight size={12} />
             </button>
           </div>
         </div>
@@ -396,9 +401,9 @@ export default function Dashboard() {
             <p className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
               {formatCompactETB(data.stockValue)}
             </p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Total Stock Value</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">{t('total_stock_value', 'Total Stock Value')}</p>
             <p className="text-[11px] text-emerald-600 font-semibold mt-2">
-              Spend: <span className="font-bold">{formatCompactETB(data.monthSpend)}</span>
+              {t('spend', 'Spend')}: <span className="font-bold">{formatCompactETB(data.monthSpend)}</span>
             </p>
           </div>
           <div className="flex flex-col items-end justify-between self-stretch">
@@ -417,9 +422,9 @@ export default function Dashboard() {
             <p className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
               {data.totalMaterials}
             </p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Available Materials</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">{t('available_materials', 'Available Materials')}</p>
             <p className="text-[11px] text-indigo-600 font-semibold mt-2">
-              In {categoryData.length} categories
+              {t('in_categories', 'In {n} categories').replace('{n}', categoryData.length)}
             </p>
           </div>
           <div className="flex flex-col items-end justify-between self-stretch">
@@ -438,9 +443,9 @@ export default function Dashboard() {
             <p className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
               {formatCompactETB(data.monthSpend)}
             </p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Avg Treat. / Purchases</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">{t('monthly_purchases', 'Avg Treat. / Purchases')}</p>
             <p className="text-[11px] text-amber-600 font-semibold mt-2">
-              Monthly inflow spend
+              {t('monthly_inflow', 'Monthly inflow spend')}
             </p>
           </div>
           <div className="flex flex-col items-end justify-between self-stretch">
@@ -459,9 +464,9 @@ export default function Dashboard() {
             <p className="text-2xl font-black text-rose-600 tracking-tight tabular-nums">
               {lowOrOutCount}
             </p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Reorder Alerts</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">{t('reorder_alerts', 'Reorder Alerts')}</p>
             <p className="text-[11px] text-rose-500 font-semibold mt-2">
-              {data.outOfStockCount || 0} out of stock
+              {data.outOfStockCount || 0} {t('out_of_stock', 'out of stock')}
             </p>
           </div>
           <div className="flex flex-col items-end justify-between self-stretch">
@@ -480,8 +485,8 @@ export default function Dashboard() {
         {/* Left: Stock Availability & Ratio (Matching "Patients by Gender") */}
         <div className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-800 tracking-tight">Stock by Category &amp; Ratio</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Inventory safety &amp; movement distribution</p>
+            <h3 className="text-base font-bold text-slate-800 tracking-tight">{t('stock_by_category', 'Stock by Category & Ratio')}</h3>
+            <p className="text-xs text-slate-400 mt-0.5">{t('category_desc', 'Inventory safety & movement distribution')}</p>
           </div>
 
           <div className="my-6 grid grid-cols-2 gap-4 items-center justify-items-center">
@@ -532,7 +537,7 @@ export default function Dashboard() {
         <div className="lg:col-span-7 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col justify-between">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div>
-              <h3 className="text-base font-bold text-slate-800 tracking-tight">Outflow vs. Inflow Movement Trend</h3>
+              <h3 className="text-base font-bold text-slate-800 tracking-tight">{t('movement_trend', 'Outflow vs. Inflow Movement Trend')}</h3>
               <div className="flex items-center gap-4 mt-1.5 text-xs">
                 <span className="flex items-center gap-1.5 text-slate-600 font-semibold">
                   <span className="h-2.5 w-2.5 rounded-sm bg-[#5a52e0]" /> Inbound (GRV)

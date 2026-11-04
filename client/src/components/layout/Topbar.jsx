@@ -12,6 +12,8 @@ import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useSessionTimeout } from '../../context/SessionTimeoutContext';
 import { useThemeSidebar } from '../../context/ThemeSidebarContext';
+import { useLanguage } from '../../context/LanguageContext';
+import LanguageMenu from '../common/LanguageMenu';
 
 // ─────────────────────────────────────────
 // HELP MODAL DATA
@@ -549,6 +551,7 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
   };
 
   const { activeTheme } = useThemeSidebar();
+  const { t } = useLanguage();
 
   const isDeveloper = user?.role?.toLowerCase() === 'developer' ||
     user?.email?.toLowerCase().includes('developer') ||
@@ -613,7 +616,7 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
 
             <div className="flex flex-col justify-center min-w-0">
               <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug truncate max-w-[240px] md:max-w-md lg:max-w-xl">
-                {title}
+                {t(title)}
               </h1>
               <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-slate-500 leading-normal mt-0.5">
                 <Calendar size={13} className="text-indigo-500 shrink-0" />
@@ -637,6 +640,9 @@ const Topbar = ({ onMenuClick, onToggleCollapse, title }) => {
           >
             <Maximize size={16} />
           </button>
+
+          {/* Language & System Translation Menu */}
+          <LanguageMenu variant="topbar" />
 
           {/* Theme Studio quick link */}
           <button
