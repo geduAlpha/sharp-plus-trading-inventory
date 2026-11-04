@@ -44,6 +44,7 @@ import {
   TrendingUp,
   Ban,
   Pencil,
+  Eye,
 } from 'lucide-react';
 
 const formatETB = (n) =>
@@ -911,6 +912,64 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
     }
   };
 
+  // Preview current sale order draft before submitting (avoids accidental or unwanted transactions)
+  const handlePreviewCurrentSale = () => {
+    const validItems = items.filter((it) => it.material && Number(it.quantity) > 0);
+    if (!validItems.length) {
+      setError('Please add at least one line item with a quantity greater than zero to preview the invoice.');
+      return;
+    }
+    setError('');
+
+    const previewSale = {
+      _id: 'draft-preview',
+      voucherType: salesMode,
+      voucherNo: voucherNo.trim() || (isCredit ? 'CRSALE-PREVIEW' : 'CSALE-PREVIEW'),
+      date: saleDate,
+      customerName: selectedCustomer ? selectedCustomer.name : (isCredit ? 'Credit Customer' : 'Walk-in Customer'),
+      customerPhone: selectedCustomer?.phone || '',
+      customerAddress: selectedCustomer?.address || '',
+      tin: selectedCustomer?.tinNumber || '',
+      paymentType: isCredit ? 'credit' : 'cash',
+      paymentStatus: isCredit
+        ? Number(amountPaid) >= totalRevenue
+          ? 'paid'
+          : Number(amountPaid) > 0
+          ? 'partial'
+          : 'unpaid'
+        : 'paid',
+      amountPaid: isCredit ? Number(amountPaid) || 0 : totalRevenue,
+      creditBalance: isCredit ? creditBalance : 0,
+      dueDate: isCredit ? dueDate : null,
+      reference: reference.trim(),
+      notes: notes.trim(),
+      taxRate: Number(taxRate) || 0,
+      taxableAmount,
+      vatAmount,
+      taxAmount: vatAmount,
+      isVatInclusive,
+      totalRevenue,
+      store: selectedStore,
+      status: 'draft_preview',
+      isPreviewDraft: true,
+      items: validItems.map((it) => ({
+        material: it.material,
+        description: it.description || 'Sales Item',
+        code: it.code || '',
+        quantity: Number(it.quantity),
+        sellingPrice: Number(it.sellingPrice),
+        unitCost: it.unitCost || 0,
+        discount: Number(it.discount) || 0,
+        discountType: it.discountType || 'percent',
+        totalRevenue: Number(it.total),
+        uom: it.uom || 'Pcs',
+      })),
+    };
+
+    setCurrentBillSale(previewSale);
+    setThermalBillOpen(true);
+  };
+
   const handleResetForm = () => {
     if (window.confirm('Are you sure you want to discard this order and reset the form?')) {
       setItems([
@@ -1019,6 +1078,16 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
                 <span>Credit Sales</span>
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={handlePreviewCurrentSale}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-xs font-semibold text-blue-200 border border-blue-500/40 transition shadow-xs"
+              title="Preview Bill / Invoice before completing transaction"
+            >
+              <Eye size={14} className="text-blue-300" />
+              <span>Preview Bill</span>
+            </button>
 
             <button
               type="button"
@@ -1883,6 +1952,17 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
 
             {/* Primary Action Buttons */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
+              {/* Show / Preview Button before completing transaction */}
+              <button
+                type="button"
+                onClick={handlePreviewCurrentSale}
+                className="w-full py-2.5 px-4 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/80 text-blue-800 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition active:scale-98"
+                title="Preview standardized bill and review line items before committing transaction"
+              >
+                <Eye size={15} className="text-blue-600" />
+                <span>Show / Preview Bill (Review Before Submit)</span>
+              </button>
+
               <button
                 type="submit"
                 disabled={submitting}

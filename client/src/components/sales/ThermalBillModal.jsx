@@ -18,6 +18,7 @@ import {
   Calendar,
   CreditCard,
   Banknote,
+  Eye,
 } from 'lucide-react';
 import {
   generateThermalReceiptText,
@@ -88,8 +89,6 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [exportMenuOpen, showSettingsPopover]);
 
-  if (!open || !sale) return null;
-
   const isCredit =
     sale?.paymentType === 'credit' ||
     sale?.voucherType === 'credit_sale' ||
@@ -121,7 +120,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
   const dateStr = formatFiscalDate(sale?.date);
 
   const rawItems = sale?.items || [];
-  const items = rawItems.length > 0 ? rawItems : [
+  const items = rawItems.length > 0 ? rawItems : (sale ? [
     {
       description: 'Sales Item',
       name: 'Sales Item',
@@ -129,10 +128,13 @@ export default function ThermalBillModal({ open, onClose, sale }) {
       sellingPrice: Number(sale?.totalRevenue || sale?.totalAmount || 0),
       totalRevenue: Number(sale?.totalRevenue || sale?.totalAmount || 0),
     },
-  ];
+  ] : []);
 
-  // Processed Items and Financial Calculations
+  // Processed Items and Financial Calculations (Unconditionally called before any return)
   const { totalRevenue, taxable, taxAmount, processedItems } = useMemo(() => {
+    if (!sale) {
+      return { totalRevenue: 0, taxable: 0, taxAmount: 0, processedItems: [] };
+    }
     let rev = 0;
     const list = items.map((it) => {
       const desc = it.description || it.material?.name || it.material || it.name || 'Sales Item';
@@ -171,10 +173,15 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     };
   }, [items, sale, config.taxRate]);
 
-  const receiptText = generateThermalReceiptText(sale, {
-    ...config,
-    fsNo: fsNumber,
-  });
+  const receiptText = sale
+    ? generateThermalReceiptText(sale, {
+        ...config,
+        fsNo: fsNumber,
+      })
+    : '';
+
+  // Safe early exit AFTER all hooks are registered
+  if (!open || !sale) return null;
 
   const handleCopyText = async () => {
     try {
@@ -223,6 +230,11 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 >
                   {isZeroing ? 'Zeroing Voucher' : (isCredit ? 'Credit Sale' : 'Cash Sale')}
                 </span>
+                {(sale?.status === 'draft_preview' || sale?.isPreviewDraft) && (
+                  <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Preview Draft
+                  </span>
+                )}
                 <span className="text-xs font-mono font-semibold text-slate-400 hidden md:inline">
                   {invoiceNo}
                 </span>
@@ -514,6 +526,25 @@ export default function ThermalBillModal({ open, onClose, sale }) {
             A4 Invoice
           </button>
         </div>
+
+        {/* Verification Preview Notice */}
+        {(sale?.status === 'draft_preview' || sale?.isPreviewDraft) && (
+          <div className="px-4 py-2 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between text-xs text-amber-200">
+            <div className="flex items-center gap-2">
+              <Eye size={15} className="text-amber-400 shrink-0" />
+              <span>
+                <strong>Verification Draft Preview:</strong> Reviewing items &amp; taxes before committing. This transaction has NOT been saved to the database.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ml-3 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-[11px] shrink-0"
+            >
+              Return to Form
+            </button>
+          </div>
+        )}
 
         {/* ── 2. Standalone Bill Preview Body (No Side Panels) ── */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex items-start justify-center bg-slate-950/60">
