@@ -8,6 +8,12 @@ import WorkflowBadge from '../ui/WorkflowBadge';
 import ApproveModal from '../ui/ApproveModal';
 import ThermalBillModal from './ThermalBillModal';
 import {
+  exportBillByFormat,
+  EXPORT_FORMATS,
+  openThermalPrintWindow,
+  openA4PrintWindow,
+} from '../../utils/thermalBillUtils';
+import {
   ShoppingBag,
   CreditCard,
   Plus,
@@ -45,6 +51,7 @@ import {
   Ban,
   Pencil,
   Eye,
+  Download,
 } from 'lucide-react';
 
 const formatETB = (n) =>
@@ -200,6 +207,15 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
   // Fiscal Bill Modal
   const [thermalBillOpen, setThermalBillOpen] = useState(false);
   const [currentBillSale, setCurrentBillSale] = useState(null);
+
+  // Direct Export States during sales
+  const [salesExportDropdownOpen, setSalesExportDropdownOpen] = useState(false);
+  const [salesExportToast, setSalesExportToast] = useState('');
+  const salesExportDropdownRef = useRef(null);
+
+  // Success modal export dropdown
+  const [successExportDropdownOpen, setSuccessExportDropdownOpen] = useState(false);
+  const successExportDropdownRef = useRef(null);
 
   // Recent Sales Table & Bulk Selection
   const [recentSales, setRecentSales] = useState([]);
@@ -394,11 +410,17 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
     setDueDate(d.toISOString().slice(0, 10));
   };
 
-  // Close customer dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target)) {
         setCustomerDropdownOpen(false);
+      }
+      if (salesExportDropdownRef.current && !salesExportDropdownRef.current.contains(e.target)) {
+        setSalesExportDropdownOpen(false);
+      }
+      if (successExportDropdownRef.current && !successExportDropdownRef.current.contains(e.target)) {
+        setSuccessExportDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -912,19 +934,13 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
     }
   };
 
-  // Preview current sale order draft before submitting (avoids accidental or unwanted transactions)
-  const handlePreviewCurrentSale = () => {
+  // Construct consolidated transaction object from current form state
+  const buildCurrentDraftSale = () => {
     const validItems = items.filter((it) => it.material && Number(it.quantity) > 0);
-    if (!validItems.length) {
-      setError('Please add at least one line item with a quantity greater than zero to preview the invoice.');
-      return;
-    }
-    setError('');
-
-    const previewSale = {
-      _id: 'draft-preview',
+    return {
+      _id: editingSale?._id || 'draft-sale',
       voucherType: salesMode,
-      voucherNo: voucherNo.trim() || (isCredit ? 'CRSALE-PREVIEW' : 'CSALE-PREVIEW'),
+      voucherNo: voucherNo.trim() || (isCredit ? 'CRSALE-DRAFT' : 'CSALE-DRAFT'),
       date: saleDate,
       customerName: selectedCustomer ? selectedCustomer.name : (isCredit ? 'Credit Customer' : 'Walk-in Customer'),
       customerPhone: selectedCustomer?.phone || '',
@@ -950,9 +966,9 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
       isVatInclusive,
       totalRevenue,
       store: selectedStore,
-      status: 'draft_preview',
-      isPreviewDraft: true,
-      items: validItems.map((it) => ({
+      status: editingSale?.status || 'draft_preview',
+      isPreviewDraft: !editingSale,
+      items: validItems.length > 0 ? validItems.map((it) => ({
         material: it.material,
         description: it.description || 'Sales Item',
         code: it.code || '',
@@ -963,9 +979,55 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
         discountType: it.discountType || 'percent',
         totalRevenue: Number(it.total),
         uom: it.uom || 'Pcs',
-      })),
+      })) : [{ description: 'Sales Item', quantity: 1, sellingPrice: totalRevenue, totalRevenue }],
     };
+  };
 
+  // Direct Print during sales (Thermal POS or A4 Standard)
+  const handlePrintCurrentSale = (mode = '80mm') => {
+    const validItems = items.filter((it) => it.material && Number(it.quantity) > 0);
+    if (!validItems.length) {
+      setError('Please add at least one line item with a quantity greater than zero to print.');
+      return;
+    }
+    setError('');
+    const saleData = buildCurrentDraftSale();
+    if (mode === 'a4') {
+      openA4PrintWindow(saleData, { taxRate });
+    } else {
+      openThermalPrintWindow(saleData, { taxRate });
+    }
+  };
+
+  // Direct Export by file extension during sales
+  const handleExportCurrentSale = (formatId, ext) => {
+    const validItems = items.filter((it) => it.material && Number(it.quantity) > 0);
+    if (!validItems.length) {
+      setError('Please add at least one line item with a quantity greater than zero to export.');
+      return;
+    }
+    setError('');
+    const saleData = buildCurrentDraftSale();
+    setSalesExportDropdownOpen(false);
+    try {
+      exportBillByFormat(formatId, saleData, { taxRate });
+      setSalesExportToast(`Downloaded ${saleData.voucherNo}${ext}`);
+      setTimeout(() => setSalesExportToast(''), 4500);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert(`Could not export file as ${ext}`);
+    }
+  };
+
+  // Preview current sale order draft before submitting (avoids accidental or unwanted transactions)
+  const handlePreviewCurrentSale = () => {
+    const validItems = items.filter((it) => it.material && Number(it.quantity) > 0);
+    if (!validItems.length) {
+      setError('Please add at least one line item with a quantity greater than zero to preview the invoice.');
+      return;
+    }
+    setError('');
+    const previewSale = buildCurrentDraftSale();
     setCurrentBillSale(previewSale);
     setThermalBillOpen(true);
   };
@@ -1950,17 +2012,85 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
               </div>
             </div>
 
-            {/* Primary Action Buttons */}
+            {/* Primary Action Buttons & Export / Print Controls */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
+              {/* Sales Export Toast Feedback */}
+              {salesExportToast && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-1.5">
+                    <Check size={14} className="text-emerald-600 shrink-0" />
+                    <span>{salesExportToast}</span>
+                  </div>
+                  <button type="button" onClick={() => setSalesExportToast('')} className="text-slate-400 hover:text-slate-600">
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+
+              {/* Print & Export Actions Based on User Interest */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Print Bill Button */}
+                <button
+                  type="button"
+                  onClick={() => handlePrintCurrentSale('80mm')}
+                  className="py-2 px-3 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-2xs"
+                  title="Direct Print 80mm POS Thermal Slip"
+                >
+                  <Printer size={14} />
+                  <span>Print Slip</span>
+                </button>
+
+                {/* Export Dropdown with Extension Selection */}
+                <div className="relative" ref={salesExportDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setSalesExportDropdownOpen(!salesExportDropdownOpen)}
+                    className="w-full py-2 px-3 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-2xs"
+                    title="Export bill by selecting file extension"
+                  >
+                    <Download size={14} className="text-emerald-600" />
+                    <span>Export</span>
+                    <ChevronDown size={13} className={`transition-transform duration-200 text-slate-500 ${salesExportDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {salesExportDropdownOpen && (
+                    <div className="absolute right-0 bottom-full mb-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-2xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider border-b border-slate-100 flex items-center justify-between">
+                        <span>Select File Extension</span>
+                        <span className="text-[9px] text-emerald-600 font-normal">Direct Download</span>
+                      </div>
+                      <div className="py-1 space-y-0.5">
+                        {EXPORT_FORMATS.map((fmt) => (
+                          <button
+                            key={fmt.id}
+                            type="button"
+                            onClick={() => handleExportCurrentSale(fmt.id, fmt.ext)}
+                            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition text-left group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Download size={13} className="text-slate-400 group-hover:text-emerald-600" />
+                              <span className="font-semibold text-slate-800">{fmt.name}</span>
+                            </div>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${fmt.badgeClass}`}>
+                              {fmt.ext}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Show / Preview Button before completing transaction */}
               <button
                 type="button"
                 onClick={handlePreviewCurrentSale}
-                className="w-full py-2.5 px-4 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/80 text-blue-800 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition active:scale-98"
+                className="w-full py-2 px-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
                 title="Preview standardized bill and review line items before committing transaction"
               >
-                <Eye size={15} className="text-blue-600" />
-                <span>Show / Preview Bill (Review Before Submit)</span>
+                <Eye size={14} className="text-blue-600" />
+                <span>Show / Preview Bill Layout</span>
               </button>
 
               <button
@@ -2554,15 +2684,70 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
               )}
               <button
                 type="button"
+                onClick={() => openThermalPrintWindow(successVoucher, { taxRate })}
+                className="px-3.5 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                title="Direct Print 80mm POS Slip"
+              >
+                <Printer size={14} />
+                Print Bill
+              </button>
+
+              {/* Direct Export Dropdown with Extension Selection */}
+              <div className="relative" ref={successExportDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setSuccessExportDropdownOpen(!successExportDropdownOpen)}
+                  className="px-3.5 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                  title="Export file by selecting extension"
+                >
+                  <Download size={14} className="text-emerald-600" />
+                  <span>Export</span>
+                  <ChevronDown size={13} className={`transition-transform duration-200 text-slate-500 ${successExportDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {successExportDropdownOpen && (
+                  <div className="absolute right-0 bottom-full mb-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-2xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider border-b border-slate-100 flex items-center justify-between">
+                      <span>Select File Extension</span>
+                      <span className="text-[9px] text-emerald-600 font-normal">Direct Download</span>
+                    </div>
+                    <div className="py-1 space-y-0.5">
+                      {EXPORT_FORMATS.map((fmt) => (
+                        <button
+                          key={fmt.id}
+                          type="button"
+                          onClick={() => {
+                            setSuccessExportDropdownOpen(false);
+                            exportBillByFormat(fmt.id, successVoucher, { taxRate });
+                          }}
+                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition text-left group"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Download size={13} className="text-slate-400 group-hover:text-emerald-600" />
+                            <span className="font-semibold text-slate-800">{fmt.name}</span>
+                          </div>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${fmt.badgeClass}`}>
+                            {fmt.ext}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
                 onClick={() => {
+                  const v = successVoucher;
                   setSuccessVoucher(null);
-                  setCurrentBillSale(successVoucher);
+                  setCurrentBillSale(v);
                   setThermalBillOpen(true);
                 }}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white flex items-center gap-1.5 shadow transition"
               >
-                <Printer size={15} />
-                Print Fiscal Slip &amp; Export
+                <Eye size={14} />
+                View Full Bill
               </button>
             </div>
           </div>

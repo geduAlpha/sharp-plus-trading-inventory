@@ -1,4 +1,59 @@
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+
+/**
+ * Standard Export Formats with file extensions and metadata
+ */
+export const EXPORT_FORMATS = [
+  {
+    id: 'pdf',
+    ext: '.PDF',
+    name: 'PDF Document',
+    desc: 'Official printable vector invoice document',
+    mime: 'application/pdf',
+    badgeClass: 'bg-red-500/20 text-red-400 border border-red-500/30',
+  },
+  {
+    id: 'xlsx',
+    ext: '.XLSX',
+    name: 'Excel Spreadsheet',
+    desc: 'Structured accounting worksheet with formulas',
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    badgeClass: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+  },
+  {
+    id: 'doc',
+    ext: '.DOC',
+    name: 'Word Document',
+    desc: 'Editable Microsoft Word corporate document',
+    mime: 'application/msword',
+    badgeClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+  },
+  {
+    id: 'csv',
+    ext: '.CSV',
+    name: 'CSV Tabular Data',
+    desc: 'Comma-separated values for database import',
+    mime: 'text/csv',
+    badgeClass: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+  },
+  {
+    id: 'txt',
+    ext: '.TXT',
+    name: 'Plain Text Slip',
+    desc: 'Thermal 80mm plain-text receipt layout',
+    mime: 'text/plain',
+    badgeClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+  },
+  {
+    id: 'json',
+    ext: '.JSON',
+    name: 'Structured JSON',
+    desc: 'Standardized ERP interchange data schema',
+    mime: 'application/json',
+    badgeClass: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+  },
+];
 
 /**
  * Format a number to standard 2 decimal currency string: 1,739.16
@@ -193,6 +248,339 @@ export const generateThermalReceiptText = (sale, config = {}) => {
   txt += `Powered By ${config.poweredBy || 'Sharp Plus System'}\n`;
 
   return txt;
+};
+
+/**
+ * Export bill as official PDF Document (.pdf) using jsPDF
+ */
+export const exportBillToPDF = (sale, config = {}) => {
+  const isCredit =
+    sale?.paymentType === 'credit' ||
+    sale?.voucherType === 'credit_sale';
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const invoiceNo = sale?.voucherNo || (isCredit ? 'CRSALE-00001' : 'CSALE-00001');
+  const companyName = (config.companyLines || [])[0] || 'SHARP PLUS TRADING PLC';
+  const tin = config.tinNumber || '0089234125';
+  const address = `${config.addressLine1 || 'Addis Ababa, Bole Medhanialem'}, ${config.addressLine2 || 'Commercial Center 4th Floor'}`;
+  const phone = config.phone || 'Tel: +251 91 100 0111';
+  const customerName = sale?.customerName || (typeof sale?.customer === 'object' ? sale?.customer?.name : sale?.customer) || 'Walk-in Customer';
+  const customerTin = sale?.tin || sale?.customerTin || 'N/A';
+  const dateStr = formatFiscalDate(sale?.date);
+  const operator = config.operator || sale?.performedBy?.name || 'System Operator';
+  const fsNo = config.fsNo || sale?.fsNo || (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') || `FS No.${String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(0, 0, 210, 30, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text(companyName, 14, 12);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225); // slate-300
+  doc.text(`${address} | ${phone}`, 14, 19);
+  doc.text(`TIN: ${tin} | Machine: ${config.machineNo || 'SPM00000189'} | ${fsNo}`, 14, 25);
+
+  // Document Title
+  doc.setTextColor(15, 23, 42); // slate-900
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text(isCredit ? 'CREDIT SALES INVOICE (ACCOUNTS RECEIVABLE)' : 'OFFICIAL FISCAL CASH SALES INVOICE', 14, 40);
+
+  // Metadata Grid
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, 44, 182, 22, 2, 2, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, 44, 182, 22, 2, 2, 'D');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Invoice #:', 18, 51);
+  doc.text('Fiscal Slip #:', 18, 57);
+  doc.text('Date & Time:', 18, 63);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(15, 23, 42);
+  doc.text(invoiceNo, 40, 51);
+  doc.text(fsNo, 40, 57);
+  doc.text(dateStr, 40, 63);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Customer:', 105, 51);
+  doc.text('Customer TIN:', 105, 57);
+  doc.text('Operator / Cashier:', 105, 63);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(15, 23, 42);
+  doc.text(customerName.slice(0, 36), 136, 51);
+  doc.text(customerTin || 'N/A', 136, 57);
+  doc.text(operator, 136, 63);
+
+  // Line Items Table Header
+  let y = 73;
+  doc.setFillColor(241, 245, 249); // slate-100
+  doc.rect(14, y, 182, 8, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.line(14, y + 8, 196, y + 8);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text('#', 17, y + 5.5);
+  doc.text('Item Description / Material', 28, y + 5.5);
+  doc.text('Qty', 118, y + 5.5, { align: 'right' });
+  doc.text('Unit Price (ETB)', 152, y + 5.5, { align: 'right' });
+  doc.text('Amount (ETB)', 192, y + 5.5, { align: 'right' });
+
+  // Line Items Table Rows
+  y += 11;
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(15, 23, 42);
+
+  const rawItems = sale?.items || [];
+  const items = rawItems.length > 0
+    ? rawItems
+    : [{ description: 'Sales Item', quantity: 1, sellingPrice: Number(sale?.totalRevenue || 0) }];
+
+  let subtotal = 0;
+  items.forEach((it, idx) => {
+    const desc = it.description || it.material?.name || it.material || it.name || `Item ${idx + 1}`;
+    const qty = Number(it.quantity || 1);
+    const price = Number(it.sellingPrice || it.unitCost || 0);
+    const amount = Number(it.totalRevenue || it.total || it.totalCost || qty * price);
+    subtotal += amount;
+
+    if (y > 255) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.text(String(idx + 1), 17, y);
+    doc.text(desc.slice(0, 48), 28, y);
+    doc.text(formatNumber(qty, 2), 118, y, { align: 'right' });
+    doc.text(formatNumber(price, 2), 152, y, { align: 'right' });
+    doc.text(formatNumber(amount, 2), 192, y, { align: 'right' });
+
+    doc.setDrawColor(241, 245, 249);
+    doc.line(14, y + 2, 196, y + 2);
+    y += 7.5;
+  });
+
+  // Summary Card
+  const taxRate = typeof config.taxRate === 'number'
+    ? config.taxRate
+    : (sale?.taxRate !== undefined ? Number(sale.taxRate) : 15);
+
+  let taxable = subtotal;
+  let taxAmount = 0;
+  if (taxRate > 0) {
+    if (sale?.taxableAmount && sale?.vatAmount && Number(sale.taxRate) === taxRate) {
+      taxable = Number(sale.taxableAmount);
+      taxAmount = Number(sale.vatAmount);
+    } else {
+      taxable = subtotal / (1 + taxRate / 100);
+      taxAmount = subtotal - taxable;
+    }
+  }
+
+  y += 5;
+  if (y > 235) {
+    doc.addPage();
+    y = 20;
+  }
+
+  const summaryHeight = isCredit ? 44 : 32;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(110, y, 86, summaryHeight, 2, 2, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(110, y, 86, summaryHeight, 2, 2, 'D');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Taxable Base (TXBL1):', 114, y + 7);
+  doc.text(`ETB ${formatNumber(taxable, 2)}`, 192, y + 7, { align: 'right' });
+
+  doc.text(`Fiscal VAT (${taxRate}%):`, 114, y + 14);
+  doc.text(`ETB ${formatNumber(taxAmount, 2)}`, 192, y + 14, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Grand Total:', 114, y + 23);
+  doc.setTextColor(37, 99, 235); // blue-600
+  doc.text(`ETB ${formatNumber(subtotal, 2)}`, 192, y + 23, { align: 'right' });
+
+  if (isCredit) {
+    const paid = Number(sale?.amountPaid || 0);
+    const balance = Math.max(0, subtotal - paid);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(5, 150, 105); // emerald-600
+    doc.text('Advance Paid:', 114, y + 30);
+    doc.text(`ETB ${formatNumber(paid, 2)}`, 192, y + 30, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(225, 29, 72); // rose-600
+    doc.text('Credit Balance Due:', 114, y + 37);
+    doc.text(`ETB ${formatNumber(balance, 2)}`, 192, y + 37, { align: 'right' });
+  }
+
+  // Footer & Machine Stamp
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(`Official Fiscal Document · Generated by Sharp Plus ERP · Machine: ${config.machineNo || 'SPM00000189'}`, 14, 287);
+
+  doc.save(`${invoiceNo}.pdf`);
+};
+
+/**
+ * Export bill as editable Microsoft Word Document (.doc)
+ */
+export const exportBillToWord = (sale, config = {}) => {
+  const isCredit =
+    sale?.paymentType === 'credit' ||
+    sale?.voucherType === 'credit_sale';
+
+  const invoiceNo = sale?.voucherNo || (isCredit ? 'CRSALE-00001' : 'CSALE-00001');
+  const companyName = (config.companyLines || [])[0] || 'SHARP PLUS TRADING PLC';
+  const address = `${config.addressLine1 || 'Addis Ababa, Bole Medhanialem'}, ${config.addressLine2 || 'Commercial Center'}`;
+  const phone = config.phone || '+251 91 100 0111';
+  const customerName = sale?.customerName || 'Walk-in Customer';
+  const dateStr = formatFiscalDate(sale?.date);
+  const fsNo = config.fsNo || sale?.fsNo || (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') || 'FS No.00000001';
+
+  const rawItems = sale?.items || [];
+  const items = rawItems.length > 0
+    ? rawItems
+    : [{ description: 'Sales Item', quantity: 1, sellingPrice: Number(sale?.totalRevenue || 0), total: Number(sale?.totalRevenue || 0) }];
+
+  let subtotal = 0;
+  const itemsRows = items.map((it, idx) => {
+    const desc = it.description || it.material?.name || it.material || it.name || `Item ${idx + 1}`;
+    const qty = Number(it.quantity || 1);
+    const price = Number(it.sellingPrice || it.unitCost || 0);
+    const amount = Number(it.totalRevenue || it.total || it.totalCost || qty * price);
+    subtotal += amount;
+    return `
+      <tr>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: center;">${idx + 1}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px;">${desc}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: right;">${formatNumber(qty, 2)}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: right;">${formatNumber(price, 2)}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: right; font-weight: bold;">${formatNumber(amount, 2)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const taxRate = typeof config.taxRate === 'number' ? config.taxRate : 15;
+  const taxable = subtotal / (1 + taxRate / 100);
+  const vat = subtotal - taxable;
+
+  const html = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset='utf-8'>
+      <title>${invoiceNo}</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #0f172a; margin: 30px; }
+        .header { border-bottom: 3px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; }
+        h1 { color: #1e3a8a; font-size: 20pt; margin: 0 0 4px 0; }
+        .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt; }
+        .meta-table td { padding: 4px; vertical-align: top; }
+        table.items { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 10pt; }
+        table.items th { background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 9px; text-align: left; }
+        .summary-box { float: right; width: 300px; margin-top: 20px; border: 1px solid #cbd5e1; padding: 14px; background-color: #f8fafc; font-size: 10pt; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${companyName}</h1>
+        <p style="margin: 0; color: #64748b; font-size: 9.5pt;">${address} | ${phone} | TIN: ${config.tinNumber || '0089234125'}</p>
+      </div>
+
+      <h2 style="font-size: 14pt; color: #1e293b; margin-top: 0;">${isCredit ? 'CREDIT SALES INVOICE' : 'CASH SALES INVOICE'}</h2>
+
+      <table class="meta-table">
+        <tr>
+          <td style="width: 50%;"><strong>Invoice No:</strong> ${invoiceNo}<br><strong>Fiscal Slip:</strong> ${fsNo}<br><strong>Date:</strong> ${dateStr}</td>
+          <td style="width: 50%;"><strong>Customer:</strong> ${customerName}<br><strong>Operator:</strong> ${config.operator || 'Operator'}<br><strong>Payment:</strong> ${isCredit ? 'Credit Settlement' : 'Cash Counter'}</td>
+        </tr>
+      </table>
+
+      <table class="items">
+        <thead>
+          <tr>
+            <th style="width: 40px; text-align: center;">#</th>
+            <th>Item Description</th>
+            <th style="width: 70px; text-align: right;">Qty</th>
+            <th style="width: 110px; text-align: right;">Unit Price (ETB)</th>
+            <th style="width: 120px; text-align: right;">Total (ETB)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+        </tbody>
+      </table>
+
+      <div class="summary-box">
+        <p style="margin: 3px 0;">Taxable Base: <span style="float: right;">ETB ${formatNumber(taxable, 2)}</span></p>
+        <p style="margin: 3px 0;">Fiscal VAT (${taxRate}%): <span style="float: right;">ETB ${formatNumber(vat, 2)}</span></p>
+        <p style="margin: 8px 0 0 0; font-size: 12pt; color: #1d4ed8; font-weight: bold; border-top: 1px solid #cbd5e1; padding-top: 6px;">Grand Total: <span style="float: right;">ETB ${formatNumber(subtotal, 2)}</span></p>
+        ${isCredit ? `<p style="margin: 4px 0 0 0; color: #dc2626;">Balance Due: <span style="float: right;">ETB ${formatNumber(Math.max(0, subtotal - (sale?.amountPaid || 0)), 2)}</span></p>` : ''}
+      </div>
+
+      <div style="clear: both; margin-top: 50px; padding-top: 15px; border-top: 1px dashed #cbd5e1; font-size: 8.5pt; color: #94a3b8; text-align: center;">
+        ${fsNo} · Machine: ${config.machineNo || 'SPM00000189'} · Generated via Sharp Plus ERP System
+      </div>
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob(['\uFEFF' + html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${invoiceNo}.doc`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/**
+ * Universal export dispatcher by format id or extension
+ */
+export const exportBillByFormat = (formatId, sale, config = {}) => {
+  const fmt = String(formatId || '').toLowerCase().replace(/^\./, '');
+  switch (fmt) {
+    case 'pdf':
+      return exportBillToPDF(sale, config);
+    case 'xlsx':
+    case 'excel':
+      return exportBillToExcel(sale, config);
+    case 'doc':
+    case 'docx':
+    case 'word':
+      return exportBillToWord(sale, config);
+    case 'csv':
+      return exportBillToCSV(sale, config);
+    case 'txt':
+    case 'text':
+      return exportBillToTXT(sale, config);
+    case 'json':
+      return exportBillToJSON(sale, config);
+    default:
+      return exportBillToPDF(sale, config);
+  }
 };
 
 /**

@@ -26,6 +26,10 @@ import {
   exportBillToCSV,
   exportBillToExcel,
   exportBillToJSON,
+  exportBillToPDF,
+  exportBillToWord,
+  exportBillByFormat,
+  EXPORT_FORMATS,
   openThermalPrintWindow,
   openA4PrintWindow,
   formatFiscalDate,
@@ -41,6 +45,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
   const [copied, setCopied] = useState(false);
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [downloadToast, setDownloadToast] = useState('');
   const exportMenuRef = useRef(null);
   const settingsPopoverRef = useRef(null);
 
@@ -199,8 +204,16 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     }
   };
 
-  const handleExportPDF = () => {
-    handlePrint();
+  const triggerExport = (fmtId, ext) => {
+    setExportMenuOpen(false);
+    try {
+      exportBillByFormat(fmtId, sale, config);
+      setDownloadToast(`Downloaded ${sale?.voucherNo || 'invoice'}${ext}`);
+      setTimeout(() => setDownloadToast(''), 4500);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert(`Export failed for ${ext}`);
+    }
   };
 
   return (
@@ -299,90 +312,38 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               </button>
 
               {exportMenuOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
-                  <div className="px-2.5 py-1.5 text-[10px] uppercase font-bold text-slate-400 tracking-wider border-b border-slate-800">
-                    Export Formats
+                <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-2.5 py-1.5 text-[10px] uppercase font-bold text-slate-400 tracking-wider border-b border-slate-800 flex items-center justify-between">
+                    <span>Export File Extension</span>
+                    <span className="text-[9px] text-blue-400 font-normal">Instant Download</span>
                   </div>
 
-                  {/* PDF */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      handleExportPDF();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
-                  >
-                    <FileText size={16} className="text-red-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold text-white">Export PDF</div>
-                      <div className="text-[10px] text-slate-400">Printable invoice document</div>
-                    </div>
-                  </button>
-
-                  {/* Excel (.xlsx) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      exportBillToExcel(sale, config);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
-                  >
-                    <FileSpreadsheet size={16} className="text-emerald-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold text-white">Export Excel (.XLSX)</div>
-                      <div className="text-[10px] text-slate-400">Structured spreadsheet data</div>
-                    </div>
-                  </button>
-
-                  {/* CSV (.csv) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      exportBillToCSV(sale, config);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
-                  >
-                    <Download size={16} className="text-cyan-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold text-white">Export CSV (.CSV)</div>
-                      <div className="text-[10px] text-slate-400">Tabular transaction data</div>
-                    </div>
-                  </button>
-
-                  {/* Text (.txt) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      exportBillToTXT(sale, config);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
-                  >
-                    <FileCode size={16} className="text-amber-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold text-white">Export Text (.TXT)</div>
-                      <div className="text-[10px] text-slate-400">Plain-text receipt slip</div>
-                    </div>
-                  </button>
-
-                  {/* JSON (.json) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      exportBillToJSON(sale, config);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition text-left"
-                  >
-                    <FileText size={16} className="text-purple-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold text-white">Export JSON (.JSON)</div>
-                      <div className="text-[10px] text-slate-400">Structured transaction data</div>
-                    </div>
-                  </button>
+                  <div className="py-1 space-y-0.5">
+                    {EXPORT_FORMATS.map((fmt) => (
+                      <button
+                        key={fmt.id}
+                        type="button"
+                        onClick={() => triggerExport(fmt.id, fmt.ext)}
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition text-left group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Download size={14} className="text-slate-400 group-hover:text-blue-400 shrink-0 transition" />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-white flex items-center gap-1.5 flex-wrap">
+                              <span>{fmt.name}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${fmt.badgeClass}`}>
+                                {fmt.ext}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 truncate">{fmt.desc}</div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-blue-400 opacity-0 group-hover:opacity-100 transition shrink-0 ml-1">
+                          Save
+                        </span>
+                      </button>
+                    ))}
+                  </div>
 
                   <div className="my-1 border-t border-slate-800" />
 
@@ -542,6 +503,23 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               className="ml-3 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-[11px] shrink-0"
             >
               Return to Form
+            </button>
+          </div>
+        )}
+
+        {/* Download Feedback Notification */}
+        {downloadToast && (
+          <div className="px-4 py-2 bg-emerald-500/20 border-b border-emerald-500/30 flex items-center justify-between text-xs text-emerald-200 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <Check size={15} className="text-emerald-400 shrink-0" />
+              <span><strong>File Ready:</strong> {downloadToast}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDownloadToast('')}
+              className="text-emerald-400 hover:text-white"
+            >
+              <X size={14} />
             </button>
           </div>
         )}
