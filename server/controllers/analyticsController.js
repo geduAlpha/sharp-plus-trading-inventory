@@ -47,7 +47,10 @@ const getProfitLoss = asyncHandler(async (req, res) => {
   // Daily trend for chart
   const dailyMap = {};
   records.forEach(r => {
-    const day = r.saleDate.toISOString().slice(0, 10);
+    if (!r.saleDate) return;
+    const dateObj = r.saleDate instanceof Date ? r.saleDate : new Date(r.saleDate);
+    if (isNaN(dateObj.getTime())) return;
+    const day = dateObj.toISOString().slice(0, 10);
     if (!dailyMap[day]) {
       dailyMap[day] = { date: day, revenue: 0, cogs: 0, profit: 0, itemsSold: 0 };
     }
@@ -162,23 +165,27 @@ const getConsumption = asyncHandler(async (req, res) => {
     });
   });
 
-  // Fetch current stock from RawMaterial for context
-  const ingredients = await Promise.all(
-    Object.values(ingredientMap).map(async (ing) => {
-      let currentStock = null;
-      if (ing.materialId) {
-        const mat = await RawMaterial.findById(ing.materialId).select('currentStock unitCost unit');
-        if (mat) {
-          currentStock = mat.currentStock;
-          if (!ing.unitCost && mat.unitCost) ing.unitCost = mat.unitCost;
-        }
+  // Fetch current stock from RawMaterial for context in single batch
+  const materialIds = Object.values(ingredientMap)
+    .map(ing => ing.materialId)
+    .filter(Boolean);
+  const rawMats = await RawMaterial.find({ _id: { $in: materialIds } }).select('currentStock unitCost unit');
+  const matMap = new Map(rawMats.map(m => [m._id.toString(), m]));
+
+  const ingredients = Object.values(ingredientMap).map((ing) => {
+    let currentStock = null;
+    if (ing.materialId) {
+      const mat = matMap.get(ing.materialId.toString());
+      if (mat) {
+        currentStock = mat.currentStock;
+        if (!ing.unitCost && mat.unitCost) ing.unitCost = mat.unitCost;
       }
-      return {
-        ...ing,
-        currentStock,
-      };
-    })
-  );
+    }
+    return {
+      ...ing,
+      currentStock,
+    };
+  });
   ingredients.sort((a, b) => b.totalCost - a.totalCost);
 
   // 2. Product-by-product ingredient consumption breakdown:
@@ -257,7 +264,10 @@ const getPrediction = asyncHandler(async (req, res) => {
   // Build daily revenue map
   const dailyMap = {};
   records.forEach(r => {
-    const day = r.saleDate.toISOString().slice(0, 10);
+    if (!r.saleDate) return;
+    const dateObj = r.saleDate instanceof Date ? r.saleDate : new Date(r.saleDate);
+    if (isNaN(dateObj.getTime())) return;
+    const day = dateObj.toISOString().slice(0, 10);
     if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, cogs: 0 };
     dailyMap[day].revenue += r.totalRevenue || 0;
     dailyMap[day].cogs    += r.totalCOGS    || 0;
@@ -322,10 +332,16 @@ const getPrediction = asyncHandler(async (req, res) => {
     });
   });
 
+  const matIds = Object.values(ingredientMap)
+    .map(i => i.materialId)
+    .filter(Boolean);
+  const rawMaterials = await RawMaterial.find({ _id: { $in: matIds } });
+  const rawMatMap = new Map(rawMaterials.map(m => [m._id.toString(), m]));
+
   const stockCoverage = [];
   for (const [key, ing] of Object.entries(ingredientMap)) {
     if (!ing.materialId) continue;
-    const mat = await RawMaterial.findById(ing.materialId);
+    const mat = rawMatMap.get(ing.materialId.toString());
     if (!mat) continue;
 
     // Use active 30-day usage rate

@@ -108,7 +108,7 @@ export default function Analytics() {
         setPredictionData(res.data);
       } else if (activeTab === 'records') {
         const res = await api.get('/analytics/records', { params });
-        setRecordsData(res.data);
+        setRecordsData(Array.isArray(res.data) ? res.data : (res.data?.records || []));
       }
     } catch (err) {
       console.error('Failed to load analytics:', err);
@@ -137,43 +137,48 @@ export default function Analytics() {
   // ── Export data by active tab ──
   const exportData = useMemo(() => {
     if (activeTab === 'pl' && plData) {
-      return (plData.products || []).map(p => ({
-        'Product': p.name,
-        'Units Sold': p.unitsSold ?? 0,
+      const items = plData.productBreakdown || plData.products || [];
+      return items.map(p => ({
+        'Product': p.productName || p.name || '—',
+        'Units Sold': p.qty ?? p.unitsSold ?? 0,
         'Revenue (ETB)': Number(p.revenue || 0).toFixed(2),
         'COGS (ETB)': Number(p.cogs || 0).toFixed(2),
-        'Gross Profit (ETB)': Number((p.revenue || 0) - (p.cogs || 0)).toFixed(2),
-        'Food Cost %': Number(p.foodCostPct || 0).toFixed(1) + '%',
-        'Margin %': Number(p.marginPct || 0).toFixed(1) + '%',
+        'Gross Profit (ETB)': Number(p.profit ?? ((p.revenue || 0) - (p.cogs || 0))).toFixed(2),
+        'Food Cost %': (p.costRatio !== undefined ? Number(p.costRatio).toFixed(1) : Number(p.foodCostPct || 0).toFixed(1)) + '%',
+        'Margin %': (p.margin !== undefined ? Number(p.margin).toFixed(1) : Number(p.marginPct || 0).toFixed(1)) + '%',
       }));
     }
     if (activeTab === 'consumption' && consumptionData) {
-      return (consumptionData.materials || []).map(m => ({
-        'Material': m.name,
+      const items = consumptionData.ingredients || consumptionData.materials || [];
+      return items.map(m => ({
+        'Material': m.materialName || m.name || '—',
         'Unit': m.unit || '',
-        'Total Consumed': Number(m.totalConsumed || 0).toFixed(3),
+        'Total Consumed': Number(m.totalQty ?? m.totalConsumed ?? 0).toFixed(3),
         'Total Cost (ETB)': Number(m.totalCost || 0).toFixed(2),
-        'Avg per Day': Number(m.avgPerDay || 0).toFixed(3),
+        'Current Stock': m.currentStock !== null && m.currentStock !== undefined ? Number(m.currentStock).toFixed(2) : '—',
       }));
     }
     if (activeTab === 'prediction' && predictionData) {
-      return (predictionData.predictions || []).map(p => ({
-        'Material': p.name,
+      const items = predictionData.stockCoverage || predictionData.predictions || [];
+      return items.map(p => ({
+        'Material': p.materialName || p.name || '—',
         'Unit': p.unit || '',
         'Current Stock': Number(p.currentStock || 0).toFixed(2),
-        'Avg Daily Use': Number(p.avgDailyUse || 0).toFixed(3),
-        'Days Remaining': Number(p.daysRemaining || 0).toFixed(1),
-        'Reorder Qty': Number(p.reorderQty || 0).toFixed(2),
+        'Avg Daily Use': Number(p.avgDailyUsage ?? p.avgDailyUse ?? 0).toFixed(3),
+        'Days Remaining': typeof p.daysRemaining === 'string' ? p.daysRemaining : Number(p.daysRemaining || 0).toFixed(1),
+        'Reorder Qty': Number(p.reorderSuggested ?? p.reorderQty ?? 0).toFixed(2),
         'Status': p.status || '',
       }));
     }
     if (activeTab === 'records') {
-      return recordsData.map(r => ({
-        'Date': new Date(r.importedAt || r.createdAt).toLocaleDateString(),
-        'Product': r.productName || '—',
-        'Units Sold': r.unitsSold ?? 0,
-        'Revenue (ETB)': Number(r.revenue || 0).toFixed(2),
-        'Imported By': r.importedBy?.name || '—',
+      return (Array.isArray(recordsData) ? recordsData : []).map(r => ({
+        'Date': r.saleDate ? new Date(r.saleDate).toLocaleDateString() : (r.importedAt ? new Date(r.importedAt).toLocaleDateString() : '—'),
+        'Reference': r.reference || 'POS Batch',
+        'Lines Count': r.lines?.length || 0,
+        'Revenue (ETB)': Number(r.totalRevenue || r.revenue || 0).toFixed(2),
+        'COGS (ETB)': Number(r.totalCOGS || r.cogs || 0).toFixed(2),
+        'Gross Profit (ETB)': Number(r.grossProfit || 0).toFixed(2),
+        'Imported By': r.importedBy?.name || 'System',
       }));
     }
     return [];
@@ -1279,7 +1284,7 @@ export default function Analytics() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-50 text-ink-700">
-                {recordsData.map((rec) => (
+                {(Array.isArray(recordsData) ? recordsData : []).map((rec) => (
                   <tr key={rec._id} className="hover:bg-ink-50/40">
                     <td className="py-3 px-3 font-semibold text-ink-900">
                       {new Date(rec.saleDate).toLocaleDateString()}
