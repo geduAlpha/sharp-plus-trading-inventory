@@ -16,12 +16,12 @@ export const DEFAULT_PERMISSIONS = {
   // Granular actions per module
   items: {
     view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
     read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-    edit: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
-    update: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    edit: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    update: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
     delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
-    export: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    export: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   },
   products: {
     view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
@@ -133,10 +133,10 @@ export const DEFAULT_PERMISSIONS = {
 
 export const DEFAULT_NAV_VISIBILITY = {
   dashboard: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-  Items: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
-  items: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+  Items: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+  items: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   products: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-  stockMovements: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+  stockMovements: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   salesMarketing: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   suppliers: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
   consumption: { employee: false, storekeeper: false, manager: false, admin: false, cashier: false },

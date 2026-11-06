@@ -16,12 +16,12 @@ const DEFAULT_ROLE_PERMISSIONS = {
   // ── Granular CRUD & workflow actions per module ────────────────────────
   items: {
     view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    create: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
     read: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-    edit: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
-    update: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    edit: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+    update: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
     delete: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
-    export: { employee: true, storekeeper: true, manager: true, admin: true, cashier: false },
+    export: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   },
   products: {
     view: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },

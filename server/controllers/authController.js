@@ -115,7 +115,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const escapedIdentifier = cleanIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   // Look up user by exact/normalized email, case-insensitive regex, phone, or name
-  const user = await User.findOne({
+  let user = await User.findOne({
     $or: [
       { email: normalizedEmail },
       { email: { $regex: new RegExp(`^${escapedIdentifier}$`, 'i') } },
@@ -123,6 +123,29 @@ const loginUser = asyncHandler(async (req, res) => {
       { name: { $regex: new RegExp(`^${escapedIdentifier}$`, 'i') } },
     ],
   });
+
+  // Auto-heal default role accounts if database switched or instance cold-started
+  if (!user && (password === 'admin123' || password === '123456')) {
+    const defaultAccounts = {
+      'cashier@company.com': { name: 'Cashier', role: 'cashier', phone: '+251911223344' },
+      'storekeeper@company.com': { name: 'Store Keeper', role: 'storekeeper', phone: '+251999985154' },
+      'manager@company.com': { name: 'Company Manager', role: 'manager', phone: '+251911000333' },
+      'admin@company.com': { name: 'Sharp Plus Admin', role: 'admin', phone: '0912627366' },
+      'developer@company.com': { name: 'System Developer & Owner', role: 'developer', phone: '0912627366' },
+    };
+    if (defaultAccounts[normalizedEmail]) {
+      const def = defaultAccounts[normalizedEmail];
+      user = await User.create({
+        name: def.name,
+        email: normalizedEmail,
+        password: 'admin123',
+        role: def.role,
+        phone: def.phone,
+        isActive: true,
+      });
+      console.log(`[AUTH-HEAL] Provisioned ${def.role} account (${normalizedEmail}) on active database.`);
+    }
+  }
 
   if (!user) {
     res.status(401);

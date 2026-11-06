@@ -22,24 +22,24 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.use(protect);
 
 // Excel import/export (before /:id to avoid conflict)
-router.get('/export/excel', authorize('admin', 'manager'), exportMaterialsExcel);
-router.post('/import/excel', authorize('admin', 'manager'), upload.single('file'), importMaterialsExcel);
+router.get('/export/excel', authorize('admin', 'manager', 'storekeeper', 'employee'), exportMaterialsExcel);
+router.post('/import/excel', authorize('admin', 'manager', 'storekeeper', 'employee'), upload.single('file'), importMaterialsExcel);
 
 // Next sequential code generation (before /:id)
-router.get('/next-code', authorize('admin', 'manager'), getNextCode);
+router.get('/next-code', authorize('admin', 'manager', 'storekeeper', 'cashier', 'employee'), getNextCode);
 
 // Bulk + restore (before /:id)
-router.delete('/bulk',          authorize('admin', 'manager'), bulkDeleteMaterials);
+router.delete('/bulk',          authorize('admin', 'manager', 'storekeeper'), bulkDeleteMaterials);
 router.post('/:id/restore',     authorize('developer'), restoreMaterial);
 router.delete('/:id/permanent', authorize('admin'), permanentDeleteMaterial);
 
 // Activate / Deactivate status toggle
-router.patch('/:id/status',     authorize('admin', 'manager'), toggleMaterialStatus);
+router.patch('/:id/status',     authorize('admin', 'manager', 'storekeeper', 'cashier', 'employee'), toggleMaterialStatus);
 
 router.get('/', getMaterials);
 router.get('/:id', getMaterialById);
-router.post('/', authorize('admin', 'manager'), createMaterial);
-router.put('/:id', authorize('admin', 'manager'), updateMaterial);
-router.delete('/:id', authorize('admin'), deleteMaterial);
+router.post('/', authorize('admin', 'manager', 'storekeeper', 'cashier', 'employee'), createMaterial);
+router.put('/:id', authorize('admin', 'manager', 'storekeeper', 'cashier', 'employee'), updateMaterial);
+router.delete('/:id', authorize('admin', 'manager', 'storekeeper'), deleteMaterial);
 
 module.exports = router;

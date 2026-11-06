@@ -18,83 +18,14 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
+const { runAutoSeed } = require('./utils/autoSeedHelper');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // ── Auto-seed default accounts and sample data on startup ─────────────
 const autoSeed = async () => {
   try {
     await connectDB();
-    const User = require('./models/User');
-    const defaults = [
-      { name: 'System Developer & Owner', email: 'developer@company.com', password: 'admin123', role: 'developer', phone: '0912627366' },
-      { name: 'Sharp Plus Admin', email: 'admin@company.com', password: 'admin123', role: 'admin', phone: '0912627366' },
-      { name: 'company Manager', email: 'manager@company.com', password: 'admin123', role: 'manager' },
-      { name: 'Store Keeper', email: 'storekeeper@company.com', password: 'admin123', role: 'storekeeper' },
-      { name: 'Cashier', email: 'cashier@company.com', password: 'admin123', role: 'cashier' },
-    ];
-    for (const u of defaults) {
-      const exists = await User.findOne({ email: u.email });
-      if (!exists) {
-        await User.create({ ...u, isActive: true });
-        console.log(`[SEED] Created ${u.role} -> ${u.email}`);
-      } else {
-        let changed = false;
-        if (exists.isActive !== true) {
-          exists.isActive = true;
-          changed = true;
-        }
-        if (u.phone && exists.phone !== u.phone) {
-          exists.phone = u.phone;
-          changed = true;
-        }
-        if (changed) {
-          await exists.save();
-          console.log(`[SEED] Ensured active status & phone for ${u.email}`);
-        }
-      }
-    }
-
-    // Auto-init default company if none exists
-    const { ensureDefaultCompany } = require('./controllers/companyController');
-    if (ensureDefaultCompany) {
-      await ensureDefaultCompany().catch(err => console.warn('[SEED] Company init error:', err.message));
-    }
-
-    const Supplier = require('./models/Supplier');
-    const supplierCount = await Supplier.countDocuments();
-    if (supplierCount === 0) {
-      await Supplier.insertMany([
-        { name: 'Green Valley Farms', category: 'Produce', contactPerson: 'Abel Tesfaye', phone: '+251911000111' },
-        { name: 'Addis Meat Suppliers', category: 'Meat & Poultry', contactPerson: 'Sara Girma', phone: '+251911000222' },
-        { name: 'Blue Nile Beverages', category: 'Beverages', contactPerson: 'Yonas Bekele', phone: '+251911000333' },
-      ]);
-      console.log('[SEED] Seeded sample suppliers.');
-    }
-
-    const RawMaterial = require('./models/RawMaterial');
-    const materialCount = await RawMaterial.countDocuments();
-    if (materialCount === 0) {
-      await RawMaterial.insertMany([
-        { name: 'Basmati Rice', category: 'Grains', unit: 'kg', currentStock: 120, reorderLevel: 30, unitCost: 85 },
-        { name: 'Chicken Breast', category: 'Meat & Poultry', unit: 'kg', currentStock: 18, reorderLevel: 20, unitCost: 320 },
-        { name: 'Cooking Oil', category: 'Pantry', unit: 'ltr', currentStock: 40, reorderLevel: 15, unitCost: 210 },
-        { name: 'Fresh Tomatoes', category: 'Produce', unit: 'kg', currentStock: 8, reorderLevel: 15, unitCost: 45 },
-        { name: 'Bottled Water 500ml', category: 'Beverages', unit: 'pcs', currentStock: 300, reorderLevel: 100, unitCost: 8 },
-        { name: 'Bath Towels', category: 'Housekeeping', unit: 'pcs', currentStock: 5, reorderLevel: 20, unitCost: 150 },
-      ]);
-      console.log('[SEED] Seeded sample Items.');
-    }
-
-    const Customer = require('./models/Customer');
-    const customerCount = await Customer.countDocuments();
-    if (customerCount === 0) {
-      await Customer.insertMany([
-        { name: 'Addis International Hotel', phone: '+251911223344', address: 'Bole, Addis Ababa', customerType: 'corporate', creditLimit: 100000 },
-        { name: 'Sheger Cafe & Business', phone: '+251922334455', address: 'Piassa, Addis Ababa', customerType: 'credit', creditLimit: 50000 },
-        { name: 'Walelgn Mart & Grocery', phone: '+251933445566', address: 'Merkato, Addis Ababa', customerType: 'regular', creditLimit: 25000 },
-      ]);
-      console.log('[SEED] Seeded sample customers.');
-    }
+    await runAutoSeed();
   } catch (err) {
     console.error('[SEED] Auto-seed error:', err.message);
   }

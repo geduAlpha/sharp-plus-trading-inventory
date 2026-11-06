@@ -29,6 +29,10 @@ const connectDB = async () => {
         });
         console.log(`[DB] MongoDB connected (Remote): ${conn.connection.host}`);
         connectionPromise = null;
+        try {
+          const { runAutoSeed } = require('../utils/autoSeedHelper');
+          runAutoSeed().catch(e => console.warn('[SEED] Remote init warning:', e.message));
+        } catch {}
         return;
       } catch (error) {
         console.error(`[DB] Remote connection failed: ${error.message}`);
@@ -67,6 +71,10 @@ const connectDB = async () => {
         const conn = await mongoose.connect(memUri, { family: 4 });
         console.log(`[DB] Embedded MongoDB connected: ${conn.connection.host}`);
         connectionPromise = null;
+        try {
+          const { runAutoSeed } = require('../utils/autoSeedHelper');
+          runAutoSeed().catch(e => console.warn('[SEED] Embedded init warning:', e.message));
+        } catch {}
         return;
       }
     } catch (memErr) {

@@ -94,8 +94,8 @@ const FloatingInput = React.forwardRef(function FloatingInput({
    Login page
 ═══════════════════════════════════════════════════════════════════ */
 export default function Login() {
-  // ── Authentication workflow: Step 1 (Bot OTP) → Step 2 (Role Username & Password) ──
-  const [authMode, setAuthMode] = useState('otp'); 
+  // ── Authentication workflow: Direct Role Sign-In or Telegram Bot 2FA ──
+  const [authMode, setAuthMode] = useState('password'); 
   const [step, setStep] = useState('phone');  // 'phone' | 'otp' (inside OTP flow)
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -247,6 +247,7 @@ export default function Login() {
   };
 
   const handleQuickFill = (role) => {
+    setAuthMode('password');
     setEmail(role.email);
     setPassword('admin123');
     setActiveRole(role.label);
@@ -885,9 +886,26 @@ export default function Login() {
           <div className="login-form-wrap">
             <div className="login-form-block">
 
-              {/* ── 2-Step Sequential Authentication Stepper ── */}
+              {/* ── Authentication Mode Stepper / Tab Switcher ── */}
               <div className="mb-6">
                 <div className="flex items-center justify-between p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('password');
+                      setOtpError('');
+                      setServerError('');
+                    }}
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      authMode === 'password'
+                        ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <KeyRound size={13} className={authMode === 'password' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span>Role Sign-In</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -895,48 +913,20 @@ export default function Login() {
                       setOtpError('');
                       setServerError('');
                     }}
-                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition ${
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       authMode === 'otp'
                         ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
                         : otpToken
                         ? 'text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200'
-                        : 'text-slate-500'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     {otpToken ? (
-                      <CheckCircle2 size={14} className="text-emerald-600" />
+                      <CheckCircle2 size={13} className="text-emerald-600" />
                     ) : (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white font-bold">1</span>
+                      <Smartphone size={13} className={authMode === 'otp' ? 'text-blue-600' : 'text-slate-400'} />
                     )}
-                    <span>Step 1: Bot Verification</span>
-                  </button>
-
-                  <div className="px-1 text-slate-400">
-                    <ArrowRight size={13} />
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={!otpToken}
-                    onClick={() => {
-                      if (otpToken) {
-                        setAuthMode('password');
-                        setOtpError('');
-                        setServerError('');
-                      }
-                    }}
-                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition ${
-                      authMode === 'password'
-                        ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
-                        : otpToken
-                        ? 'text-slate-700 hover:text-blue-700 cursor-pointer'
-                        : 'text-slate-400 cursor-not-allowed opacity-60'
-                    }`}
-                  >
-                    <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
-                      authMode === 'password' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
-                    }`}>2</span>
-                    <span>Step 2: Role Sign-In</span>
+                    <span>Telegram 2FA</span>
                   </button>
                 </div>
               </div>
@@ -960,9 +950,11 @@ export default function Login() {
                     </div>
                   )}
 
-                  <h2 className="login-heading">Step 2: Sign In to Your Role</h2>
+                  <h2 className="login-heading">{otpToken ? 'Step 2: Sign In to Your Role' : 'Sign In to Your Account'}</h2>
                   <p className="login-subtext">
-                    Bot verification completed! Sign in with your role credentials or select your staff role below.
+                    {otpToken
+                      ? 'Bot verification completed! Sign in with your role credentials or select your staff role below.'
+                      : 'Welcome back! Enter your institutional credentials or select your staff role to sign in.'}
                   </p>
 
                   {/* session timeout notice */}

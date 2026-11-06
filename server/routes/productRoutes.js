@@ -34,8 +34,8 @@ router.delete('/:id/permanent', authorize('admin'), permanentDeleteProduct);
 
 router.get('/', getProducts);
 router.get('/:id', getProductById);
-router.post('/', authorize('admin', 'manager'), createProduct);
-router.put('/:id', authorize('admin', 'manager'), updateProduct);
-router.delete('/:id', authorize('admin'), deleteProduct);
+router.post('/', authorize('admin', 'manager', 'storekeeper', 'cashier', 'employee'), createProduct);
+router.put('/:id', authorize('admin', 'manager', 'storekeeper', 'cashier', 'employee'), updateProduct);
+router.delete('/:id', authorize('admin', 'manager', 'storekeeper'), deleteProduct);
 
 module.exports = router;
