@@ -223,6 +223,7 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
   const [showRecentTable, setShowRecentTable] = useState(true);
   const [selectedSales, setSelectedSales] = useState(new Set());
   const [editingSale, setEditingSale] = useState(null);
+  const [fetchingVoucherNo, setFetchingVoucherNo] = useState(false);
 
   // Handle start editing an existing sale voucher (Unrestricted for Developer & Admin)
   const handleStartEditSale = (sale) => {
@@ -365,8 +366,6 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
       setLoadingRecent(false);
     }
   };
-
-  const [fetchingVoucherNo, setFetchingVoucherNo] = useState(false);
 
   // Fetch Next Auto-Generated Voucher Code from API
   const fetchNextVoucherNo = async (mode) => {
