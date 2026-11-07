@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Plus, Search, Pencil, Trash2, ChefHat, X, Upload, Download, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Search, Pencil, Trash2, ChefHat, X, Upload, Download, Zap, Lock } from 'lucide-react';
 import api, { getApiBaseUrl } from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
@@ -38,8 +39,9 @@ const Products = () => {
   const [recipeImportProgress, setRecipeImportProgress] = useState(null);
   const importRef = useRef();
   const recipeImportRef = useRef();
-  const { hasRole, can } = useAuth();
-  const canEdit = hasRole('admin', 'manager') || can('recordGoods');
+  const { hasRole, can, user, isDeveloper } = useAuth();
+  const isDev = Boolean(isDeveloper || user?.role === 'developer');
+  const canEdit = isDev || hasRole('admin', 'manager') || can('recordGoods');
 
   const load = () =>
     api.get('/products', { params: { search } }).then((r) => {
@@ -393,8 +395,42 @@ const Products = () => {
     { header: 'Ingredients', accessor: 'Ingredients Count', align: 'center' },
   ];
 
+  if (!isDev) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 mb-4 shadow-sm">
+          <Lock size={30} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+          Product Menu On Hold
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mb-6">
+          The Products module is currently placed on hold by administration. Access is restricted to System Developer / Owner only.
+        </p>
+        <Link
+          to="/"
+          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition shadow-sm"
+        >
+          Return to Dashboard
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {/* ── Developer Exclusive Mode Notice ── */}
+      <div className="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+            On Hold
+          </span>
+          <span>
+            <strong>Developer Exclusive Mode:</strong> This Product menu is placed on hold and hidden from all other users.
+          </span>
+        </div>
+      </div>
+
       {/* ── Toolbar ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full max-w-xs">

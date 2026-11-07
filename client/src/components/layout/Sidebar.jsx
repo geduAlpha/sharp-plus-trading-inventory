@@ -18,6 +18,7 @@ const DEFAULT_HELD_SIDEBAR_IDS = [
   'report_inventory_count',
   'movements_all',
   'stock_requests',
+  'products',
 ];
 
 const isAvoidedNavItem = (it) => {
@@ -599,32 +600,37 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
           if (isHeld) {
             if (!isDev) return null;
             return (
-              <div
+              <NavLink
                 key={sub.id}
-                title={`${sub.label} — Feature on hold / Developer view`}
-                className={`group flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs select-none cursor-not-allowed opacity-55 transition-all ${
-                  isDark
-                    ? 'text-slate-400 bg-white/[0.02]'
-                    : 'text-slate-400 bg-slate-100/50'
-                }`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
+                to={sub.to}
+                end={Boolean(sub.exact)}
+                onClick={onClose}
+                title={`${sub.label} — Feature on hold (Visible to System Developer / Owner only)`}
+                className={({ isActive }) =>
+                  `group flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-all duration-150 ${
+                    isActive
+                      ? isDark
+                        ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
+                        : 'bg-amber-50 text-amber-800 font-bold border border-amber-200'
+                      : isDark
+                      ? 'text-amber-400/90 hover:bg-white/5 hover:text-amber-300 font-medium'
+                      : 'text-amber-800 hover:bg-amber-50/80 hover:text-amber-950 font-medium'
+                  }`
+                }
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-amber-500/70" />
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-amber-500" />
                   <MuiIconResolver
                     name={sub.icon}
                     size={Math.max(12, resolvedIconSize - 3)}
-                    className="shrink-0 opacity-60 text-slate-400"
+                    className="shrink-0 text-amber-500"
                   />
                   <span className="truncate">{t(sub.label)}</span>
                 </div>
-                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/25">
+                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                   Hold
                 </span>
-              </div>
+              </NavLink>
             );
           }
 

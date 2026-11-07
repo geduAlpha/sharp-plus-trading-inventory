@@ -276,7 +276,7 @@ export const DEFAULT_SIDEBAR_CONFIG = [
     visible: true,
     children: [
       { id: 'materials', label: 'Items', to: '/materials', icon: 'Inventory2Rounded', iconType: 'mui', navKey: 'items', order: 1, visible: true },
-      { id: 'products', label: 'Products', to: '/products', icon: 'RestaurantMenuRounded', iconType: 'mui', navKey: 'products', order: 2, visible: true },
+      { id: 'products', label: 'Products', to: '/products', icon: 'RestaurantMenuRounded', iconType: 'mui', navKey: 'products', order: 2, visible: true, onHold: true, disabled: true },
       { id: 'employees', label: 'Employees', to: '/employees', icon: 'BadgeRounded', iconType: 'mui', navKey: 'staffAccounts', order: 3, visible: true },
       { id: 'suppliers', label: 'Suppliers', to: '/suppliers', icon: 'LocalShippingRounded', iconType: 'mui', navKey: 'suppliers', order: 4, visible: true },
     ]
@@ -486,7 +486,7 @@ export const DEFAULT_SIDEBAR_CONFIG = [
 export const sanitizeSidebarConfig = (config) => {
   if (!Array.isArray(config)) return config;
   const avoidedIds = ['movements_disposal', 'consumption', 'report_disposal'];
-  const heldSubIds = ['report_inventory_count', 'movements_all', 'stock_requests'];
+  const heldSubIds = ['report_inventory_count', 'movements_all', 'stock_requests', 'products'];
 
   const sanitized = config.map((item) => {
     const isAvoided = avoidedIds.includes(item.id) || item.to === '/transactions/disposal' || item.to === '/consumption' || item.to === '/reports/disposal';

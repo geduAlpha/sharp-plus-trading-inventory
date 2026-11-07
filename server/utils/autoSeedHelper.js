@@ -118,3 +118,4 @@ const runAutoSeed = async () => {
 };
 
 module.exports = { runAutoSeed };
+
