@@ -107,11 +107,12 @@ const updateSettings = asyncHandler(async (req, res) => {
     req.body.sidebarConfig !== undefined ||
     req.body.modulesEnabled !== undefined ||
     req.body.allowAdminManagePermissions !== undefined ||
-    req.body.allowAdminVoidDelete !== undefined;
+    req.body.allowAdminVoidDelete !== undefined ||
+    req.body.allowAdminThemeCustomization !== undefined;
 
-  if (isPrivilegedSettingUpdate && req.user?.role !== 'developer') {
+  if (isPrivilegedSettingUpdate && req.user?.role !== 'developer' && !(settings.allowAdminManagePermissions && req.user?.role === 'admin')) {
     res.status(403);
-    throw new Error('Access denied: Only the authenticated System Developer & Owner can manage role permissions, administrator authority delegation, global appearance, or system module activation.');
+    throw new Error('Access denied: Only the authenticated System Developer & Owner (or delegated Admin) can manage role permissions, administrator authority delegation, global appearance, or system module activation.');
   }
 
   const stringFields = [
@@ -123,6 +124,7 @@ const updateSettings = asyncHandler(async (req, res) => {
 
   const booleanFields = [
     'autoGenerateVoucherNo', 'allowNegativeStock', 'isConfigured',
+    'digitalMenuEnabled', 'allowAdminThemeCustomization',
   ];
 
   const numericFields = [
@@ -164,6 +166,19 @@ const updateSettings = asyncHandler(async (req, res) => {
     settings.auditLogs.unshift({
       action: 'ADMIN_VOID_DELETE_DELEGATION_TOGGLED',
       details: `Administrator transaction void & delete authority set to ${settings.allowAdminVoidDelete ? 'ENABLED' : 'DISABLED'} by System Developer & Owner`,
+      actorId: req.user?._id,
+      actorName: req.user?.name || 'System Developer & Owner',
+      actorRole: 'developer',
+      timestamp: new Date(),
+    });
+  }
+
+  if (req.body.allowAdminThemeCustomization !== undefined && req.user?.role === 'developer') {
+    settings.allowAdminThemeCustomization = Boolean(req.body.allowAdminThemeCustomization);
+    if (!Array.isArray(settings.auditLogs)) settings.auditLogs = [];
+    settings.auditLogs.unshift({
+      action: 'ADMIN_THEME_CUSTOMIZATION_TOGGLED',
+      details: `Hotel Administrator Theme & Icon Customization set to ${settings.allowAdminThemeCustomization ? 'ALLOWED' : 'LOCKED (Developer Exclusive)'} by System Developer & Owner`,
       actorId: req.user?._id,
       actorName: req.user?.name || 'System Developer & Owner',
       actorRole: 'developer',

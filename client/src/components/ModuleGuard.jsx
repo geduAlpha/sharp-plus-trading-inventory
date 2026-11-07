@@ -23,8 +23,10 @@ const ModuleGuard = ({ moduleKey, children }) => {
 
   if (!isEnabled) {
     const moduleNames = {
-      salesMarketing: 'Sales & Marketing',
-      accounting: 'Accounting & Analytics',
+      salesMarketing: 'Subsystem Suite (Restaurant POS & Ordering)',
+      accounting: 'Finance & Expenses Suite',
+      items: 'Inventory & Items Suite (Raw Materials & Products)',
+      digitalMenu: 'Digital Menu Suite (Customer QR & Self-Ordering)',
     };
     const moduleName = moduleNames[moduleKey] || moduleKey;
 

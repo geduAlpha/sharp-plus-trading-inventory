@@ -47,9 +47,11 @@ import {
   Filter,
   CheckSquare,
   Square,
+  AlertTriangle,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useThemeSidebar, THEMES } from '../context/ThemeSidebarContext';
 import { useSessionTimeout, TIMEOUT_OPTIONS } from '../context/SessionTimeoutContext';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -118,6 +120,54 @@ export const SCREENSHOT_NAV_DEFAULTS = {
   staff_accounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
 };
 
+export const CRUD_MODULE_ROWS = [
+  { key: 'raw_materials', label: 'Raw Materials', alias: 'items' },
+  { key: 'products', label: 'Products', alias: 'products' },
+  { key: 'suppliers', label: 'Suppliers', alias: 'suppliers' },
+  { key: 'overhead_expenses', label: 'Overhead Expenses', alias: 'expenses' },
+  { key: 'stock_movements', label: 'Stock Movements', alias: 'stockMovements' },
+  { key: 'purchases', label: 'Purchases / GRV', alias: 'purchases_grv' },
+  { key: 'employees', label: 'Employees', alias: 'staffAccounts' },
+];
+
+export const CRUD_SCREENSHOT_DEFAULTS = {
+  raw_materials: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  products: {
+    view: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  suppliers: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  overhead_expenses: {
+    view: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  stock_movements: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  purchases: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  employees: {
+    view: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+};
+
 const NAV_ITEMS = SIDEBAR_NAV_ITEMS;
 
 const DEFAULT_PRINTERS = [
@@ -126,19 +176,20 @@ const DEFAULT_PRINTERS = [
 ];
 
 const SETTINGS_TABS = [
-  { id: 'system', label: 'Company & System Config', icon: Building2, adminOnly: true },
+  { id: 'profile', label: 'My Profile', icon: User },
+  { id: 'security', label: 'Security & Password', icon: Shield },
+  { id: 'system', label: 'Hotel & System Config', icon: Building2, adminOnly: true },
   { id: 'permissions', label: 'Role Privileges', icon: Layers, adminOnly: true },
   { id: 'telegram', label: 'Telegram Subscribers', icon: Send, adminOnly: true },
   { id: 'printers', label: 'Order Printers', icon: Printer, adminOnly: true },
   { id: 'serviceCharge', label: '% Service Charge', icon: Percent, adminOnly: true },
   { id: 'digitalMenu', label: 'Digital Menu & QR', icon: QrCode, adminOnly: true },
   { id: 'dev', label: 'Developer Controls', icon: Lock, devOnly: true, badge: 'OWNER' },
-  { id: 'profile', label: 'My Profile', icon: User },
-  { id: 'security', label: 'Security & Password', icon: Shield },
 ];
 
 export default function Settings() {
   const { user, updateUser, hasRole, refreshPermissions, companyInfo, updateCompanyInfo } = useAuth();
+  const { activeTheme, themeConfig, saveThemeAndSidebar, modulesEnabled: themeModules, toggleModule } = useThemeSidebar();
   const { timeoutMinutes, setTimeoutMinutes } = useSessionTimeout();
   const [sessionTimeoutSuccess, setSessionTimeoutSuccess] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -225,7 +276,14 @@ export default function Settings() {
     printers: DEFAULT_PRINTERS,
     serviceChargePercent: 0,
     digitalMenuEnabled: true,
-    rolePermissions: DEFAULT_CAPABILITY_DEFAULTS,
+    allowAdminThemeCustomization: true,
+    allowAdminManagePermissions: false,
+    allowAdminVoidDelete: false,
+    modulesEnabled: { salesMarketing: true, accounting: true, items: true, digitalMenu: true },
+    rolePermissions: {
+      ...DEFAULT_CAPABILITY_DEFAULTS,
+      ...CRUD_SCREENSHOT_DEFAULTS,
+    },
     navVisibility: {
       dashboard: { cashier: true, storekeeper: true, manager: true, admin: true },
       items: { cashier: false, storekeeper: true, manager: true, admin: true },
@@ -644,6 +702,151 @@ export default function Settings() {
     setTimeout(() => setSystemSuccess(''), 4000);
   };
 
+  // CRUD Action Privileges Handlers (Matching Screenshot 3)
+  const getCrudPermission = (moduleKey, actionKey, roleKey) => {
+    const aliasMap = {
+      raw_materials: 'items',
+      items: 'raw_materials',
+      overhead_expenses: 'expenses',
+      expenses: 'overhead_expenses',
+      stock_movements: 'stockMovements',
+      stockMovements: 'stock_movements',
+      purchases: 'purchases_grv',
+      purchases_grv: 'purchases',
+      employees: 'staffAccounts',
+      staffAccounts: 'employees',
+    };
+    const altKey = aliasMap[moduleKey];
+
+    const perms = systemForm.rolePermissions;
+    if (perms?.[moduleKey]?.[actionKey]?.[roleKey] !== undefined) {
+      return Boolean(perms[moduleKey][actionKey][roleKey]);
+    }
+    if (altKey && perms?.[altKey]?.[actionKey]?.[roleKey] !== undefined) {
+      return Boolean(perms[altKey][actionKey][roleKey]);
+    }
+
+    const defaultVal =
+      CRUD_SCREENSHOT_DEFAULTS[moduleKey]?.[actionKey]?.[roleKey] ??
+      CRUD_SCREENSHOT_DEFAULTS[altKey]?.[actionKey]?.[roleKey] ??
+      (roleKey === 'admin');
+    return Boolean(defaultVal);
+  };
+
+  const handleCrudToggle = (moduleKey, actionKey, roleKey, checked) => {
+    const aliasMap = {
+      raw_materials: 'items',
+      items: 'raw_materials',
+      overhead_expenses: 'expenses',
+      expenses: 'overhead_expenses',
+      stock_movements: 'stockMovements',
+      stockMovements: 'stock_movements',
+      purchases: 'purchases_grv',
+      purchases_grv: 'purchases',
+      employees: 'staffAccounts',
+      staffAccounts: 'employees',
+    };
+    const altKey = aliasMap[moduleKey];
+
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+
+      const updateTarget = (key) => {
+        const modObj = { ...(perms[key] || {}) };
+        const actObj = { ...(modObj[actionKey] || {}) };
+        actObj[roleKey] = checked;
+        modObj[actionKey] = actObj;
+        perms[key] = modObj;
+      };
+
+      updateTarget(moduleKey);
+      if (altKey) updateTarget(altKey);
+
+      return {
+        ...prev,
+        rolePermissions: perms,
+      };
+    });
+  };
+
+  // ── Developer / Owner Controls Handlers (Matching Screenshots) ──
+  const handleDevModuleToggle = async (moduleKey, newValue) => {
+    if (toggleModule) {
+      toggleModule(moduleKey, newValue);
+    }
+    setSystemForm((prev) => {
+      const updatedModules = { ...(prev.modulesEnabled || {}), [moduleKey]: newValue };
+      const next = { ...prev, modulesEnabled: updatedModules };
+      if (moduleKey === 'digitalMenu') {
+        next.digitalMenuEnabled = newValue;
+      }
+      return next;
+    });
+
+    try {
+      const payload = {
+        modulesEnabled: { [moduleKey]: newValue },
+      };
+      if (moduleKey === 'digitalMenu') {
+        payload.digitalMenuEnabled = newValue;
+      }
+      const res = await api.put('/settings', payload);
+      if (res.data) {
+        setSystemForm((prev) => ({ ...prev, ...res.data }));
+        await refreshPermissions(res.data);
+      }
+      setSystemSuccess(`Module "${moduleKey}" licensing status updated successfully.`);
+      setTimeout(() => setSystemSuccess(''), 3000);
+    } catch (err) {
+      setSystemError(err.response?.data?.message || 'Failed to update module licensing status.');
+      setTimeout(() => setSystemError(''), 4000);
+    }
+  };
+
+  const handleDevAdminThemeToggle = async (newValue) => {
+    setSystemForm((prev) => ({ ...prev, allowAdminThemeCustomization: newValue }));
+    try {
+      const res = await api.put('/settings', { allowAdminThemeCustomization: newValue });
+      if (res.data) {
+        setSystemForm((prev) => ({ ...prev, ...res.data }));
+        await refreshPermissions(res.data);
+      }
+      setSystemSuccess(`Hotel Admin Theme & Icon Customization set to ${newValue ? 'ALLOWED (VISIBLE TO ADMIN)' : 'RESTRICTED / HIDDEN'}.`);
+      setTimeout(() => setSystemSuccess(''), 3000);
+    } catch (err) {
+      setSystemError(err.response?.data?.message || 'Failed to update theme customization delegation.');
+      setTimeout(() => setSystemError(''), 4000);
+    }
+  };
+
+  const handleDevIconModeToggle = async (newValue) => {
+    const updatedTheme = {
+      ...(themeConfig || {}),
+      iconLibrary: newValue ? 'material' : 'classic',
+      colorfulIcons: newValue,
+    };
+    if (saveThemeAndSidebar) {
+      saveThemeAndSidebar(updatedTheme, undefined);
+    }
+    setSystemSuccess(`Icon mode updated to ${newValue ? 'Modern Material UI Icons Mode' : 'Classic Clean Mode'}.`);
+    setTimeout(() => setSystemSuccess(''), 3000);
+  };
+
+  const handleDevThemeSelect = (themeId) => {
+    const selectedTheme = THEMES?.find((t) => t.id === themeId);
+    if (!selectedTheme) return;
+    const updatedTheme = {
+      ...(themeConfig || {}),
+      theme: selectedTheme.id,
+      accentColor: selectedTheme.accentDefault || 'blue',
+    };
+    if (saveThemeAndSidebar) {
+      saveThemeAndSidebar(updatedTheme, undefined);
+    }
+    setSystemSuccess(`Sidebar appearance theme updated to "${selectedTheme.name}".`);
+    setTimeout(() => setSystemSuccess(''), 3000);
+  };
+
   // Printer Management Handlers
   const handleAddPrinter = (e) => {
     e.preventDefault();
@@ -711,16 +914,14 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── Modern System Settings Header (Matching Screenshot) ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-ink-100">
+      {/* ── Modern Account & System Settings Header (Matching Screenshot) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 pb-2">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-ink-900">
-              System Settings
-            </h1>
-          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-ink-900">
+            Account &amp; System Settings
+          </h1>
           <p className="text-xs font-semibold text-ink-400 mt-1">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            Manage your personal credentials, profile identity, and {companyInfo?.companyName || 'Bloom Bar and Restaurant Café/hotel'} management configurations
           </p>
         </div>
 
@@ -744,28 +945,33 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* ── Horizontal Scrollable Settings Tabs (Matching Screenshot Red Box) ── */}
-      <div className="flex border-b border-ink-200 space-x-1 sm:space-x-3 overflow-x-auto no-scrollbar scroll-smooth">
+      {/* ── Single Horizontal Settings Navigation Bar (Exact Match to Screenshot) ── */}
+      <div className="flex border-b border-ink-200 space-x-1 sm:space-x-3 overflow-x-auto no-scrollbar scroll-smooth bg-white px-1">
         {SETTINGS_TABS.map((tab) => {
           if (tab.devOnly && user?.role !== 'developer') return null;
           if (tab.adminOnly && !hasRole('admin') && !hasRole('manager') && user?.role !== 'developer') return null;
           const isActive = currentTab === tab.id || (tab.id === 'dev' && (currentTab === 'modules' || currentTab === 'appearance' || currentTab === 'sidebar'));
           const Icon = tab.icon;
+          const isDevTab = tab.id === 'dev';
 
           return (
             <button
               key={tab.id}
               onClick={() => setTab(tab.id)}
-              className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${
+              className={`flex items-center gap-2 border-b-2 px-3 py-3 text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
                 isActive
-                  ? 'border-blue-600 text-blue-600 font-bold'
+                  ? isDevTab
+                    ? 'border-amber-500 text-amber-600 font-bold'
+                    : 'border-blue-600 text-blue-600 font-bold'
+                  : isDevTab
+                  ? 'border-transparent text-amber-700 hover:text-amber-900'
                   : 'border-transparent text-ink-500 hover:text-ink-800'
               }`}
             >
-              <Icon size={16} className={tab.id === 'dev' ? 'text-amber-500' : ''} />
+              <Icon size={16} className={isDevTab ? 'text-amber-500' : isActive ? 'text-blue-600' : 'text-ink-400'} />
               <span>{tab.label}</span>
               {tab.badge && (
-                <span className="rounded bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 py-0.5 uppercase tracking-wide">
+                <span className="rounded-full bg-amber-100 text-amber-900 text-[9px] font-black px-2 py-0.5 uppercase tracking-wide border border-amber-200 shadow-xs">
                   {tab.badge}
                 </span>
               )}
@@ -1716,6 +1922,63 @@ export default function Settings() {
               </div>
             </form>
           </Card>
+
+          {/* Hotel Appearance Customizer (Controlled by Developer) */}
+          {systemForm.allowAdminThemeCustomization !== false && (
+            <Card className="max-w-3xl">
+              <div className="flex items-center justify-between pb-4 border-b border-ink-100 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
+                    <Palette size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-ink-900">Hotel Appearance &amp; Brand Color Theme</h3>
+                    <p className="text-xs text-ink-400 mt-0.5">Customize your company sidebar and branding colors</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 border border-emerald-200">
+                  DELEGATED TO ADMIN
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                {[
+                  { id: 'navy', name: 'Royal Midnight Navy', description: 'Signature deep navy & sapphire blue glow', swatchBg: '#0b1528', glowBg: '#2563eb' },
+                  { id: 'black', name: 'Charcoal & Onyx Slate', description: 'Ultra modern dark carbon & indigo accents', swatchBg: '#09090b', glowBg: '#6366f1' },
+                  { id: 'warm', name: 'Espresso Caramel Dark', description: 'Artisan bakery dark coffee & amber highlights', swatchBg: '#1c1917', glowBg: '#d97706' },
+                ].map((th) => {
+                  const isSelected = activeTheme?.id === th.id || themeConfig?.theme === th.id;
+                  return (
+                    <div
+                      key={th.id}
+                      onClick={() => handleDevThemeSelect(th.id)}
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/20 shadow-xs'
+                          : 'border-ink-200 bg-white hover:border-ink-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="h-10 w-20 rounded-xl relative flex items-center justify-center border border-white/10 shadow-xs" style={{ backgroundColor: th.swatchBg }}>
+                            <div className="h-4 w-4 rounded-full shadow-xs" style={{ backgroundColor: th.glowBg }} />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5">DARK</span>
+                            <div className={`h-5 w-5 rounded-full flex items-center justify-center transition ${isSelected ? 'bg-amber-500 text-white shadow-xs' : 'border border-ink-300'}`}>
+                              {isSelected && <Check size={12} strokeWidth={3} />}
+                            </div>
+                          </div>
+                        </div>
+                        <h5 className="font-bold text-xs text-ink-900">{th.name}</h5>
+                        <p className="text-[11px] text-ink-400 mt-0.5 leading-snug">{th.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -1988,7 +2251,122 @@ export default function Settings() {
             </div>
           </Card>
 
-          {/* Collapsible Granular Module CRUD Matrix */}
+          {/* ── CRUD Action Privileges Card (Exact Match to Screenshot 3) ── */}
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between pb-4 border-b border-ink-100 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-500 border border-red-200 flex-shrink-0">
+                  <Shield size={18} />
+                </div>
+                <div>
+                  <h3 className="font-display text-base font-bold text-ink-900">
+                    CRUD Action Privileges
+                  </h3>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    Control which roles can <strong className="text-ink-700">View</strong>, <strong className="text-ink-700">Edit</strong>, and <strong className="text-ink-700">Delete</strong> records in each module.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* CRUD Table matching screenshot 3 */}
+            <div className="overflow-x-auto rounded-xl border border-ink-100">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-ink-100 bg-slate-50/70 text-ink-700">
+                    <th rowSpan={2} className="py-3 px-4 font-bold text-ink-900 align-middle border-r border-ink-100 bg-slate-50/70 min-w-[140px]">
+                      Module
+                    </th>
+                    {displayedRoles.map((role) => (
+                      <th
+                        key={role.key}
+                        colSpan={3}
+                        className="py-2.5 px-2 text-center font-bold text-ink-800 border-r border-ink-100 last:border-r-0 min-w-[110px]"
+                      >
+                        {role.label}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-ink-100 bg-slate-50/50 text-[10px] font-bold">
+                    {displayedRoles.map((role) => (
+                      <React.Fragment key={role.key}>
+                        <th className="py-1.5 px-1.5 text-center text-emerald-600 tracking-wider">VIEW</th>
+                        <th className="py-1.5 px-1.5 text-center text-amber-500 tracking-wider">EDIT</th>
+                        <th className="py-1.5 px-1.5 text-center text-red-500 tracking-wider border-r border-ink-100 last:border-r-0">DELETE</th>
+                      </React.Fragment>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-50 text-ink-800">
+                  {CRUD_MODULE_ROWS.map((mod) => (
+                    <tr key={mod.key} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3.5 px-4 font-semibold text-ink-900 border-r border-ink-100 whitespace-nowrap">
+                        {mod.label}
+                      </td>
+                      {displayedRoles.map((role) => (
+                        <React.Fragment key={role.key}>
+                          <td className="py-3 px-1.5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={getCrudPermission(mod.key, 'view', role.key)}
+                              onChange={(e) => handleCrudToggle(mod.key, 'view', role.key, e.target.checked)}
+                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-400"
+                            />
+                          </td>
+                          <td className="py-3 px-1.5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={getCrudPermission(mod.key, 'edit', role.key)}
+                              onChange={(e) => handleCrudToggle(mod.key, 'edit', role.key, e.target.checked)}
+                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-400"
+                            />
+                          </td>
+                          <td className="py-3 px-1.5 text-center border-r border-ink-100 last:border-r-0">
+                            <input
+                              type="checkbox"
+                              checked={getCrudPermission(mod.key, 'delete', role.key)}
+                              onChange={(e) => handleCrudToggle(mod.key, 'delete', role.key, e.target.checked)}
+                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-400"
+                            />
+                          </td>
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom Legend & Save Button matching screenshot 3 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-ink-100">
+              <div className="flex flex-wrap items-center gap-5 text-xs text-ink-600">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                  <span className="font-semibold text-ink-800">View</span> — Can see records
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+                  <span className="font-semibold text-ink-800">Edit</span> — Can update records
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                  <span className="font-semibold text-ink-800">Delete</span> — Can permanently remove records
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSystemSubmit}
+                disabled={systemSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition active:scale-[0.98] disabled:opacity-50 self-end sm:self-auto"
+              >
+                <Save size={15} />
+                {systemSaving ? 'Saving…' : 'Save Role Permissions'}
+              </button>
+            </div>
+          </Card>
+
+          {/* Optional Collapsible Advanced Field-Level Permissions */}
           <div className="rounded-2xl border border-ink-200 bg-white shadow-xs overflow-hidden">
             <button
               type="button"
@@ -2001,10 +2379,10 @@ export default function Settings() {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-ink-900">
-                    Granular Module CRUD Matrix (View, Create, Edit, Delete, Approve, Export)
+                    Advanced Field-Level Privileges Matrix (Approve, Post, Export)
                   </h4>
                   <p className="text-xs text-ink-400">
-                    Detailed field-level action permissions per module (Items, GRV, Issue, Sales, Adjustments, Users)
+                    Configure specialized document approval and posting stages across user roles
                   </p>
                 </div>
               </div>
@@ -2614,85 +2992,433 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── Tab: Developer Controls [OWNER] ── */}
+      {/* ── Tab: Developer Controls [OWNER] (Exact Match to Screenshots) ── */}
       {(currentTab === 'dev' || currentTab === 'modules' || currentTab === 'appearance' || currentTab === 'sidebar') && user?.role === 'developer' && (
         <div className="space-y-6 w-full max-w-6xl">
-          {/* Top developer pill bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-200 gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
-                <Lock size={20} />
+          {/* Main Developer / System Owner Controls Card */}
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-6">
+            {/* Header with Gold squircle lock icon and OWNER ONLY badge */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-ink-100 gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-sm flex-shrink-0">
+                  <Lock size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-display text-lg font-black text-ink-900">
+                      Developer / System Owner Controls
+                    </h3>
+                    <span className="rounded-full bg-amber-100 text-amber-900 text-[10px] font-black px-2.5 py-0.5 uppercase tracking-wide border border-amber-200">
+                      OWNER ONLY
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    Manage module licensing, lock/unlock restaurant subsystem per customer installation.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-black text-amber-950 flex items-center gap-2">
-                  System Developer &amp; Owner Controls
-                  <span className="rounded bg-amber-200 text-amber-900 text-[10px] font-black px-1.5 py-0.5 uppercase tracking-wider">
-                    OWNER
-                  </span>
-                </h3>
-                <p className="text-xs text-amber-800">
-                  Global master controls for system functionalities, dynamic themes, administrative delegation, and security audit logs.
-                </p>
+
+              {/* Developer badge */}
+              <div className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-1.5 text-xs font-bold text-amber-900 shadow-xs">
+                <Sparkles size={14} className="text-amber-600" />
+                <span>Dev Master Licensing</span>
               </div>
             </div>
 
-            {/* Sub-tabs pills */}
-            <div className="flex items-center gap-1 bg-white/70 p-1 rounded-xl border border-amber-200 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => setDevSubTab('modules')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  devSubTab === 'modules' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-900 hover:bg-amber-100'
-                }`}
-              >
-                Modules
-              </button>
-              <button
-                type="button"
-                onClick={() => setDevSubTab('appearance')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  devSubTab === 'appearance' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-900 hover:bg-amber-100'
-                }`}
-              >
-                Appearance
-              </button>
-              <button
-                type="button"
-                onClick={() => setDevSubTab('delegation')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  devSubTab === 'delegation' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-900 hover:bg-amber-100'
-                }`}
-              >
-                Delegation
-              </button>
+            {/* Warning / Security Notice Box */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 flex items-start gap-3">
+              <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>⚠ Developer Security Area:</strong> Modules disabled here (Subsystem Suite, Finance &amp; Expenses, or Hotel Appearance Customizer) are locked and hidden across all hotel accounts including Admin. Only users with the Developer (dev) role can re-enable or manage them.
+              </div>
             </div>
-          </div>
 
-          {/* SubTab 1: Modules Management */}
-          {devSubTab === 'modules' && (
-            <ModuleManagement />
-          )}
-
-          {/* SubTab 2: Appearance & Theme Studio */}
-          {devSubTab === 'appearance' && (
-            <SidebarThemeSettings />
-          )}
-
-          {/* SubTab 3: Authority Delegation */}
-          {devSubTab === 'delegation' && (
-            <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-6">
-              <div className="pb-4 border-b border-ink-100">
-                <h4 className="text-base font-bold text-ink-900">Administrator Authority Delegation</h4>
-                <p className="text-xs text-ink-400 mt-0.5">
-                  Grant or revoke special administrative privileges to the System Administrator role
+            {/* ── Section 1: Module & Interface Licensing ── */}
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-ink-900 font-bold text-sm">
+                  <SlidersHorizontal size={16} className="text-amber-600" />
+                  <span>Module &amp; Interface Licensing</span>
+                </div>
+                <p className="text-xs text-ink-400">
+                  Enable or disable premium hotel modules and interface privileges per customer installation. Changes apply immediately across all devices.
                 </p>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-xl border border-ink-100 bg-slate-50/50">
-                  <div>
+              <div className="space-y-3">
+                {/* 1. Subsystem Suite (Restaurant POS & Ordering) */}
+                {(() => {
+                  const isLicensed = systemForm.modulesEnabled?.salesMarketing !== false;
+                  return (
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-white hover:border-ink-200 transition">
+                      <div className="space-y-1 pr-4">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h4 className="font-bold text-sm text-ink-900">
+                            Subsystem Suite (Restaurant POS &amp; Ordering)
+                          </h4>
+                          {isLicensed ? (
+                            <span className="rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 border border-purple-200">
+                              LICENSED &amp; ACTIVE
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 border border-slate-200">
+                              LOCKED / HIDDEN (OFF)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-ink-400 leading-normal">
+                          POS Ordering, Captain Order, and Cash Sales. When off, completely hidden from non-developers.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isLicensed}
+                        onClick={() => handleDevModuleToggle('salesMarketing', !isLicensed)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isLicensed ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* 2. Digital Menu Suite (Customer QR & Self-Ordering) */}
+                {(() => {
+                  const isLicensed = systemForm.digitalMenuEnabled !== false && systemForm.modulesEnabled?.digitalMenu !== false;
+                  return (
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-white hover:border-ink-200 transition">
+                      <div className="space-y-1 pr-4">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h4 className="font-bold text-sm text-ink-900">
+                            Digital Menu Suite (Customer QR &amp; Self-Ordering)
+                          </h4>
+                          {isLicensed ? (
+                            <span className="rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 border border-purple-200">
+                              LICENSED &amp; ACTIVE
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 border border-slate-200">
+                              LOCKED / HIDDEN (OFF)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-ink-400 leading-normal">
+                          Customer Digital Menu, QR Table self-ordering, interactive live tracker, and customer reviews. Can be licensed and sold as an independent subsystem.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isLicensed}
+                        onClick={() => handleDevModuleToggle('digitalMenu', !isLicensed)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isLicensed ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* 3. Finance & Expenses Suite */}
+                {(() => {
+                  const isLicensed = systemForm.modulesEnabled?.accounting !== false;
+                  return (
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-white hover:border-ink-200 transition">
+                      <div className="space-y-1 pr-4">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h4 className="font-bold text-sm text-ink-900">
+                            Finance &amp; Expenses Suite
+                          </h4>
+                          {isLicensed ? (
+                            <span className="rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 border border-purple-200">
+                              LICENSED &amp; ACTIVE
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 border border-slate-200">
+                              LOCKED / HIDDEN (OFF)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-ink-400 leading-normal">
+                          Overhead Expenses &amp; Analytics P&amp;L reports. When disabled, completely hidden and locked from non-developer hotel accounts.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isLicensed}
+                        onClick={() => handleDevModuleToggle('accounting', !isLicensed)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isLicensed ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* 4. Inventory & Items Suite (Raw Materials & Products) */}
+                {(() => {
+                  const isLicensed = systemForm.modulesEnabled?.items !== false;
+                  return (
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-white hover:border-ink-200 transition">
+                      <div className="space-y-1 pr-4">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h4 className="font-bold text-sm text-ink-900">
+                            Inventory &amp; Items Suite (Raw Materials &amp; Products)
+                          </h4>
+                          {isLicensed ? (
+                            <span className="rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 border border-purple-200">
+                              LICENSED &amp; ACTIVE
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 border border-slate-200">
+                              LOCKED / HIDDEN (OFF)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-ink-400 leading-normal">
+                          Raw Materials, Products catalog, unit conversions, and stock valuation. When off, completely hidden from non-developers.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isLicensed}
+                        onClick={() => handleDevModuleToggle('items', !isLicensed)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isLicensed ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* 5. Allow Hotel Admin Theme & Icon Customization */}
+                {(() => {
+                  const isAllowed = systemForm.allowAdminThemeCustomization !== false;
+                  return (
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-white hover:border-ink-200 transition">
+                      <div className="space-y-1 pr-4">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h4 className="font-bold text-sm text-ink-900">
+                            Allow Hotel Admin Theme &amp; Icon Customization
+                          </h4>
+                          {isAllowed ? (
+                            <span className="rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 border border-emerald-200">
+                              ALLOWED (VISIBLE TO ADMIN)
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 border border-slate-200">
+                              RESTRICTED / HIDDEN (OFF)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-ink-400 leading-normal">
+                          When active, hotel Admin can change sidebar themes and icon modes in System Settings. When disabled, the entire Appearance card disappears from Hotel Settings and is controlled exclusively by the developer.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isAllowed}
+                        onClick={() => handleDevAdminThemeToggle(!isAllowed)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isAllowed ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isAllowed ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* 6. Modern Material UI Icons Mode */}
+                {(() => {
+                  const isMaterial = themeConfig?.iconLibrary === 'material' || Boolean(themeConfig?.colorfulIcons);
+                  return (
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-white hover:border-ink-200 transition">
+                      <div className="space-y-1 pr-4">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h4 className="font-bold text-sm text-ink-900">
+                            Modern Material UI Icons Mode
+                          </h4>
+                          {isMaterial ? (
+                            <span className="rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 border border-blue-200">
+                              MODERN MATERIAL (ON)
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 border border-slate-200">
+                              CLASSIC CLEAN (OFF)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-ink-400 leading-normal">
+                          OFF: Displays classic minimalist icons without colorful squircle boxes (for customers who prefer the original layout).
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isMaterial}
+                        onClick={() => handleDevIconModeToggle(!isMaterial)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isMaterial ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isMaterial ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* ── Section 2: Sidebar Appearance & Brand Color Theme (Exact Match to Screenshot 2) ── */}
+            <div className="space-y-3 pt-4 border-t border-ink-100">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-ink-900 font-bold text-sm">
+                  <Palette size={16} className="text-amber-600" />
+                  <span>Sidebar Appearance &amp; Brand Color Theme</span>
+                </div>
+                <p className="text-xs text-ink-400">
+                  Configure the hotel sidebar color palette to match the customer brand identity.
+                </p>
+              </div>
+
+              {/* 3 Theme Cards matching Screenshot 2 */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                {[
+                  {
+                    id: 'navy',
+                    name: 'Royal Midnight Navy',
+                    description: 'Signature deep navy & sapphire blue glow',
+                    swatchBg: '#0b1528',
+                    glowBg: '#2563eb',
+                  },
+                  {
+                    id: 'black',
+                    name: 'Charcoal & Onyx Slate',
+                    description: 'Ultra modern dark carbon & indigo accents',
+                    swatchBg: '#09090b',
+                    glowBg: '#6366f1',
+                  },
+                  {
+                    id: 'warm',
+                    name: 'Espresso Caramel Dark',
+                    description: 'Artisan bakery dark coffee & amber highlights',
+                    swatchBg: '#1c1917',
+                    glowBg: '#d97706',
+                  },
+                ].map((th) => {
+                  const isSelected = activeTheme?.id === th.id || themeConfig?.theme === th.id;
+                  return (
+                    <div
+                      key={th.id}
+                      onClick={() => handleDevThemeSelect(th.id)}
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/20 shadow-xs'
+                          : 'border-ink-200 bg-white hover:border-ink-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          {/* Color preview swatch with center circle */}
+                          <div
+                            className="h-10 w-20 rounded-xl relative flex items-center justify-center border border-white/10 shadow-xs"
+                            style={{ backgroundColor: th.swatchBg }}
+                          >
+                            <div
+                              className="h-4 w-4 rounded-full shadow-xs"
+                              style={{ backgroundColor: th.glowBg }}
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="rounded bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5">
+                              DARK
+                            </span>
+                            <div
+                              className={`h-5 w-5 rounded-full flex items-center justify-center transition ${
+                                isSelected ? 'bg-amber-500 text-white shadow-xs' : 'border border-ink-300'
+                              }`}
+                            >
+                              {isSelected && <Check size={12} strokeWidth={3} />}
+                            </div>
+                          </div>
+                        </div>
+
+                        <h5 className="font-bold text-xs text-ink-900">{th.name}</h5>
+                        <p className="text-[11px] text-ink-400 mt-0.5 leading-snug">{th.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Section 3: Administrator Authority Delegation ── */}
+            <div className="space-y-3 pt-4 border-t border-ink-100">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-ink-900 font-bold text-sm">
+                  <Shield size={16} className="text-amber-600" />
+                  <span>Administrator Authority Delegation</span>
+                </div>
+                <p className="text-xs text-ink-400">
+                  Grant or revoke special administrative privileges to the System Administrator role.
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-slate-50/50">
+                  <div className="space-y-0.5 pr-4">
                     <h5 className="font-bold text-xs text-ink-900">Grant Admin Role Permission Management Authority</h5>
-                    <p className="text-[11px] text-ink-400 mt-0.5">Allow System Administrator to view and adjust employee capabilities</p>
+                    <p className="text-[11px] text-ink-400">Allow System Administrator to view and adjust employee capabilities</p>
                   </div>
                   <input
                     type="checkbox"
@@ -2702,10 +3428,10 @@ export default function Settings() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-4 rounded-xl border border-ink-100 bg-slate-50/50">
-                  <div>
+                <div className="flex items-center justify-between p-4 rounded-2xl border border-ink-100 bg-slate-50/50">
+                  <div className="space-y-0.5 pr-4">
                     <h5 className="font-bold text-xs text-ink-900">Grant Admin Transaction Void &amp; Delete Authority</h5>
-                    <p className="text-[11px] text-ink-400 mt-0.5">Allow System Administrator to void or reverse inventory and sales vouchers</p>
+                    <p className="text-[11px] text-ink-400">Allow System Administrator to void or reverse inventory and sales vouchers</p>
                   </div>
                   <input
                     type="checkbox"
@@ -2714,15 +3440,67 @@ export default function Settings() {
                     className="h-5 w-5 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
                 </div>
+              </div>
+            </div>
 
-                <div className="flex justify-end pt-2">
-                  <Button type="button" onClick={handleSystemSubmit} disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    <Save size={15} /> Save Authority Delegations
-                  </Button>
+            {/* Bottom Footer Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-ink-100">
+              <div className="flex items-center gap-2 text-xs text-ink-500 font-semibold">
+                <Sparkles size={14} className="text-amber-600" />
+                <span>Changes apply live across all devices and persist permanently in the database.</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSystemSubmit}
+                disabled={systemSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition active:scale-[0.98] disabled:opacity-50 self-end sm:self-auto"
+              >
+                <Save size={15} />
+                {systemSaving ? 'Saving…' : 'Save Developer Configurations'}
+              </button>
+            </div>
+          </Card>
+
+          {/* Optional Collapsible Advanced Enterprise Tools */}
+          <div className="rounded-2xl border border-ink-200 bg-white shadow-xs overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowGranularCRUD(!showGranularCRUD)}
+              className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100/80 transition text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  <SlidersHorizontal size={16} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-ink-900">
+                    Full Enterprise Module Catalog &amp; Advanced Theme Studio
+                  </h4>
+                  <p className="text-xs text-ink-400">
+                    Access detailed granular sub-module configurations and deep custom theme options
+                  </p>
                 </div>
               </div>
-            </Card>
-          )}
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600">
+                <span>{showGranularCRUD ? 'Collapse' : 'Expand Advanced Studio'}</span>
+                {showGranularCRUD ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+            </button>
+
+            {showGranularCRUD && (
+              <div className="p-4 border-t border-ink-100 bg-white space-y-6">
+                <div>
+                  <h4 className="text-sm font-bold text-ink-900 mb-2">Advanced Theme Studio</h4>
+                  <SidebarThemeSettings />
+                </div>
+                <div className="border-t border-ink-100 pt-6">
+                  <h4 className="text-sm font-bold text-ink-900 mb-2">12-Module Enterprise Catalog</h4>
+                  <ModuleManagement />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

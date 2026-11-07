@@ -176,26 +176,67 @@ const hasPermission = async (userOrRole, capability, action) => {
   if (action === 'edit') actionKeys.push('update');
   if (action === 'update') actionKeys.push('edit');
 
+  // Capability aliases
+  const capAliases = [capability];
+  const aliasMap = {
+    raw_materials: 'items',
+    items: 'raw_materials',
+    overhead_expenses: 'expenses',
+    expenses: 'overhead_expenses',
+    stock_movements: 'stockMovements',
+    stockMovements: 'stock_movements',
+    purchases_grv: 'purchases',
+    purchases: 'purchases_grv',
+    staffAccounts: 'employees',
+    employees: 'staffAccounts',
+  };
+  if (aliasMap[capability] && !capAliases.includes(aliasMap[capability])) {
+    capAliases.push(aliasMap[capability]);
+  }
+
   // 1. Employee custom permission override
   if (customPermissions) {
-    if (action && customPermissions[capability] && typeof customPermissions[capability] === 'object') {
-      for (const ak of actionKeys) {
-        if (typeof customPermissions[capability][ak] === 'boolean') {
-          return customPermissions[capability][ak];
+    for (const cap of capAliases) {
+      if (action && customPermissions[cap] && typeof customPermissions[cap] === 'object') {
+        for (const ak of actionKeys) {
+          if (typeof customPermissions[cap][ak] === 'boolean') {
+            return customPermissions[cap][ak];
+          }
         }
       }
-    }
-    if (typeof customPermissions[capability] === 'boolean') {
-      return customPermissions[capability];
+      if (typeof customPermissions[cap] === 'boolean') {
+        return customPermissions[cap];
+      }
     }
   }
 
   // 1.5 Enforce Sidebar Navigation Visibility Access Control on backend APIs
   if (cachedSettings?.navVisibility && role !== 'developer') {
     const nav = cachedSettings.navVisibility;
-    const navEntry = nav[capability] || nav[capability.toLowerCase()];
-    if (navEntry && navEntry[role] === false) {
-      return false;
+    for (const cap of capAliases) {
+      const navEntry = nav[cap] || nav[cap.toLowerCase()];
+      if (navEntry && navEntry[role] === false) {
+        return false;
+      }
+    }
+  }
+
+  // 1.6 Enforce Centralized Module Licensing & Activation on backend APIs
+  if (cachedSettings?.modulesEnabled && role !== 'developer') {
+    const modules = cachedSettings.modulesEnabled;
+    for (const cap of capAliases) {
+      if (modules.salesMarketing === false && ['salesMarketing', 'cashSales', 'creditSales', 'subsystem', 'pos'].includes(cap)) {
+        return false;
+      }
+      if (modules.items === false && ['items', 'raw_materials', 'products'].includes(cap)) {
+        return false;
+      }
+      if (modules.accounting === false && ['accounting', 'finance', 'overhead_expenses', 'expenses', 'analytics'].includes(cap)) {
+        return false;
+      }
+      if ((modules.digitalMenu === false || cachedSettings.digitalMenuEnabled === false) && cap === 'digitalMenu') {
+        return false;
+      }
     }
   }
 
@@ -220,11 +261,15 @@ const hasPermission = async (userOrRole, capability, action) => {
 
     // Admin has access unless specifically set to false for admin
     if (action) {
-      for (const ak of actionKeys) {
-        if (rolePermissions?.[capability]?.[ak]?.admin === false) return false;
+      for (const cap of capAliases) {
+        for (const ak of actionKeys) {
+          if (rolePermissions?.[cap]?.[ak]?.admin === false) return false;
+        }
       }
     }
-    if (rolePermissions?.[capability]?.admin === false) return false;
+    for (const cap of capAliases) {
+      if (rolePermissions?.[cap]?.admin === false) return false;
+    }
     return true;
   }
 
@@ -234,22 +279,28 @@ const hasPermission = async (userOrRole, capability, action) => {
     effectiveRoles.push('storekeeper');
   }
 
-  if (action && rolePermissions?.[capability]) {
-    for (const ak of actionKeys) {
-      if (rolePermissions[capability][ak]) {
-        for (const r of effectiveRoles) {
-          if (rolePermissions[capability][ak][r] !== undefined) {
-            return Boolean(rolePermissions[capability][ak][r]);
+  if (action) {
+    for (const cap of capAliases) {
+      if (rolePermissions?.[cap]) {
+        for (const ak of actionKeys) {
+          if (rolePermissions[cap][ak]) {
+            for (const r of effectiveRoles) {
+              if (rolePermissions[cap][ak][r] !== undefined) {
+                return Boolean(rolePermissions[cap][ak][r]);
+              }
+            }
           }
         }
       }
     }
   }
 
-  if (rolePermissions?.[capability]) {
-    for (const r of effectiveRoles) {
-      if (rolePermissions[capability][r] !== undefined) {
-        return Boolean(rolePermissions[capability][r]);
+  for (const cap of capAliases) {
+    if (rolePermissions?.[cap]) {
+      for (const r of effectiveRoles) {
+        if (rolePermissions[cap][r] !== undefined) {
+          return Boolean(rolePermissions[cap][r]);
+        }
       }
     }
   }

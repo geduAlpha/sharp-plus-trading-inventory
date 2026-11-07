@@ -3,15 +3,15 @@ const router  = express.Router();
 const {
   getEmployees, getDepartments, createEmployee, updateEmployee, deleteEmployee, restoreEmployee,
 } = require('../controllers/employeeController');
-const { protect, authorize } = require('../middleware/authMiddleware');
+const { protect, authorize, authorizePermission } = require('../middleware/authMiddleware');
 
 router.use(protect);
 
-router.get('/departments', getDepartments);
-router.get('/',            getEmployees);
-router.post('/',           createEmployee);
-router.put('/:id',         updateEmployee);
+router.get('/departments', authorizePermission('employees', 'view'), getDepartments);
+router.get('/',            authorizePermission('employees', 'view'), getEmployees);
+router.post('/',           authorizePermission('employees', 'create'), createEmployee);
+router.put('/:id',         authorizePermission('employees', 'edit'), updateEmployee);
 router.post('/:id/restore', authorize('developer'), restoreEmployee);
-router.delete('/:id',      deleteEmployee);
+router.delete('/:id',      authorizePermission('employees', 'delete'), deleteEmployee);
 
 module.exports = router;

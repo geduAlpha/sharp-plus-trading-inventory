@@ -41,7 +41,10 @@ const Products = () => {
   const recipeImportRef = useRef();
   const { hasRole, can, user, isDeveloper } = useAuth();
   const isDev = Boolean(isDeveloper || user?.role === 'developer');
-  const canEdit = isDev || hasRole('admin', 'manager') || can('recordGoods');
+  const canView = isDev || can('products', 'view');
+  const canCreate = isDev || can('products', 'create') || can('products', 'edit');
+  const canEdit = isDev || can('products', 'edit');
+  const canDelete = isDev || can('products', 'delete');
 
   const load = () =>
     api.get('/products', { params: { search } }).then((r) => {
@@ -444,7 +447,7 @@ const Products = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Bulk delete — shown when items selected */}
-          {canEdit && selected.size > 0 && (
+          {canDelete && selected.size > 0 && (
             <button
               onClick={handleBulkDelete}
               className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100"
@@ -459,14 +462,14 @@ const Products = () => {
             fileName="products_catalog"
             pdfTitle="Products & Recipes Catalog"
             pdfColumns={pdfColumns}
-            showImport={canEdit}
+            showImport={canCreate}
             onImport={() => importRef.current?.click()}
             importLabel="Import Excel"
           />
           <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
 
           {/* Import Recipes button */}
-          {canEdit && (
+          {canCreate && (
             <div className="flex items-center gap-1.5">
               <button
                 onClick={handleDownloadRecipeTemplate}
@@ -486,7 +489,7 @@ const Products = () => {
             </div>
           )}
 
-          {canEdit && (
+          {canCreate && (
             <Button style={{ background: 'linear-gradient(135deg,#1a56db,#0d2d80)', color: 'white' }} onClick={openCreate}>
               <Plus size={16} /> Add product
             </Button>
@@ -574,7 +577,7 @@ const Products = () => {
           <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
             <thead style={{ background: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%)' }}>
               <tr>
-                {canEdit && (
+                {canDelete && (
                   <th className="w-10 px-4 py-2.5" style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }}>
                     <input
                       type="checkbox"
@@ -591,13 +594,13 @@ const Products = () => {
                 <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-blue-100" style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }}>UOM</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-blue-100" style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }}>Ingredients</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-blue-100" style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }}>Selling Price</th>
-                {canEdit && <th className="px-4 py-2.5" style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }} />}
+                {(canEdit || canDelete) && <th className="px-4 py-2.5" style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }} />}
               </tr>
             </thead>
             <tbody style={{ borderTop: 'none' }}>
               {products.length === 0 && (
                 <tr>
-                  <td colSpan={canEdit ? 8 : 6} className="px-4 py-10 text-center text-ink-400">
+                  <td colSpan={6 + (canDelete ? 1 : 0) + (canEdit || canDelete ? 1 : 0)} className="px-4 py-10 text-center text-ink-400">
                     No products yet. Add your first product or import from Excel.
                   </td>
                 </tr>
@@ -607,7 +610,7 @@ const Products = () => {
                   key={p._id}
                   className={`hover:bg-ink-50/50 ${selected.has(p._id) ? 'bg-blue-50/60' : ''}`}
                 >
-                  {canEdit && (
+                  {canDelete && (
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
@@ -634,15 +637,19 @@ const Products = () => {
                   <td className="whitespace-nowrap px-4 py-3 font-medium tabular">
                     ETB {p.sellingPrice?.toFixed(2) ?? '0.00'}
                   </td>
-                  {canEdit && (
+                  {(canEdit || canDelete) && (
                     <td className="whitespace-nowrap px-4 py-3">
                       <div className="flex gap-1">
-                        <button onClick={() => openEdit(p)} className="rounded-md p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700">
-                          <Pencil size={15} />
-                        </button>
-                        <button onClick={() => handleDelete(p._id)} className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600">
-                          <Trash2 size={15} />
-                        </button>
+                        {canEdit && (
+                          <button onClick={() => openEdit(p)} title="Edit Product" className="rounded-md p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700">
+                            <Pencil size={15} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => handleDelete(p._id)} title="Delete Product" className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}

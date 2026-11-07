@@ -28,6 +28,69 @@ const DEFAULT_NAV_VISIBILITY = {
   employees: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true, employee: false, developer: true },
 };
 
+const DEFAULT_ROLE_PERMISSIONS = {
+  // ── Workflow Capabilities ──
+  recordGoods: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  checkReview: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  approveGoods: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  postLedger: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  voidTransactions: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  viewReports: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+  manageAccounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+
+  // ── CRUD Action Privileges (Matching Screenshot) ──
+  raw_materials: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  items: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  products: {
+    view: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  suppliers: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  overhead_expenses: {
+    view: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  expenses: {
+    view: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  stock_movements: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  stockMovements: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  purchases: {
+    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+  employees: {
+    view: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  },
+};
+
 const settingSchema = new mongoose.Schema(
   {
     companyName: { type: String, default: 'Sharp Plus' },
@@ -42,15 +105,7 @@ const settingSchema = new mongoose.Schema(
     allowNegativeStock: { type: Boolean, default: false },
     rolePermissions: {
       type: Object,
-      default: {
-        recordGoods: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-        checkReview: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-        approveGoods: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
-        postLedger: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-        voidTransactions: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
-        viewReports: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-        manageAccounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
-      },
+      default: () => JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMISSIONS)),
     },
     navVisibility: {
       type: Object,
@@ -65,6 +120,11 @@ const settingSchema = new mongoose.Schema(
     allowAdminVoidDelete: {
       type: Boolean,
       default: false,
+    },
+    // Authority Delegation: Developer/Owner controls whether hotel admin can customize sidebar themes and icon modes
+    allowAdminThemeCustomization: {
+      type: Boolean,
+      default: true,
     },
     // Telegram bot subscribers — array of { chatId, name, username, subscribedAt }
     telegramSubscribers: {

@@ -48,9 +48,9 @@ function App() {
             }
           >
             <Route path="/" element={<ProtectedRoute navKey="dashboard"><Dashboard /></ProtectedRoute>} />
-            <Route path="/materials" element={<ProtectedRoute navKey="items"><Items /></ProtectedRoute>} />
-            <Route path="/products" element={<ProtectedRoute navKey="products"><Products /></ProtectedRoute>} />
-            <Route path="/analytics" element={<ProtectedRoute capability="viewReports" navKey="analytics"><Analytics /></ProtectedRoute>} />
+            <Route path="/materials" element={<ModuleGuard moduleKey="items"><ProtectedRoute navKey="items"><Items /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/products" element={<ModuleGuard moduleKey="items"><ProtectedRoute navKey="products"><Products /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/analytics" element={<ModuleGuard moduleKey="accounting"><ProtectedRoute capability="viewReports" navKey="analytics"><Analytics /></ProtectedRoute></ModuleGuard>} />
             <Route path="/transactions" element={<ProtectedRoute navKey="stockMovements"><StockTransactions /></ProtectedRoute>} />
             <Route path="/transactions/cash-grv" element={<ProtectedRoute navKey="purchases"><StockTransactions defaultVoucher="cash_grv" /></ProtectedRoute>} />
             <Route path="/transactions/credit-grv" element={<ProtectedRoute navKey="purchases"><StockTransactions defaultVoucher="credit_grv" /></ProtectedRoute>} />
@@ -115,12 +115,12 @@ function App() {
             />
             {/* Sales & Marketing Subsystem 6 Functional Menus */}
             <Route path="/sub-system/sales-marketing" element={<Navigate to="/sub-system/sales-marketing/cash-sales" replace />} />
-            <Route path="/sub-system/sales-marketing/cash-sales" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
-            <Route path="/sub-system/sales-marketing/credit-sales" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
-            <Route path="/sub-system/sales-marketing/zeroing-voucher" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
-            <Route path="/sub-system/sales-marketing/security-report" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
-            <Route path="/sub-system/sales-marketing/sales-closing" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
-            <Route path="/sub-system/sales-marketing/sales-route-mapping" element={<ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute>} />
+            <Route path="/sub-system/sales-marketing/cash-sales" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/sub-system/sales-marketing/credit-sales" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/sub-system/sales-marketing/zeroing-voucher" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/sub-system/sales-marketing/security-report" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/sub-system/sales-marketing/sales-closing" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/sub-system/sales-marketing/sales-route-mapping" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute><SalesMarketingSubsystem /></ProtectedRoute></ModuleGuard>} />
             <Route
               path="/sub-system/stock-management-voucher-report"
               element={

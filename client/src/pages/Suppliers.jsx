@@ -17,7 +17,9 @@ const Suppliers = () => {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const { hasRole, can } = useAuth();
-  const canDelete = hasRole('admin') || can('manageAccounts');
+  const canCreate = hasRole('admin') || hasRole('developer') || can('suppliers', 'create');
+  const canEdit = hasRole('admin') || hasRole('developer') || can('suppliers', 'edit');
+  const canDelete = hasRole('admin') || hasRole('developer') || can('suppliers', 'delete');
 
   const load = () => api.get('/suppliers', { params: { search } }).then(res => {
     setSuppliers(Array.isArray(res.data) ? res.data : []);
@@ -97,17 +99,23 @@ const Suppliers = () => {
     { key: 'category', header: 'Category' },
     { key: 'contactPerson', header: 'Contact person' },
     { key: 'phone', header: 'Phone' },
-    {
+    ...(canEdit || canDelete ? [{
       key: 'actions', header: '',
       render: (r) => (
         <div className="flex gap-2">
-          <button onClick={() => openEdit(r)} className="rounded-md p-1.5 text-ink-400 hover:bg-ink-50 hover:text-ink-700"><Pencil size={15} /></button>
+          {canEdit && (
+            <button onClick={() => openEdit(r)} title="Edit supplier" className="rounded-md p-1.5 text-ink-400 hover:bg-ink-50 hover:text-ink-700">
+              <Pencil size={15} />
+            </button>
+          )}
           {canDelete && (
-            <button onClick={() => handleDelete(r._id)} className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+            <button onClick={() => handleDelete(r._id)} title="Delete supplier" className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600">
+              <Trash2 size={15} />
+            </button>
           )}
         </div>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -125,7 +133,9 @@ const Suppliers = () => {
             pdfTitle="company Suppliers Directory"
             pdfColumns={pdfColumns}
           />
-          <Button variant="brass" onClick={openCreate}><Plus size={16} /> Add supplier</Button>
+          {canCreate && (
+            <Button variant="brass" onClick={openCreate}><Plus size={16} /> Add supplier</Button>
+          )}
         </div>
       </div>
 

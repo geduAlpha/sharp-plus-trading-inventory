@@ -5,8 +5,8 @@ import { useAuth } from './AuthContext';
 export const THEMES = [
   {
     id: 'navy',
-    name: 'Professional Navy',
-    description: 'Deep royal sapphire & navy, bright azure highlights, high authority enterprise look',
+    name: 'Royal Midnight Navy',
+    description: 'Signature deep navy & sapphire blue glow',
     previewColor: '#0b1528',
     headerBg: '#0f172a',
     sidebarBg: '#0b1528',
@@ -27,8 +27,8 @@ export const THEMES = [
   },
   {
     id: 'black',
-    name: 'Midnight Black',
-    description: 'True obsidian dark theme, ultra-high contrast, sleek OLED aesthetics & neon emerald accents',
+    name: 'Charcoal & Onyx Slate',
+    description: 'Ultra modern dark carbon & indigo accents',
     previewColor: '#09090b',
     headerBg: '#121215',
     sidebarBg: '#09090b',
@@ -82,8 +82,8 @@ export const THEMES = [
   },
   {
     id: 'warm',
-    name: 'Warm Neutral',
-    description: 'Refined espresso, cashmere & warm stone with amber highlights, friendly & grounded',
+    name: 'Espresso Caramel Dark',
+    description: 'Artisan bakery dark coffee & amber highlights',
     previewColor: '#1c1917',
     headerBg: '#292524',
     sidebarBg: '#1c1917',
@@ -250,6 +250,8 @@ export const DEFAULT_THEME_CONFIG = {
 export const DEFAULT_MODULES_ENABLED = {
   salesMarketing: true,
   accounting: true,
+  items: true,
+  digitalMenu: true,
 };
 
 export const DEFAULT_SIDEBAR_CONFIG = [

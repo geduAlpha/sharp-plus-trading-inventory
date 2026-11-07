@@ -174,6 +174,7 @@ export const AuthProvider = ({ children }) => {
   const [navVisibility, setNavVisibility] = useState(DEFAULT_NAV_VISIBILITY);
   const [allowAdminManagePermissions, setAllowAdminManagePermissions] = useState(false);
   const [allowAdminVoidDelete, setAllowAdminVoidDelete] = useState(false);
+  const [allowAdminThemeCustomization, setAllowAdminThemeCustomization] = useState(true);
   const [modulesEnabled, setModulesEnabled] = useState(() => {
     try {
       const saved = localStorage.getItem('companyModulesEnabled');
@@ -210,6 +211,9 @@ export const AuthProvider = ({ children }) => {
       }
       if (res.data?.allowAdminVoidDelete !== undefined) {
         setAllowAdminVoidDelete(Boolean(res.data.allowAdminVoidDelete));
+      }
+      if (res.data?.allowAdminThemeCustomization !== undefined) {
+        setAllowAdminThemeCustomization(Boolean(res.data.allowAdminThemeCustomization));
       }
       if (res.data?.modulesEnabled && typeof res.data.modulesEnabled === 'object') {
         setModulesEnabled(res.data.modulesEnabled);
@@ -410,17 +414,37 @@ export const AuthProvider = ({ children }) => {
     if (action === 'edit') actionKeys.push('update');
     if (action === 'update') actionKeys.push('edit');
 
+    // Capability aliases
+    const capAliases = [capability];
+    const aliasMap = {
+      raw_materials: 'items',
+      items: 'raw_materials',
+      overhead_expenses: 'expenses',
+      expenses: 'overhead_expenses',
+      stock_movements: 'stockMovements',
+      stockMovements: 'stock_movements',
+      purchases_grv: 'purchases',
+      purchases: 'purchases_grv',
+      staffAccounts: 'employees',
+      employees: 'staffAccounts',
+    };
+    if (aliasMap[capability] && !capAliases.includes(aliasMap[capability])) {
+      capAliases.push(aliasMap[capability]);
+    }
+
     // 1. Check user custom permissions override (if assigned to this employee)
     if (user.customPermissions) {
-      if (action && user.customPermissions[capability] && typeof user.customPermissions[capability] === 'object') {
-        for (const ak of actionKeys) {
-          if (typeof user.customPermissions[capability][ak] === 'boolean') {
-            return user.customPermissions[capability][ak];
+      for (const cap of capAliases) {
+        if (action && user.customPermissions[cap] && typeof user.customPermissions[cap] === 'object') {
+          for (const ak of actionKeys) {
+            if (typeof user.customPermissions[cap][ak] === 'boolean') {
+              return user.customPermissions[cap][ak];
+            }
           }
         }
-      }
-      if (typeof user.customPermissions[capability] === 'boolean') {
-        return user.customPermissions[capability];
+        if (typeof user.customPermissions[cap] === 'boolean') {
+          return user.customPermissions[cap];
+        }
       }
     }
 
@@ -439,11 +463,15 @@ export const AuthProvider = ({ children }) => {
         return Boolean(allowAdminVoidDelete || rolePermissions?.voidTransactions?.admin);
       }
       if (action) {
-        for (const ak of actionKeys) {
-          if (rolePermissions?.[capability]?.[ak]?.admin === false) return false;
+        for (const cap of capAliases) {
+          for (const ak of actionKeys) {
+            if (rolePermissions?.[cap]?.[ak]?.admin === false) return false;
+          }
         }
       }
-      if (rolePermissions?.[capability]?.admin === false) return false;
+      for (const cap of capAliases) {
+        if (rolePermissions?.[cap]?.admin === false) return false;
+      }
       return true;
     }
 
@@ -451,22 +479,28 @@ export const AuthProvider = ({ children }) => {
     const effectiveRoles = [user.role];
     if (user.role === 'employee') effectiveRoles.push('storekeeper');
 
-    if (action && rolePermissions?.[capability]) {
-      for (const ak of actionKeys) {
-        if (rolePermissions[capability][ak]) {
-          for (const r of effectiveRoles) {
-            if (rolePermissions[capability][ak][r] !== undefined) {
-              return Boolean(rolePermissions[capability][ak][r]);
+    if (action) {
+      for (const cap of capAliases) {
+        if (rolePermissions?.[cap]) {
+          for (const ak of actionKeys) {
+            if (rolePermissions[cap][ak]) {
+              for (const r of effectiveRoles) {
+                if (rolePermissions[cap][ak][r] !== undefined) {
+                  return Boolean(rolePermissions[cap][ak][r]);
+                }
+              }
             }
           }
         }
       }
     }
 
-    if (rolePermissions?.[capability]) {
-      for (const r of effectiveRoles) {
-        if (rolePermissions[capability][r] !== undefined) {
-          return Boolean(rolePermissions[capability][r]);
+    for (const cap of capAliases) {
+      if (rolePermissions?.[cap]) {
+        for (const r of effectiveRoles) {
+          if (rolePermissions[cap][r] !== undefined) {
+            return Boolean(rolePermissions[cap][r]);
+          }
         }
       }
     }
@@ -499,22 +533,42 @@ export const AuthProvider = ({ children }) => {
     if (user.role === 'developer') return true;
     if (!navKey) return true;
 
-    // Company-level Sales & Marketing gate: Owner must have enabled it for company users to see it
-    const isSalesKey =
-      navKey === 'salesMarketing' ||
-      navKey === 'cashSales' ||
-      navKey === 'creditSales' ||
-      navKey === 'sales_cash' ||
-      navKey === 'sales_credit' ||
-      navKey === 'subsystem_cash_sales' ||
-      navKey === 'subsystem_pos_ordering';
+    // Centralized Module Gates: When disabled by System Owner/Developer, completely hide from non-developers
+    if (user.role !== 'developer' && modulesEnabled) {
+      const isSalesKey =
+        navKey === 'salesMarketing' ||
+        navKey === 'cashSales' ||
+        navKey === 'creditSales' ||
+        navKey === 'sales_cash' ||
+        navKey === 'sales_credit' ||
+        navKey === 'subsystem' ||
+        navKey === 'subsystem_captain_order' ||
+        navKey === 'subsystem_cash_sales' ||
+        navKey === 'subsystem_pos_ordering';
+      if (isSalesKey && modulesEnabled?.salesMarketing === false) return false;
 
-    if (isSalesKey && modulesEnabled?.salesMarketing === false && user.role !== 'developer') {
-      return false;
+      const isItemsKey =
+        navKey === 'items' ||
+        navKey === 'raw_materials' ||
+        navKey === 'products' ||
+        navKey === 'inventory_items';
+      if (isItemsKey && modulesEnabled?.items === false) return false;
+
+      const isAccountingKey =
+        navKey === 'accounting' ||
+        navKey === 'finance' ||
+        navKey === 'overhead_expenses' ||
+        navKey === 'analytics_pnl' ||
+        navKey === 'expenses' ||
+        navKey === 'analytics';
+      if (isAccountingKey && modulesEnabled?.accounting === false) return false;
+
+      if ((modulesEnabled?.digitalMenu === false || companyInfo?.digitalMenuEnabled === false) && navKey === 'digitalMenu') return false;
     }
 
     // Special composite group checks
     if (navKey === 'salesMarketing' || navKey === 'subsystem') {
+      if (modulesEnabled?.salesMarketing === false && user.role !== 'developer') return false;
       return canSeeNav('cashSales') || canSeeNav('creditSales') || canSeeNav('subsystem_cash_sales') || canSeeNav('subsystem_pos_ordering');
     }
     if (navKey === 'storeOps' || navKey === 'stock_operations') {
@@ -528,6 +582,7 @@ export const AuthProvider = ({ children }) => {
       );
     }
     if (navKey === 'allIds' || navKey === 'inventory_items') {
+      if (modulesEnabled?.items === false && user.role !== 'developer') return false;
       return canSeeNav('items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('employees') || canSeeNav('raw_materials');
     }
     if (navKey === 'reports' || navKey === 'reports_analytics') {
@@ -604,6 +659,9 @@ export const AuthProvider = ({ children }) => {
         setModulesEnabled(me);
         localStorage.setItem('companyModulesEnabled', JSON.stringify(me));
       }
+      if (newSettings.allowAdminThemeCustomization !== undefined) {
+        setAllowAdminThemeCustomization(Boolean(newSettings.allowAdminThemeCustomization));
+      }
       return newSettings;
     }
     return await fetchPermissions();
@@ -661,6 +719,7 @@ export const AuthProvider = ({ children }) => {
         setModulesEnabled,
         allowAdminManagePermissions,
         allowAdminVoidDelete,
+        allowAdminThemeCustomization,
         companyInfo,
         setCompanyInfo,
         updateCompanyInfo,

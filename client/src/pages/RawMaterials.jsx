@@ -103,8 +103,11 @@ const Items = () => {
 
   const [importResult, setImportResult] = useState(null);
   const importRef = useRef();
-  const { hasRole, can } = useAuth();
-  const canEdit = hasRole('admin', 'manager') || can('recordGoods');
+  const { hasRole, can, isDeveloper } = useAuth();
+  const canView = isDeveloper || can('items', 'view');
+  const canCreate = isDeveloper || can('items', 'create') || can('items', 'edit');
+  const canEdit = isDeveloper || can('items', 'edit');
+  const canDelete = isDeveloper || can('items', 'delete');
 
   // Load items
   const loadMaterials = async () => {
@@ -618,22 +621,22 @@ const Items = () => {
             <History size={15} />
           </button>
           {canEdit && (
-            <>
-              <button
-                onClick={() => openEdit(r)}
-                className="rounded-md p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-800 transition"
-                title="Edit Item"
-              >
-                <Pencil size={15} />
-              </button>
-              <button
-                onClick={() => handleDelete(r._id)}
-                className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600 transition"
-                title="Move to Recycle Bin"
-              >
-                <Trash2 size={15} />
-              </button>
-            </>
+            <button
+              onClick={() => openEdit(r)}
+              className="rounded-md p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-800 transition"
+              title="Edit Item"
+            >
+              <Pencil size={15} />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => handleDelete(r._id)}
+              className="rounded-md p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600 transition"
+              title="Move to Recycle Bin"
+            >
+              <Trash2 size={15} />
+            </button>
           )}
         </div>
       ),
@@ -763,13 +766,13 @@ const Items = () => {
               fileName="inventory_items"
               pdfTitle="Items & Raw Materials Inventory Report"
               pdfColumns={pdfColumns}
-              showImport={canEdit}
+              showImport={canCreate}
               onImport={() => importRef.current?.click()}
               importLabel="Import Excel"
             />
             <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
 
-            {canEdit && (
+            {canCreate && (
               <Button variant="brass" onClick={openCreate} className="shadow-sm">
                 <Plus size={16} /> Register Item
               </Button>

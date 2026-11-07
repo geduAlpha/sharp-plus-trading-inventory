@@ -317,7 +317,7 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     // Centralized Module Gates: When disabled by System Owner/Developer, completely hide from non-developers
     if (!isDev && modulesEnabled) {
       if (modulesEnabled.dashboard === false && (item.id === 'dashboard' || item.to === '/')) return false;
-      if (modulesEnabled.items === false && (item.id === 'items' || item.id === 'products' || item.to === '/items' || item.to === '/products')) return false;
+      if (modulesEnabled.items === false && (item.id === 'items' || item.id === 'products' || item.id === 'allIds' || item.id === 'raw_materials' || item.to === '/items' || item.to === '/products' || item.to === '/materials')) return false;
       if (modulesEnabled.stockMovements === false && (item.id === 'stockMovements' || item.id === 'stock_movements' || item.to?.startsWith('/transactions/transfer') || item.to === '/stock-movements')) return false;
       if (modulesEnabled.stockRequests === false && (item.id === 'stockRequests' || item.id === 'stock_requests' || item.to === '/stock-requests')) return false;
       if (modulesEnabled.salesMarketing === false && isSales) return false;
