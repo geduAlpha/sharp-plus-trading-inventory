@@ -28,13 +28,13 @@ const settingSchema = new mongoose.Schema(
     rolePermissions: {
       type: Object,
       default: {
-        recordGoods: { storekeeper: true, manager: true, admin: true },
-        checkReview: { storekeeper: false, manager: true, admin: true },
-        approveGoods: { storekeeper: false, manager: false, admin: true },
-        postLedger: { storekeeper: false, manager: true, admin: true },
-        voidTransactions: { storekeeper: false, manager: false, admin: true },
-        viewReports: { storekeeper: false, manager: true, admin: true },
-        manageAccounts: { storekeeper: false, manager: false, admin: true },
+        recordGoods: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+        checkReview: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+        approveGoods: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+        postLedger: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+        voidTransactions: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+        viewReports: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+        manageAccounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
       },
     },
     navVisibility: {
@@ -100,6 +100,19 @@ const settingSchema = new mongoose.Schema(
       default: () => ({ ...DEFAULT_MODULES_ENABLED }),
     },
 
+    // ── Hardware & POS Printer Settings ───────────────────────────
+    printers: {
+      type: Array,
+      default: () => [
+        { id: 'pos_counter', name: 'Main Counter Thermal POS (80mm)', type: 'thermal_80mm', paperWidth: 80, autoPrint: true, isDefault: true },
+        { id: 'office_a4', name: 'Admin Office Laser (A4 Invoice)', type: 'standard_a4', paperWidth: 210, autoPrint: false, isDefault: false },
+      ],
+    },
+
+    // ── Fiscal Service Charge & Digital Catalog ───────────────────
+    serviceChargePercent: { type: Number, default: 0, min: 0, max: 100 },
+    digitalMenuEnabled: { type: Boolean, default: true },
+
     // ── System Owner & Developer Audit Trail ───────────────────────
     auditLogs: {
       type: Array,
@@ -110,8 +123,16 @@ const settingSchema = new mongoose.Schema(
 );
 
 const DEFAULT_MODULES_ENABLED = {
+  dashboard: true,
+  items: true,
+  stockMovements: true,
+  stockRequests: true,
   salesMarketing: true,
+  purchases: true,
+  adjustments: true,
   accounting: true,
+  reports: true,
+  staff: true,
 };
 
 const DEFAULT_THEME_CONFIG = {

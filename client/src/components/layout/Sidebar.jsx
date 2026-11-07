@@ -310,14 +310,24 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
       item.id === 'sales_credit' ||
       (typeof item.to === 'string' && (item.to.startsWith('/sales') || item.to === '/sales-import'));
 
-    if (isSales && modulesEnabled?.salesMarketing === false && !isDev) {
-      return false;
+    // Centralized Module Gates: When disabled by System Owner/Developer, completely hide from non-developers
+    if (!isDev && modulesEnabled) {
+      if (modulesEnabled.dashboard === false && (item.id === 'dashboard' || item.to === '/')) return false;
+      if (modulesEnabled.items === false && (item.id === 'items' || item.id === 'products' || item.to === '/items' || item.to === '/products')) return false;
+      if (modulesEnabled.stockMovements === false && (item.id === 'stockMovements' || item.id === 'stock_movements' || item.to?.startsWith('/transactions/transfer') || item.to === '/stock-movements')) return false;
+      if (modulesEnabled.stockRequests === false && (item.id === 'stockRequests' || item.id === 'stock_requests' || item.to === '/stock-requests')) return false;
+      if (modulesEnabled.salesMarketing === false && isSales) return false;
+      if (modulesEnabled.purchases === false && (item.id === 'purchases' || item.id === 'movements_cash_grv' || item.id === 'movements_credit_grv' || item.id === 'suppliers' || item.to?.includes('grv') || item.to === '/suppliers')) return false;
+      if (modulesEnabled.adjustments === false && (item.id === 'adjustments' || item.to?.includes('adjustment'))) return false;
+      if (modulesEnabled.accounting === false && (item.id === 'accounting' || item.id === 'analytics' || item.id === 'finance' || item.to === '/analytics' || item.to === '/finance')) return false;
+      if (modulesEnabled.reports === false && (item.id === 'reports' || item.to?.startsWith('/reports'))) return false;
+      if (modulesEnabled.staff === false && (item.id === 'staff' || item.id === 'staffAccounts' || item.to?.startsWith('/staff'))) return false;
     }
 
     const resolvedKey = resolveItemNavKey(item);
     if (resolvedKey && !canSeeNav(resolvedKey)) return false;
     return true;
-  }, [canSeeNav, isDev, modulesEnabled?.salesMarketing]);
+  }, [canSeeNav, isDev, modulesEnabled]);
 
   // Group items by section — respect modulesEnabled and role privileges
   const sections = useMemo(() => {

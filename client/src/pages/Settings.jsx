@@ -27,6 +27,22 @@ import {
   Globe,
   Percent,
   Palette,
+  Printer,
+  QrCode,
+  ExternalLink,
+  Copy,
+  Plus,
+  RotateCcw,
+  Receipt,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  SlidersHorizontal,
+  Sliders,
+  DollarSign,
+  Activity,
+  BarChart3,
+  Users,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -47,16 +63,53 @@ const CAPABILITIES = [
   { key: 'manageAccounts', label: 'Manage Staff Accounts & Passwords' },
 ];
 
+const MATRIX_ROLES = [
+  { key: 'storekeeper', label: 'Storekeeper' },
+  { key: 'cashier', label: 'Cashier' },
+  { key: 'waiter', label: 'Waiter' },
+  { key: 'supervisor', label: 'Supervisor' },
+  { key: 'manager', label: 'Manager' },
+  { key: 'admin', label: 'Admin' },
+];
+
+const DEFAULT_CAPABILITY_DEFAULTS = {
+  recordGoods: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  checkReview: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  approveGoods: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  postLedger: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  voidTransactions: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  viewReports: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+  manageAccounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+};
+
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'Items', label: 'Items' },
-  { key: 'products', label: 'Products' },
+  { key: 'items', label: 'Items & Raw Materials' },
+  { key: 'products', label: 'Products & Finished Goods' },
   { key: 'stockMovements', label: 'Stock Movements' },
-  { key: 'suppliers', label: 'Suppliers' },
-  { key: 'consumption', label: 'Consumption' },
-  { key: 'reports', label: 'Reports' },
-  { key: 'analytics', label: 'Analytics & P&L' },
+  { key: 'stockRequests', label: 'Stock Issue & Request' },
+  { key: 'purchases', label: 'Purchases & GRV' },
+  { key: 'suppliers', label: 'Suppliers Directory' },
+  { key: 'reports', label: 'Reports & Analytics' },
+  { key: 'analytics', label: 'Financial Analytics & P&L' },
   { key: 'staffAccounts', label: 'Staff Accounts' },
+];
+
+const DEFAULT_PRINTERS = [
+  { id: 'pos_counter', name: 'Main Counter Thermal POS (80mm)', type: 'thermal_80mm', paperWidth: 80, autoPrint: true, isDefault: true, ip: '192.168.1.201' },
+  { id: 'office_a4', name: 'Admin Office Laser (A4 Invoice)', type: 'standard_a4', paperWidth: 210, autoPrint: false, isDefault: false, ip: '192.168.1.202' },
+];
+
+const SETTINGS_TABS = [
+  { id: 'system', label: 'Company & System Config', icon: Building2, adminOnly: true },
+  { id: 'permissions', label: 'Role Privileges', icon: Layers, adminOnly: true },
+  { id: 'telegram', label: 'Telegram Subscribers', icon: Send, adminOnly: true },
+  { id: 'printers', label: 'Order Printers', icon: Printer, adminOnly: true },
+  { id: 'serviceCharge', label: '% Service Charge', icon: Percent, adminOnly: true },
+  { id: 'digitalMenu', label: 'Digital Menu & QR', icon: QrCode, adminOnly: true },
+  { id: 'dev', label: 'Developer Controls', icon: Lock, devOnly: true, badge: 'OWNER' },
+  { id: 'profile', label: 'My Profile', icon: User },
+  { id: 'security', label: 'Security & Password', icon: Shield },
 ];
 
 export default function Settings() {
@@ -70,25 +123,26 @@ export default function Settings() {
     setSearchParams({ tab });
   };
 
-  // Redirect non-admin and non-manager away from restricted tabs
+  // Redirect non-authorized users away from restricted tabs
   useEffect(() => {
-    // Appearance tab is now strictly developer-only (global theme/sidebar control)
-    if ((currentTab === 'appearance' || currentTab === 'sidebar') && user?.role !== 'developer' && user?.role !== 'admin') {
+    if ((currentTab === 'appearance' || currentTab === 'sidebar' || currentTab === 'modules' || currentTab === 'dev') && user?.role !== 'developer') {
       setTab('profile');
     }
-    // Permissions tab: admin or manager
-    if (currentTab === 'permissions' && !hasRole('admin') && !hasRole('manager')) {
+    if (currentTab === 'permissions' && !hasRole('admin') && !hasRole('manager') && user?.role !== 'developer') {
       setTab('profile');
     }
-    // System config: admin only
-    if ((currentTab === 'system' || currentTab === 'telegram') && !hasRole('admin')) {
-      setTab('profile');
-    }
-    // Modules tab: developer only
-    if (currentTab === 'modules' && user?.role !== 'developer') {
+    if (['system', 'telegram', 'printers', 'serviceCharge', 'digitalMenu'].includes(currentTab) && !hasRole('admin') && user?.role !== 'developer') {
       setTab('profile');
     }
   }, [currentTab, user]);
+
+  // UI state for additional feature tabs
+  const [showGranularCRUD, setShowGranularCRUD] = useState(false);
+  const [testSlipModal, setTestSlipModal] = useState(null); // printer object or null
+  const [addPrinterModal, setAddPrinterModal] = useState(false);
+  const [newPrinterForm, setNewPrinterForm] = useState({ name: '', type: 'thermal_80mm', paperWidth: 80, autoPrint: true, ip: '192.168.1.205' });
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [devSubTab, setDevSubTab] = useState('modules'); // 'modules' | 'appearance' | 'delegation' | 'audit'
 
   // Profile state
   const [profileForm, setProfileForm] = useState({
@@ -131,6 +185,7 @@ export default function Settings() {
     isConfigured: false,
     lowStockThresholdDefault: 15,
     taxRate: 15,
+    taxMode: 'inclusive',
     autoGenerateVoucherNo: true,
     allowNegativeStock: false,
     // Pricing & Cost Parameters
@@ -140,22 +195,18 @@ export default function Settings() {
     rawMaterialPriceAdjustType: 'percent',
     rawMaterialPriceAdjustValue: 0,
     productSellingPriceAdjustPercent: 0,
-    rolePermissions: {
-      recordGoods: { storekeeper: true, manager: true, admin: true },
-      checkReview: { storekeeper: false, manager: true, admin: true },
-      approveGoods: { storekeeper: false, manager: false, admin: true },
-      postLedger: { storekeeper: false, manager: true, admin: true },
-      voidTransactions: { storekeeper: false, manager: false, admin: true },
-      viewReports: { storekeeper: false, manager: true, admin: true },
-      manageAccounts: { storekeeper: false, manager: false, admin: true }
-    },
+    printers: DEFAULT_PRINTERS,
+    serviceChargePercent: 0,
+    digitalMenuEnabled: true,
+    rolePermissions: DEFAULT_CAPABILITY_DEFAULTS,
     navVisibility: {
       dashboard: { cashier: true, storekeeper: true, manager: true, admin: true },
-      Items: { cashier: false, storekeeper: true, manager: true, admin: true },
+      items: { cashier: false, storekeeper: true, manager: true, admin: true },
       products: { cashier: true, storekeeper: true, manager: true, admin: true },
       stockMovements: { cashier: false, storekeeper: true, manager: true, admin: true },
+      stockRequests: { cashier: false, storekeeper: true, manager: true, admin: true },
+      purchases: { cashier: false, storekeeper: true, manager: true, admin: true },
       suppliers: { cashier: false, storekeeper: false, manager: true, admin: true },
-      consumption: { cashier: false, storekeeper: true, manager: true, admin: true },
       reports: { cashier: false, storekeeper: false, manager: true, admin: true },
       analytics: { cashier: false, storekeeper: false, manager: true, admin: true },
       staffAccounts: { cashier: false, storekeeper: false, manager: false, admin: true },
@@ -462,6 +513,75 @@ export default function Settings() {
     }
   };
 
+  // Handle Role Capability Toggle
+  const handleCapabilityToggle = (capKey, roleKey, checked) => {
+    setSystemForm((prev) => {
+      const currentCap = prev.rolePermissions?.[capKey] || DEFAULT_CAPABILITY_DEFAULTS[capKey] || {};
+      return {
+        ...prev,
+        rolePermissions: {
+          ...prev.rolePermissions,
+          [capKey]: {
+            ...currentCap,
+            [roleKey]: checked,
+          },
+        },
+      };
+    });
+  };
+
+  // Reset Role Capabilities to default
+  const handleResetCapabilityDefaults = () => {
+    if (!window.confirm('Reset all role capabilities to system standard defaults?')) return;
+    setSystemForm((prev) => ({
+      ...prev,
+      rolePermissions: JSON.parse(JSON.stringify(DEFAULT_CAPABILITY_DEFAULTS)),
+    }));
+    setSystemSuccess('Role capabilities reset to standard defaults. Click Save to apply.');
+    setTimeout(() => setSystemSuccess(''), 4000);
+  };
+
+  // Printer Management Handlers
+  const handleAddPrinter = (e) => {
+    e.preventDefault();
+    if (!newPrinterForm.name.trim()) return;
+    const newPrinter = {
+      id: 'printer_' + Date.now(),
+      name: newPrinterForm.name.trim(),
+      type: newPrinterForm.type,
+      paperWidth: Number(newPrinterForm.paperWidth) || 80,
+      autoPrint: Boolean(newPrinterForm.autoPrint),
+      ip: newPrinterForm.ip.trim() || '192.168.1.100',
+      isDefault: (systemForm.printers || []).length === 0,
+    };
+    const updatedPrinters = [...(systemForm.printers || []), newPrinter];
+    setSystemForm((prev) => ({ ...prev, printers: updatedPrinters }));
+    setAddPrinterModal(false);
+    setNewPrinterForm({ name: '', type: 'thermal_80mm', paperWidth: 80, autoPrint: true, ip: '192.168.1.205' });
+  };
+
+  const handleDeletePrinter = (id) => {
+    if (!window.confirm('Are you sure you want to remove this printer?')) return;
+    const updated = (systemForm.printers || []).filter((p) => p.id !== id);
+    setSystemForm((prev) => ({ ...prev, printers: updated }));
+  };
+
+  const handleSetDefaultPrinter = (id) => {
+    const updated = (systemForm.printers || []).map((p) => ({
+      ...p,
+      isDefault: p.id === id,
+    }));
+    setSystemForm((prev) => ({ ...prev, printers: updated }));
+  };
+
+  // Copy Catalog Link
+  const handleCopyCatalogLink = () => {
+    const url = `${window.location.origin}/catalog`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
   const roleBadgeColor = {
     admin: 'bg-brass-100 text-brass-800 border-brass-300',
     manager: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -470,102 +590,67 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── Page Header ── */}
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900">
-          Account &amp; System Settings
-        </h1>
-        <p className="text-sm text-ink-400 mt-1">
-          Manage your personal credentials, profile identity, and Sharp Plus Trading PLC configurations
-        </p>
+      {/* ── Modern System Settings Header (Matching Screenshot) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-ink-100">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-ink-900">
+              System Settings
+            </h1>
+          </div>
+          <p className="text-xs font-semibold text-ink-400 mt-1">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 self-start sm:self-center">
+          {/* Session Timeout Pill */}
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 shadow-xs">
+            <Clock size={13} className="text-ink-400" />
+            <span>Timeout: {timeoutMinutes > 0 ? `${timeoutMinutes}m` : 'Off'}</span>
+          </div>
+
+          {/* Active User Pill (Matching Screenshot top-right) */}
+          <div className="inline-flex items-center gap-2.5 rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-semibold text-ink-700 shadow-xs">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white uppercase shadow-xs">
+              {user?.name?.[0] || 'S'}
+            </div>
+            <div className="text-left leading-tight pr-1">
+              <p className="font-bold text-ink-900 text-xs">{user?.name || 'System Developer'}</p>
+              <p className="text-[10px] text-ink-400 font-semibold">{user?.role === 'developer' ? 'Dev' : user?.role}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── Navigation Tabs ── */}
-      <div className="flex border-b border-ink-100 space-x-1 sm:space-x-4 overflow-x-auto">
-        <button
-          onClick={() => setTab('profile')}
-          className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'profile'
-            ? 'border-blue-600 text-blue-600'
-            : 'border-transparent text-ink-400 hover:text-ink-700'
-            }`}
-        >
-          <User size={16} /> My Profile
-        </button>
+      {/* ── Horizontal Scrollable Settings Tabs (Matching Screenshot Red Box) ── */}
+      <div className="flex border-b border-ink-200 space-x-1 sm:space-x-3 overflow-x-auto no-scrollbar scroll-smooth">
+        {SETTINGS_TABS.map((tab) => {
+          if (tab.devOnly && user?.role !== 'developer') return null;
+          if (tab.adminOnly && !hasRole('admin') && !hasRole('manager') && user?.role !== 'developer') return null;
+          const isActive = currentTab === tab.id || (tab.id === 'dev' && (currentTab === 'modules' || currentTab === 'appearance' || currentTab === 'sidebar'));
+          const Icon = tab.icon;
 
-        <button
-          onClick={() => setTab('security')}
-          className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'security'
-            ? 'border-blue-600 text-blue-600'
-            : 'border-transparent text-ink-400 hover:text-ink-700'
-            }`}
-        >
-          <Shield size={16} /> Security &amp; Password
-        </button>
-
-        {hasRole('admin') && (
-          <button
-            onClick={() => setTab('system')}
-            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'system'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-ink-400 hover:text-ink-700'
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setTab(tab.id)}
+              className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${
+                isActive
+                  ? 'border-blue-600 text-blue-600 font-bold'
+                  : 'border-transparent text-ink-500 hover:text-ink-800'
               }`}
-          >
-            <Building size={16} /> company &amp; System Config
-          </button>
-        )}
-
-        {(hasRole('admin') || hasRole('manager') || user?.role === 'developer') && (
-          <button
-            onClick={() => setTab('permissions')}
-            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'permissions'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-ink-400 hover:text-ink-700'
-              }`}
-          >
-            <Layers size={16} /> Role Privileges
-            <span className="rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5">OWNER</span>
-          </button>
-        )}
-
-        {(hasRole('admin') || hasRole('manager')) && (
-          <button
-            onClick={() => setTab('appearance')}
-            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'sidebar' || currentTab === 'appearance'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-ink-400 hover:text-ink-700'
-              }`}
-          >
-            <Palette size={16} /> Appearance &amp; Navigation
-          </button>
-        )}
-
-        {hasRole('admin') && (
-          <button
-            onClick={() => setTab('telegram')}
-            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'telegram'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-ink-400 hover:text-ink-700'
-              }`}
-          >
-            <Send size={16} /> Telegram Subscribers
-          </button>
-        )}
-
-        {user?.role === 'developer' && (
-          <button
-            onClick={() => setTab('modules')}
-            className={`flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition whitespace-nowrap ${currentTab === 'modules'
-              ? 'border-indigo-600 text-indigo-700'
-              : 'border-transparent text-ink-400 hover:text-indigo-600'
-              }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <Layers size={16} />
-              <span>Module Management</span>
-              <span className="ml-0.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-indigo-700">Owner</span>
-            </span>
-          </button>
-        )}
+            >
+              <Icon size={16} className={tab.id === 'dev' ? 'text-amber-500' : ''} />
+              <span>{tab.label}</span>
+              {tab.badge && (
+                <span className="rounded bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 py-0.5 uppercase tracking-wide">
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Tab 1: Profile ── */}
@@ -1513,92 +1598,219 @@ export default function Settings() {
         </div>
       )}
 
-      {/* ── Tab 4: Role Privileges & Employee CRUD Controls ── */}
+      {/* ── Tab: Role Privileges (Exact Match to Screenshot) ── */}
       {currentTab === 'permissions' && (hasRole('admin') || hasRole('manager') || user?.role === 'developer') && (
         <div className="space-y-6 w-full max-w-6xl">
-          <RolePrivilegesManager />
-
-          {/* ── Sidebar Navigation Visibility Matrix ── */}
-          <Card className="max-w-4xl">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600">
-                <Layers size={15} />
-              </span>
-              <h4 className="text-sm font-bold text-ink-900">Sidebar Navigation Visibility</h4>
-            </div>
-            <p className="text-xs text-ink-400 mb-4">
-              Control which sidebar menu items each role can see. Unchecking a section hides it completely for that role.
-            </p>
-            <form onSubmit={handleSystemSubmit}>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-ink-100 bg-ink-50/70 text-ink-600 font-semibold">
-                      <th className="py-2.5 px-3">Sidebar Section</th>
-                      <th className="py-2.5 px-3 text-center">Cashier</th>
-                      <th className="py-2.5 px-3 text-center">Storekeeper</th>
-                      <th className="py-2.5 px-3 text-center">Manager</th>
-                      <th className="py-2.5 px-3 text-center">Admin</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ink-50 text-ink-700">
-                    {NAV_ITEMS.map((nav) => (
-                      <tr key={nav.key}>
-                        <td className="py-2.5 px-3 font-medium">{nav.label}</td>
-                        {['cashier', 'storekeeper', 'manager', 'admin'].map((r) => {
-                          const isChecked = systemForm.navVisibility?.[nav.key]?.[r] !== undefined
-                            ? Boolean(systemForm.navVisibility[nav.key][r])
-                            : (r === 'cashier' ? (['dashboard', 'products'].includes(nav.key)) : true);
-
-                          return (
-                            <td key={r} className="py-2.5 px-3 text-center">
-                              <input
-                                type="checkbox"
-                                disabled={!hasRole('admin')}
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setSystemForm((prev) => ({
-                                    ...prev,
-                                    navVisibility: {
-                                      ...prev.navVisibility,
-                                      [nav.key]: {
-                                        ...prev.navVisibility?.[nav.key],
-                                        [r]: checked,
-                                      },
-                                    },
-                                  }));
-                                }}
-                                className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                              />
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* Main Matrix Card */}
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
+            {/* Header with shield icon */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-ink-100">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 border border-blue-100 text-blue-600">
+                  <Shield size={22} className="stroke-[2.2]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-ink-900 tracking-tight">
+                    System Roles &amp; Permissions Matrix
+                  </h2>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    Your current assigned role is <span className="font-bold text-ink-700">{user?.role === 'developer' ? 'Dev' : user?.role}</span>. You can modify the system permissions below.
+                  </p>
+                </div>
               </div>
 
-              {hasRole('admin') && (
-                <div className="pt-4 flex justify-end">
-                  <Button type="submit" disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    <Save size={15} /> {systemSaving ? 'Saving Visibility…' : 'Save Sidebar Visibility'}
-                  </Button>
-                </div>
-              )}
-            </form>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={handleResetCapabilityDefaults}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3.5 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50 transition shadow-xs"
+                >
+                  <RotateCcw size={13} /> Reset Defaults
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSystemSubmit}
+                  disabled={systemSaving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition disabled:opacity-50"
+                >
+                  <Save size={14} /> {systemSaving ? 'Saving Changes…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+
+            {/* Matrix Table matching screenshot */}
+            <div className="overflow-x-auto mt-4 rounded-xl border border-ink-100">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-ink-100 bg-slate-50/70 text-xs font-bold text-ink-700">
+                    <th className="py-3.5 px-4 font-bold">System Capability</th>
+                    {MATRIX_ROLES.map((r) => (
+                      <th key={r.key} className="py-3.5 px-3 text-center font-bold">
+                        {r.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-50 text-xs text-ink-800">
+                  {CAPABILITIES.map((cap) => (
+                    <tr key={cap.key} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3 px-4 font-medium text-ink-800 text-[13px]">
+                        {cap.label}
+                      </td>
+                      {MATRIX_ROLES.map((r) => {
+                        const isChecked = systemForm.rolePermissions?.[cap.key]?.[r.key] !== undefined
+                          ? Boolean(systemForm.rolePermissions[cap.key][r.key])
+                          : (DEFAULT_CAPABILITY_DEFAULTS[cap.key]?.[r.key] ?? false);
+
+                        return (
+                          <td key={r.key} className="py-3 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => handleCapabilityToggle(cap.key, r.key, e.target.checked)}
+                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-400"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Save notice footer */}
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-ink-400 pt-3 border-t border-ink-50">
+              <p>💡 Changes made to capabilities take effect in real-time across user sessions.</p>
+              <button
+                type="button"
+                onClick={handleSystemSubmit}
+                disabled={systemSaving}
+                className="self-end inline-flex items-center gap-1.5 font-bold text-blue-600 hover:text-blue-800"
+              >
+                <Save size={13} /> {systemSaving ? 'Saving…' : 'Quick Save Matrix'}
+              </button>
+            </div>
           </Card>
 
+          {/* Sidebar Navigation Visibility Matrix Card */}
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-ink-100 gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <Layers size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-ink-900">Sidebar Navigation Visibility</h3>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    Control which navigation sections are visible in each role's sidebar. Unchecking an item hides it completely.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleSystemSubmit}
+                disabled={systemSaving}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-1.5 px-3.5 self-end sm:self-auto"
+              >
+                <Save size={13} /> Save Visibility
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto mt-4 rounded-xl border border-ink-100">
+              <table className="min-w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-ink-100 bg-slate-50/70 text-ink-700 font-bold">
+                    <th className="py-3 px-4 font-bold">Sidebar Section</th>
+                    {MATRIX_ROLES.map((r) => (
+                      <th key={r.key} className="py-3 px-3 text-center font-bold">
+                        {r.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-50 text-ink-700">
+                  {NAV_ITEMS.map((nav) => (
+                    <tr key={nav.key} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-2.5 px-4 font-semibold text-ink-900">{nav.label}</td>
+                      {MATRIX_ROLES.map((r) => {
+                        const isChecked = systemForm.navVisibility?.[nav.key]?.[r.key] !== undefined
+                          ? Boolean(systemForm.navVisibility[nav.key][r.key])
+                          : (r.key === 'admin' || (r.key === 'cashier' && ['dashboard', 'products'].includes(nav.key)) || r.key === 'manager');
+
+                        return (
+                          <td key={r.key} className="py-2.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setSystemForm((prev) => ({
+                                  ...prev,
+                                  navVisibility: {
+                                    ...prev.navVisibility,
+                                    [nav.key]: {
+                                      ...prev.navVisibility?.[nav.key],
+                                      [r.key]: checked,
+                                    },
+                                  },
+                                }));
+                              }}
+                              className="h-4 w-4 rounded border-ink-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer transition hover:border-emerald-400"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Collapsible Granular Module CRUD Matrix */}
+          <div className="rounded-2xl border border-ink-200 bg-white shadow-xs overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowGranularCRUD(!showGranularCRUD)}
+              className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100/80 transition text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  <SlidersHorizontal size={16} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-ink-900">
+                    Granular Module CRUD Matrix (View, Create, Edit, Delete, Approve, Export)
+                  </h4>
+                  <p className="text-xs text-ink-400">
+                    Detailed field-level action permissions per module (Items, GRV, Issue, Sales, Adjustments, Users)
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600">
+                <span>{showGranularCRUD ? 'Collapse' : 'Expand Advanced Matrix'}</span>
+                {showGranularCRUD ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+            </button>
+
+            {showGranularCRUD && (
+              <div className="p-4 border-t border-ink-100 bg-white">
+                <RolePrivilegesManager />
+              </div>
+            )}
+          </div>
+
           {systemSuccess && currentTab === 'permissions' && (
-            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700">
-              <CheckCircle2 size={16} className="flex-shrink-0" />
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-xs font-bold text-emerald-800 shadow-xs">
+              <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
               <span>{systemSuccess}</span>
             </div>
           )}
           {systemError && currentTab === 'permissions' && (
-            <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
-              <AlertCircle size={16} className="flex-shrink-0" />
+            <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3.5 text-xs font-bold text-red-800 shadow-xs">
+              <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
               <span>{systemError}</span>
             </div>
           )}
@@ -1828,14 +2040,651 @@ export default function Settings() {
         </Card>
       )}
 
-      {/* ── Tab: Appearance & Navigation Studio ── */}
-      {(currentTab === 'sidebar' || currentTab === 'appearance') && (
-        <SidebarThemeSettings />
+      {/* ── Tab: Order Printers ── */}
+      {currentTab === 'printers' && (hasRole('admin') || user?.role === 'developer') && (
+        <div className="space-y-6 w-full max-w-5xl">
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-ink-100 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 border border-cyan-100 text-cyan-600">
+                  <Printer size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-ink-900">Order &amp; POS Receipt Printers</h3>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    Configure thermal receipt slips, kitchen/counter ticket routing, and office A4 vouchers
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  onClick={() => setAddPrinterModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1.5 px-3"
+                >
+                  <Plus size={14} /> Add Printer
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSystemSubmit}
+                  disabled={systemSaving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-1.5 px-3.5"
+                >
+                  <Save size={13} /> {systemSaving ? 'Saving…' : 'Save Printers'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Printers Grid */}
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(systemForm.printers || []).map((p) => (
+                <div
+                  key={p.id}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    p.isDefault ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 bg-white hover:border-ink-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                        <Printer size={18} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-ink-900 text-sm flex items-center gap-2">
+                          {p.name}
+                          {p.isDefault && (
+                            <span className="rounded-full bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 uppercase tracking-wide">
+                              Default
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-xs text-ink-400">
+                          {p.type === 'thermal_80mm' ? '80mm ESC/POS Thermal' : p.type === 'thermal_58mm' ? '58mm ESC/POS Thermal' : 'Standard A4 Laser / Inkjet'} • {p.paperWidth}mm width
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePrinter(p.id)}
+                      className="text-red-400 hover:text-red-600 p-1"
+                      title="Delete Printer"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-ink-50 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-ink-500 font-medium">
+                      <span>IP / Host:</span>
+                      <code className="text-ink-700 bg-slate-100 px-1.5 py-0.5 rounded text-[11px] font-mono">{p.ip || '127.0.0.1'}</code>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {!p.isDefault && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefaultPrinter(p.id)}
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-800"
+                        >
+                          Make Default
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setTestSlipModal(p)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 text-xs font-bold transition"
+                      >
+                        <Receipt size={13} /> Print Test Slip
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-xl bg-blue-50/70 border border-blue-100 p-3.5 text-xs text-blue-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt size={16} className="text-blue-600 flex-shrink-0" />
+                <span>Thermal receipt printing directly handles over-the-counter Cash Sales and GRV Receiving slips.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTestSlipModal(systemForm.printers?.[0] || DEFAULT_PRINTERS[0])}
+                className="font-bold underline text-blue-700 hover:text-blue-900 shrink-0 ml-3"
+              >
+                Simulate 80mm Slip
+              </button>
+            </div>
+          </Card>
+        </div>
       )}
 
-      {/* ── Tab: Module Management (Developer/Owner Only) ── */}
-      {currentTab === 'modules' && (
-        <ModuleManagement />
+      {/* ── Tab: % Service Charge & Tax ── */}
+      {currentTab === 'serviceCharge' && (hasRole('admin') || user?.role === 'developer') && (
+        <div className="space-y-6 w-full max-w-4xl">
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
+            <div className="flex items-center gap-3 pb-4 border-b border-ink-100">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 border border-amber-100 text-amber-600">
+                <Percent size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-ink-900">Service Charge &amp; Fiscal Tax Settings</h3>
+                <p className="text-xs text-ink-400 mt-0.5">
+                  Configure government standard VAT, hospitality service charges, and selling price tax modes
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSystemSubmit} className="mt-5 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-ink-800 mb-1">
+                    Value Added Tax (VAT Rate %) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      value={systemForm.taxRate}
+                      onChange={(e) => setSystemForm({ ...systemForm, taxRate: e.target.value })}
+                      className="w-full rounded-xl border border-ink-200 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-blue-500"
+                    />
+                    <span className="absolute right-3.5 top-2.5 text-xs font-bold text-ink-400">%</span>
+                  </div>
+                  <p className="text-[11px] text-ink-400 mt-1">Standard Ethiopian Fiscal VAT is 15%.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-ink-800 mb-1">
+                    Service Charge (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="20"
+                      value={systemForm.serviceChargePercent || 0}
+                      onChange={(e) => setSystemForm({ ...systemForm, serviceChargePercent: Number(e.target.value) })}
+                      className="w-full rounded-xl border border-ink-200 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-blue-500"
+                    />
+                    <span className="absolute right-3.5 top-2.5 text-xs font-bold text-ink-400">%</span>
+                  </div>
+                  <p className="text-[11px] text-ink-400 mt-1">Optional hospitality or handling service fee (0% - 10%).</p>
+                </div>
+              </div>
+
+              {/* Price Tax Mode */}
+              <div className="pt-3 border-t border-ink-50">
+                <label className="block text-xs font-bold text-ink-800 mb-2">Price Tax Calculation Mode</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${
+                    systemForm.taxMode === 'inclusive' ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 hover:border-ink-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="taxMode"
+                      value="inclusive"
+                      checked={systemForm.taxMode !== 'exclusive'}
+                      onChange={() => setSystemForm({ ...systemForm, taxMode: 'inclusive' })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-ink-900">Tax-Inclusive Pricing</p>
+                      <p className="text-[11px] text-ink-400">Display item selling prices already include VAT and service charge.</p>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${
+                    systemForm.taxMode === 'exclusive' ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 hover:border-ink-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="taxMode"
+                      value="exclusive"
+                      checked={systemForm.taxMode === 'exclusive'}
+                      onChange={() => setSystemForm({ ...systemForm, taxMode: 'exclusive' })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-ink-900">Tax-Exclusive Pricing</p>
+                      <p className="text-[11px] text-ink-400">VAT and service charge are added on top during final invoice checkout.</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button type="submit" disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
+                  <Save size={15} /> {systemSaving ? 'Saving…' : 'Save Fiscal Settings'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Tab: Digital Catalog & QR ── */}
+      {currentTab === 'digitalMenu' && (hasRole('admin') || user?.role === 'developer') && (
+        <div className="space-y-6 w-full max-w-4xl">
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
+            <div className="flex items-center justify-between pb-4 border-b border-ink-100">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 border border-purple-100 text-purple-600">
+                  <QrCode size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-ink-900">Digital Catalog &amp; QR Code</h3>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    Generate instant scannable QR codes for customer self-service catalog browsing
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={systemForm.digitalMenuEnabled !== false}
+                  onChange={(e) => setSystemForm({ ...systemForm, digitalMenuEnabled: e.target.checked })}
+                  className="h-4 w-4 rounded border-ink-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-xs font-bold text-ink-700">Enable Public Catalog</span>
+              </label>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              {/* QR Code Presentation */}
+              <div className="flex flex-col items-center p-6 rounded-2xl bg-gradient-to-b from-slate-50 to-slate-100/60 border border-ink-100 text-center">
+                <div className="p-4 bg-white rounded-2xl shadow-md border border-ink-100 mb-3">
+                  {/* Clean SVG QR Code with logo center */}
+                  <svg className="w-48 h-48" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="200" height="200" rx="16" fill="white" />
+                    {/* Top-left marker */}
+                    <rect x="20" y="20" width="45" height="45" rx="8" fill="#1e293b" />
+                    <rect x="28" y="28" width="29" height="29" rx="4" fill="white" />
+                    <rect x="34" y="34" width="17" height="17" rx="3" fill="#2563eb" />
+                    {/* Top-right marker */}
+                    <rect x="135" y="20" width="45" height="45" rx="8" fill="#1e293b" />
+                    <rect x="143" y="28" width="29" height="29" rx="4" fill="white" />
+                    <rect x="149" y="34" width="17" height="17" rx="3" fill="#2563eb" />
+                    {/* Bottom-left marker */}
+                    <rect x="20" y="135" width="45" height="45" rx="8" fill="#1e293b" />
+                    <rect x="28" y="143" width="29" height="29" rx="4" fill="white" />
+                    <rect x="34" y="149" width="17" height="17" rx="3" fill="#2563eb" />
+                    {/* Matrix dots */}
+                    <rect x="75" y="25" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="95" y="25" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="115" y="25" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="75" y="45" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="95" y="45" width="12" height="12" rx="3" fill="#2563eb" />
+                    <rect x="115" y="45" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="25" y="75" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="45" y="75" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="145" y="75" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="165" y="75" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="25" y="95" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="45" y="95" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="145" y="95" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="165" y="95" width="12" height="12" rx="3" fill="#1e293b" />
+                    {/* Center badge */}
+                    <circle cx="100" cy="100" r="22" fill="#2563eb" />
+                    <path d="M92 100L98 106L108 94" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                    {/* Bottom dots */}
+                    <rect x="75" y="145" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="95" y="145" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="115" y="145" width="12" height="12" rx="3" fill="#2563eb" />
+                    <rect x="75" y="165" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="95" y="165" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="115" y="165" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="135" y="145" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="155" y="145" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="135" y="165" width="12" height="12" rx="3" fill="#1e293b" />
+                    <rect x="155" y="165" width="12" height="12" rx="3" fill="#1e293b" />
+                  </svg>
+                </div>
+                <p className="font-bold text-xs text-ink-800">Scan with phone to browse live inventory</p>
+                <p className="text-[11px] text-ink-400 mt-0.5">Compatible with iOS &amp; Android Cameras</p>
+              </div>
+
+              {/* URL & Actions */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-ink-800 mb-1.5">Direct Public Catalog Link</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={`${window.location.origin}/catalog`}
+                      className="w-full rounded-xl border border-ink-200 bg-slate-50 px-3.5 py-2.5 text-xs font-mono text-ink-700 outline-none select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyCatalogLink}
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white hover:bg-ink-50 px-3.5 py-2.5 text-xs font-bold text-ink-700 transition"
+                    >
+                      {copiedLink ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                      {copiedLink ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+                  <a
+                    href="/catalog"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 px-4 py-2.5 text-xs font-bold text-white transition shadow-sm"
+                  >
+                    <ExternalLink size={14} /> Open Public Catalog
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleSystemSubmit}
+                    disabled={systemSaving}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-ink-200 bg-white hover:bg-ink-50 px-4 py-2.5 text-xs font-bold text-ink-700 transition"
+                  >
+                    <Save size={14} /> {systemSaving ? 'Saving…' : 'Save Status'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Tab: Developer Controls [OWNER] ── */}
+      {(currentTab === 'dev' || currentTab === 'modules' || currentTab === 'appearance' || currentTab === 'sidebar') && user?.role === 'developer' && (
+        <div className="space-y-6 w-full max-w-6xl">
+          {/* Top developer pill bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-200 gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
+                <Lock size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-amber-950 flex items-center gap-2">
+                  System Developer &amp; Owner Controls
+                  <span className="rounded bg-amber-200 text-amber-900 text-[10px] font-black px-1.5 py-0.5 uppercase tracking-wider">
+                    OWNER
+                  </span>
+                </h3>
+                <p className="text-xs text-amber-800">
+                  Global master controls for system functionalities, dynamic themes, administrative delegation, and security audit logs.
+                </p>
+              </div>
+            </div>
+
+            {/* Sub-tabs pills */}
+            <div className="flex items-center gap-1 bg-white/70 p-1 rounded-xl border border-amber-200 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setDevSubTab('modules')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  devSubTab === 'modules' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-900 hover:bg-amber-100'
+                }`}
+              >
+                Modules
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevSubTab('appearance')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  devSubTab === 'appearance' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-900 hover:bg-amber-100'
+                }`}
+              >
+                Appearance
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevSubTab('delegation')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  devSubTab === 'delegation' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-900 hover:bg-amber-100'
+                }`}
+              >
+                Delegation
+              </button>
+            </div>
+          </div>
+
+          {/* SubTab 1: Modules Management */}
+          {devSubTab === 'modules' && (
+            <ModuleManagement />
+          )}
+
+          {/* SubTab 2: Appearance & Theme Studio */}
+          {devSubTab === 'appearance' && (
+            <SidebarThemeSettings />
+          )}
+
+          {/* SubTab 3: Authority Delegation */}
+          {devSubTab === 'delegation' && (
+            <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-6">
+              <div className="pb-4 border-b border-ink-100">
+                <h4 className="text-base font-bold text-ink-900">Administrator Authority Delegation</h4>
+                <p className="text-xs text-ink-400 mt-0.5">
+                  Grant or revoke special administrative privileges to the System Administrator role
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-xl border border-ink-100 bg-slate-50/50">
+                  <div>
+                    <h5 className="font-bold text-xs text-ink-900">Grant Admin Role Permission Management Authority</h5>
+                    <p className="text-[11px] text-ink-400 mt-0.5">Allow System Administrator to view and adjust employee capabilities</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(systemForm.allowAdminManagePermissions)}
+                    onChange={(e) => setSystemForm({ ...systemForm, allowAdminManagePermissions: e.target.checked })}
+                    className="h-5 w-5 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-xl border border-ink-100 bg-slate-50/50">
+                  <div>
+                    <h5 className="font-bold text-xs text-ink-900">Grant Admin Transaction Void &amp; Delete Authority</h5>
+                    <p className="text-[11px] text-ink-400 mt-0.5">Allow System Administrator to void or reverse inventory and sales vouchers</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(systemForm.allowAdminVoidDelete)}
+                    onChange={(e) => setSystemForm({ ...systemForm, allowAdminVoidDelete: e.target.checked })}
+                    className="h-5 w-5 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button type="button" onClick={handleSystemSubmit} disabled={systemSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Save size={15} /> Save Authority Delegations
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── Test Slip Modal ── */}
+      {testSlipModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-ink-200 overflow-hidden">
+            <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
+              <div className="flex items-center gap-2">
+                <Receipt size={16} />
+                <span className="font-bold text-xs">Simulated POS Slip • {testSlipModal.name}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTestSlipModal(null)}
+                className="text-slate-400 hover:text-white text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 font-mono text-[12px] bg-amber-50/30 text-ink-900 space-y-2 border-b border-ink-100">
+              <div className="text-center font-bold pb-2 border-b border-dashed border-ink-300">
+                <p className="text-sm">SHARP PLUS TRADING PLC</p>
+                <p className="text-[10px] text-ink-500 font-sans">Stock Control &amp; Trade Inventory</p>
+                <p className="text-[10px] text-ink-400 font-sans">Addis Ababa, Ethiopia</p>
+              </div>
+
+              <div className="text-[11px] space-y-0.5 text-ink-600">
+                <div className="flex justify-between">
+                  <span>RECEIPT NO:</span>
+                  <span className="font-bold text-ink-900">TEST-RCP-0841</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>DATE:</span>
+                  <span>{new Date().toLocaleDateString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CASHIER:</span>
+                  <span>{user?.name || 'Dev Operator'}</span>
+                </div>
+              </div>
+
+              <div className="py-2 border-t border-b border-dashed border-ink-300 text-[11px] space-y-1">
+                <div className="flex justify-between font-bold">
+                  <span>1x Industrial Valve</span>
+                  <span>450.00 ETB</span>
+                </div>
+                <div className="flex justify-between font-bold">
+                  <span>2x Fitting Connector</span>
+                  <span>240.00 ETB</span>
+                </div>
+              </div>
+
+              <div className="text-[11px] space-y-0.5 pt-1">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>690.00 ETB</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>VAT ({systemForm.taxRate}%):</span>
+                  <span>{((690 * Number(systemForm.taxRate || 15)) / 100).toFixed(2)} ETB</span>
+                </div>
+                <div className="flex justify-between font-black text-[13px] pt-1 text-blue-700">
+                  <span>TOTAL:</span>
+                  <span>{(690 + (690 * Number(systemForm.taxRate || 15)) / 100).toFixed(2)} ETB</span>
+                </div>
+              </div>
+
+              <div className="text-center pt-3 text-[10px] text-ink-400 border-t border-dashed border-ink-300">
+                <p>Hardware Communication: SUCCESS</p>
+                <p>ESC/POS 80mm Thermal Emulation OK</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setTestSlipModal(null)}
+                className="text-xs"
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  window.print();
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+              >
+                <Printer size={13} /> Print Slip
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Printer Modal ── */}
+      {addPrinterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-ink-200 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
+              <h3 className="font-bold text-ink-900 text-base">Add New Printer</h3>
+              <button
+                type="button"
+                onClick={() => setAddPrinterModal(false)}
+                className="text-ink-400 hover:text-ink-700 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddPrinter} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-ink-700 mb-1">Printer Name *</label>
+                <input
+                  required
+                  value={newPrinterForm.name}
+                  onChange={(e) => setNewPrinterForm({ ...newPrinterForm, name: e.target.value })}
+                  placeholder="e.g. Sales Counter Thermal 80mm"
+                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink-700 mb-1">Printer Type *</label>
+                <select
+                  value={newPrinterForm.type}
+                  onChange={(e) => {
+                    const type = e.target.value;
+                    const paperWidth = type === 'thermal_80mm' ? 80 : type === 'thermal_58mm' ? 58 : 210;
+                    setNewPrinterForm({ ...newPrinterForm, type, paperWidth });
+                  }}
+                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white"
+                >
+                  <option value="thermal_80mm">Thermal POS (80mm ESC/POS)</option>
+                  <option value="thermal_58mm">Thermal POS (58mm ESC/POS)</option>
+                  <option value="standard_a4">Standard A4 Laser / Inkjet</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink-700 mb-1">IP Address / Network Host</label>
+                <input
+                  value={newPrinterForm.ip}
+                  onChange={(e) => setNewPrinterForm({ ...newPrinterForm, ip: e.target.value })}
+                  placeholder="e.g. 192.168.1.200"
+                  className="w-full rounded-xl border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500 font-mono text-xs"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={newPrinterForm.autoPrint}
+                  onChange={(e) => setNewPrinterForm({ ...newPrinterForm, autoPrint: e.target.checked })}
+                  className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-xs font-semibold text-ink-700">Auto-cut and print slip on completed sale</span>
+              </label>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setAddPrinterModal(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
+                >
+                  Add Printer
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

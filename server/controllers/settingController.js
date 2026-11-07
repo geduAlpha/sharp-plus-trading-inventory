@@ -290,6 +290,19 @@ const updateSettings = asyncHandler(async (req, res) => {
     settings.markModified('sidebarConfig');
   }
 
+  if (req.body.printers !== undefined && Array.isArray(req.body.printers)) {
+    settings.printers = req.body.printers;
+    settings.markModified('printers');
+  }
+
+  if (req.body.serviceChargePercent !== undefined) {
+    settings.serviceChargePercent = Math.max(0, Math.min(100, Number(req.body.serviceChargePercent) || 0));
+  }
+
+  if (req.body.digitalMenuEnabled !== undefined) {
+    settings.digitalMenuEnabled = Boolean(req.body.digitalMenuEnabled);
+  }
+
   // Cap auditLogs to last 150 items
   if (settings.auditLogs.length > 150) {
     settings.auditLogs = settings.auditLogs.slice(0, 150);
