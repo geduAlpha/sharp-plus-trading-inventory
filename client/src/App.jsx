@@ -47,24 +47,24 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/materials" element={<Items />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/analytics" element={<ProtectedRoute capability="viewReports"><Analytics /></ProtectedRoute>} />
-            <Route path="/transactions" element={<StockTransactions />} />
-            <Route path="/transactions/cash-grv" element={<StockTransactions defaultVoucher="cash_grv" />} />
-            <Route path="/transactions/credit-grv" element={<StockTransactions defaultVoucher="credit_grv" />} />
+            <Route path="/" element={<ProtectedRoute navKey="dashboard"><Dashboard /></ProtectedRoute>} />
+            <Route path="/materials" element={<ProtectedRoute navKey="items"><Items /></ProtectedRoute>} />
+            <Route path="/products" element={<ProtectedRoute navKey="products"><Products /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute capability="viewReports" navKey="analytics"><Analytics /></ProtectedRoute>} />
+            <Route path="/transactions" element={<ProtectedRoute navKey="stockMovements"><StockTransactions /></ProtectedRoute>} />
+            <Route path="/transactions/cash-grv" element={<ProtectedRoute navKey="purchases"><StockTransactions defaultVoucher="cash_grv" /></ProtectedRoute>} />
+            <Route path="/transactions/credit-grv" element={<ProtectedRoute navKey="purchases"><StockTransactions defaultVoucher="credit_grv" /></ProtectedRoute>} />
             <Route path="/transactions/fresh-bazaar" element={<Navigate to="/transactions" replace />} />
-            <Route path="/transactions/pos-adjustment" element={<StockTransactions defaultVoucher="pos_adjustment" />} />
-            <Route path="/transactions/disposal" element={<StockTransactions defaultVoucher="disposal" />} />
-            <Route path="/transactions/neg-adjustment" element={<StockTransactions defaultVoucher="neg_adjustment" />} />
-            <Route path="/sales-import" element={<ModuleGuard moduleKey="salesMarketing"><SalesImport /></ModuleGuard>} />
-            <Route path="/sales/cash" element={<ModuleGuard moduleKey="salesMarketing"><CashSales /></ModuleGuard>} />
-            <Route path="/sales/credit" element={<ModuleGuard moduleKey="salesMarketing"><CreditSales /></ModuleGuard>} />
+            <Route path="/transactions/pos-adjustment" element={<ProtectedRoute navKey="stockMovements"><StockTransactions defaultVoucher="pos_adjustment" /></ProtectedRoute>} />
+            <Route path="/transactions/disposal" element={<ProtectedRoute navKey="stockMovements"><StockTransactions defaultVoucher="disposal" /></ProtectedRoute>} />
+            <Route path="/transactions/neg-adjustment" element={<ProtectedRoute navKey="stockMovements"><StockTransactions defaultVoucher="neg_adjustment" /></ProtectedRoute>} />
+            <Route path="/sales-import" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute navKey="salesMarketing"><SalesImport /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/sales/cash" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute navKey="cashSales"><CashSales /></ProtectedRoute></ModuleGuard>} />
+            <Route path="/sales/credit" element={<ModuleGuard moduleKey="salesMarketing"><ProtectedRoute navKey="creditSales"><CreditSales /></ProtectedRoute></ModuleGuard>} />
             <Route
               path="/stock-requests"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute navKey="stockRequests">
                   <StockIssueRequest />
                 </ProtectedRoute>
               }
@@ -72,7 +72,7 @@ function App() {
             <Route
               path="/purchases"
               element={
-                <ProtectedRoute roles={['admin', 'manager']}>
+                <ProtectedRoute roles={['admin', 'manager']} navKey="purchases">
                   <Purchases />
                 </ProtectedRoute>
               }
@@ -80,7 +80,7 @@ function App() {
             <Route
               path="/suppliers"
               element={
-                <ProtectedRoute roles={['admin', 'manager']}>
+                <ProtectedRoute roles={['admin', 'manager']} navKey="suppliers">
                   <Suppliers />
                 </ProtectedRoute>
               }
@@ -88,23 +88,23 @@ function App() {
             <Route
               path="/reports"
               element={
-                <ProtectedRoute capability="viewReports">
+                <ProtectedRoute capability="viewReports" navKey="reports">
                   <Reports />
                 </ProtectedRoute>
               }
             />
-            <Route path="/reports/summary" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="summary" /></ProtectedRoute>} />
-            <Route path="/reports/stock-balance" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="stock_balance" /></ProtectedRoute>} />
-            <Route path="/reports/inventory-count" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="inventory_count" /></ProtectedRoute>} />
-            <Route path="/reports/daily" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="daily" /></ProtectedRoute>} />
-            <Route path="/reports/cash-grv" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="cash_grv" /></ProtectedRoute>} />
-            <Route path="/reports/credit-grv" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="credit_grv" /></ProtectedRoute>} />
+            <Route path="/reports/summary" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="summary" /></ProtectedRoute>} />
+            <Route path="/reports/stock-balance" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="stock_balance" /></ProtectedRoute>} />
+            <Route path="/reports/inventory-count" element={<ProtectedRoute capability="viewReports" navKey="inventoryCount"><Reports defaultTab="inventory_count" /></ProtectedRoute>} />
+            <Route path="/reports/daily" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="daily" /></ProtectedRoute>} />
+            <Route path="/reports/cash-grv" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="cash_grv" /></ProtectedRoute>} />
+            <Route path="/reports/credit-grv" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="credit_grv" /></ProtectedRoute>} />
             <Route path="/reports/fresh-bazaar" element={<Navigate to="/reports" replace />} />
-            <Route path="/reports/pos-adjustment" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="pos_adjustment" /></ProtectedRoute>} />
-            <Route path="/reports/disposal" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="disposal" /></ProtectedRoute>} />
-            <Route path="/reports/neg-adjustment" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="neg_adjustment" /></ProtectedRoute>} />
-            <Route path="/reports/stock-levels" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="stock" /></ProtectedRoute>} />
-            <Route path="/reports/purchases" element={<ProtectedRoute capability="viewReports"><Reports defaultTab="purchases" /></ProtectedRoute>} />
+            <Route path="/reports/pos-adjustment" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="pos_adjustment" /></ProtectedRoute>} />
+            <Route path="/reports/disposal" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="disposal" /></ProtectedRoute>} />
+            <Route path="/reports/neg-adjustment" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="neg_adjustment" /></ProtectedRoute>} />
+            <Route path="/reports/stock-levels" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="stock" /></ProtectedRoute>} />
+            <Route path="/reports/purchases" element={<ProtectedRoute capability="viewReports" navKey="reports"><Reports defaultTab="purchases" /></ProtectedRoute>} />
             <Route
               path="/sub-system/sales-marketing-voucher-report"
               element={

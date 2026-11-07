@@ -190,6 +190,15 @@ const hasPermission = async (userOrRole, capability, action) => {
     }
   }
 
+  // 1.5 Enforce Sidebar Navigation Visibility Access Control on backend APIs
+  if (cachedSettings?.navVisibility && role !== 'developer') {
+    const nav = cachedSettings.navVisibility;
+    const navEntry = nav[capability] || nav[capability.toLowerCase()];
+    if (navEntry && navEntry[role] === false) {
+      return false;
+    }
+  }
+
   // 2. Global Role Permissions
   const rolePermissions = await getCachedRolePermissions();
 

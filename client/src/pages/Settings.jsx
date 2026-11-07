@@ -43,6 +43,10 @@ import {
   Activity,
   BarChart3,
   Users,
+  Search,
+  Filter,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -82,18 +86,39 @@ const DEFAULT_CAPABILITY_DEFAULTS = {
   manageAccounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
 };
 
-const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'items', label: 'Items & Raw Materials' },
-  { key: 'products', label: 'Products & Finished Goods' },
-  { key: 'stockMovements', label: 'Stock Movements' },
-  { key: 'stockRequests', label: 'Stock Issue & Request' },
-  { key: 'purchases', label: 'Purchases & GRV' },
-  { key: 'suppliers', label: 'Suppliers Directory' },
-  { key: 'reports', label: 'Reports & Analytics' },
-  { key: 'analytics', label: 'Financial Analytics & P&L' },
-  { key: 'staffAccounts', label: 'Staff Accounts' },
+export const SIDEBAR_NAV_ITEMS = [
+  { key: 'dashboard', label: 'Dashboard', isParent: false, navKey: 'dashboard', route: '/' },
+  { key: 'subsystem_captain_order', label: 'Subsystem — Captain Order', isParent: false, parentKey: 'salesMarketing', navKey: 'salesMarketing', route: '/sub-system/sales-marketing' },
+  { key: 'subsystem_cash_sales', label: 'Subsystem — Cash Sales', isParent: false, parentKey: 'salesMarketing', navKey: 'cashSales', route: '/sales/cash' },
+  { key: 'subsystem_pos_ordering', label: 'Subsystem — POS Ordering', isParent: false, parentKey: 'salesMarketing', navKey: 'creditSales', route: '/sales/credit' },
+  { key: 'raw_materials', label: 'Raw Materials', isParent: false, parentKey: 'allIds', navKey: 'items', route: '/materials' },
+  { key: 'products', label: 'Products', isParent: false, parentKey: 'allIds', navKey: 'products', route: '/products' },
+  { key: 'stock_movements', label: 'Stock Movements', isParent: false, parentKey: 'storeOps', navKey: 'stockMovements', route: '/transactions' },
+  { key: 'suppliers', label: 'Suppliers', isParent: false, parentKey: 'storeOps', navKey: 'suppliers', route: '/suppliers' },
+  { key: 'consumption', label: 'Consumption', isParent: false, parentKey: 'storeOps', navKey: 'stockRequests', route: '/stock-requests' },
+  { key: 'reports', label: 'Reports', isParent: false, parentKey: 'reports_analytics', navKey: 'reports', route: '/reports' },
+  { key: 'overhead_expenses', label: 'Overhead Expenses', isParent: false, parentKey: 'finance', navKey: 'finance', route: '/expenses' },
+  { key: 'analytics_pnl', label: 'Analytics & P&L', isParent: false, parentKey: 'finance', navKey: 'analytics', route: '/analytics' },
+  { key: 'staff_accounts', label: 'Staff Accounts', isParent: false, parentKey: 'staff', navKey: 'staffAccounts', route: '/staff-accounts' },
 ];
+
+export const SCREENSHOT_NAV_DEFAULTS = {
+  dashboard: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  subsystem_captain_order: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
+  subsystem_cash_sales: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  subsystem_pos_ordering: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
+  raw_materials: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  products: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  stock_movements: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  suppliers: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  consumption: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  reports: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  overhead_expenses: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
+  analytics_pnl: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+  staff_accounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+};
+
+const NAV_ITEMS = SIDEBAR_NAV_ITEMS;
 
 const DEFAULT_PRINTERS = [
   { id: 'pos_counter', name: 'Main Counter Thermal POS (80mm)', type: 'thermal_80mm', paperWidth: 80, autoPrint: true, isDefault: true, ip: '192.168.1.201' },
@@ -143,6 +168,8 @@ export default function Settings() {
   const [newPrinterForm, setNewPrinterForm] = useState({ name: '', type: 'thermal_80mm', paperWidth: 80, autoPrint: true, ip: '192.168.1.205' });
   const [copiedLink, setCopiedLink] = useState(false);
   const [devSubTab, setDevSubTab] = useState('modules'); // 'modules' | 'appearance' | 'delegation' | 'audit'
+  const [navSearch, setNavSearch] = useState('');
+  const [navRoleFilter, setNavRoleFilter] = useState('all'); // 'all' or role key
 
   // Profile state
   const [profileForm, setProfileForm] = useState({
@@ -541,6 +568,82 @@ export default function Settings() {
     setTimeout(() => setSystemSuccess(''), 4000);
   };
 
+  // Handle Hierarchical Sidebar Navigation Visibility Toggle
+  const handleNavVisibilityToggle = (itemKey, roleKey, checked) => {
+    setSystemForm((prev) => {
+      const nav = { ...(prev.navVisibility || {}) };
+      const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === itemKey);
+
+      // 1. Set current item permission
+      nav[itemKey] = { ...(nav[itemKey] || {}), [roleKey]: checked };
+      if (item?.navKey && item.navKey !== itemKey) {
+        nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: checked };
+      }
+
+      // 2. Parent & Child hierarchical logic
+      if (item?.parentKey) {
+        if (checked) {
+          // Child ON -> Parent must be ON
+          nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: true };
+        } else {
+          // Child OFF -> Check if any sibling is still active
+          const siblings = SIDEBAR_NAV_ITEMS.filter((i) => i.parentKey === item.parentKey && i.key !== itemKey);
+          const anySiblingActive = siblings.some(
+            (s) => nav[s.key]?.[roleKey] === true || (s.navKey && nav[s.navKey]?.[roleKey] === true)
+          );
+          if (!anySiblingActive) {
+            // All children OFF -> Parent becomes OFF automatically
+            nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: false };
+          }
+        }
+      }
+
+      return { ...prev, navVisibility: nav };
+    });
+  };
+
+  // Bulk Navigation Visibility actions
+  const handleSelectAllNavForRole = (roleKey) => {
+    setSystemForm((prev) => {
+      const nav = { ...(prev.navVisibility || {}) };
+      SIDEBAR_NAV_ITEMS.forEach((item) => {
+        nav[item.key] = { ...(nav[item.key] || {}), [roleKey]: true };
+        if (item.navKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: true };
+        if (item.parentKey) nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: true };
+      });
+      return { ...prev, navVisibility: nav };
+    });
+  };
+
+  const handleDeselectAllNavForRole = (roleKey) => {
+    setSystemForm((prev) => {
+      const nav = { ...(prev.navVisibility || {}) };
+      SIDEBAR_NAV_ITEMS.forEach((item) => {
+        nav[item.key] = { ...(nav[item.key] || {}), [roleKey]: false };
+        if (item.navKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: false };
+        if (item.parentKey) nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: false };
+      });
+      return { ...prev, navVisibility: nav };
+    });
+  };
+
+  const handleResetNavDefaults = () => {
+    if (!window.confirm('Reset all sidebar navigation visibility settings to standard screenshot defaults?')) return;
+    setSystemForm((prev) => {
+      const nav = { ...(prev.navVisibility || {}) };
+      Object.entries(SCREENSHOT_NAV_DEFAULTS).forEach(([key, roleMap]) => {
+        nav[key] = { ...(nav[key] || {}), ...roleMap };
+        const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === key);
+        if (item?.navKey) {
+          nav[item.navKey] = { ...(nav[item.navKey] || {}), ...roleMap };
+        }
+      });
+      return { ...prev, navVisibility: nav };
+    });
+    setSystemSuccess('Sidebar navigation visibility reset to screenshot defaults. Click Save Visibility to apply.');
+    setTimeout(() => setSystemSuccess(''), 4000);
+  };
+
   // Printer Management Handlers
   const handleAddPrinter = (e) => {
     e.preventDefault();
@@ -581,6 +684,24 @@ export default function Settings() {
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
+
+  // Filtered Navigation Items & Roles for Visibility Matrix
+  const filteredNavItems = React.useMemo(() => {
+    return SIDEBAR_NAV_ITEMS.filter((item) => {
+      if (!navSearch.trim()) return true;
+      const query = navSearch.toLowerCase().trim();
+      return (
+        item.label.toLowerCase().includes(query) ||
+        item.key.toLowerCase().includes(query) ||
+        (item.route && item.route.toLowerCase().includes(query))
+      );
+    });
+  }, [navSearch]);
+
+  const displayedRoles = React.useMemo(() => {
+    if (navRoleFilter === 'all') return MATRIX_ROLES;
+    return MATRIX_ROLES.filter((r) => r.key === navRoleFilter);
+  }, [navRoleFilter]);
 
   const roleBadgeColor = {
     admin: 'bg-brass-100 text-brass-800 border-brass-300',
@@ -1693,79 +1814,177 @@ export default function Settings() {
             </div>
           </Card>
 
-          {/* Sidebar Navigation Visibility Matrix Card */}
-          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-ink-100 gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
-                  <Layers size={18} />
+          {/* ── Sidebar Navigation Visibility Matrix Card (Matching Screenshot) ── */}
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-4">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between pb-4 border-b border-ink-100 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600">
+                  <Layers size={22} className="stroke-[2.2]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-ink-900">Sidebar Navigation Visibility</h3>
+                  <h3 className="text-lg font-black text-ink-900 tracking-tight">Sidebar Navigation Visibility</h3>
                   <p className="text-xs text-ink-400 mt-0.5">
-                    Control which navigation sections are visible in each role's sidebar. Unchecking an item hides it completely.
+                    Control which sidebar menu items each role can see. Unchecking a section hides it completely for that role.
                   </p>
                 </div>
               </div>
 
-              <Button
-                type="button"
-                onClick={handleSystemSubmit}
-                disabled={systemSaving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-1.5 px-3.5 self-end sm:self-auto"
-              >
-                <Save size={13} /> Save Visibility
-              </Button>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={handleResetNavDefaults}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3.5 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50 transition shadow-xs"
+                >
+                  <RotateCcw size={13} /> Reset Defaults
+                </button>
+                <Button
+                  type="button"
+                  onClick={handleSystemSubmit}
+                  disabled={systemSaving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-2 px-4 shadow-sm"
+                >
+                  <Save size={13} /> {systemSaving ? 'Saving Visibility…' : 'Save Changes'}
+                </Button>
+              </div>
             </div>
 
-            <div className="overflow-x-auto mt-4 rounded-xl border border-ink-100">
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div className="relative flex-1 max-w-sm">
+                <Search size={14} className="absolute left-3.5 top-3 text-ink-400" />
+                <input
+                  type="text"
+                  value={navSearch}
+                  onChange={(e) => setNavSearch(e.target.value)}
+                  placeholder="Search sidebar menus and submenus..."
+                  className="w-full rounded-xl border border-ink-200 pl-9 pr-8 py-2 text-xs outline-none focus:border-emerald-500 bg-white"
+                />
+                {navSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setNavSearch('')}
+                    className="absolute right-2.5 top-2.5 text-xs text-ink-400 hover:text-ink-600"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-600">
+                  <Filter size={13} className="text-ink-400" />
+                  <span>Role:</span>
+                </div>
+                <select
+                  value={navRoleFilter}
+                  onChange={(e) => setNavRoleFilter(e.target.value)}
+                  className="rounded-xl border border-ink-200 px-3 py-1.5 text-xs font-bold text-ink-700 bg-white outline-none focus:border-emerald-500"
+                >
+                  <option value="all">All Roles ({MATRIX_ROLES.length})</option>
+                  {MATRIX_ROLES.map((r) => (
+                    <option key={r.key} value={r.key}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Matrix Table */}
+            <div className="overflow-x-auto rounded-xl border border-ink-100">
               <table className="min-w-full text-xs text-left">
                 <thead>
-                  <tr className="border-b border-ink-100 bg-slate-50/70 text-ink-700 font-bold">
-                    <th className="py-3 px-4 font-bold">Sidebar Section</th>
-                    {MATRIX_ROLES.map((r) => (
-                      <th key={r.key} className="py-3 px-3 text-center font-bold">
-                        {r.label}
+                  <tr className="border-b border-ink-100 bg-slate-50/80 text-ink-700 font-bold">
+                    <th className="py-3 px-4 font-bold text-[13px]">Sidebar Section</th>
+                    {displayedRoles.map((r) => (
+                      <th key={r.key} className="py-3 px-3 text-center font-bold text-[13px]">
+                        <div className="flex flex-col items-center gap-1">
+                          <span>{r.label}</span>
+                          <div className="flex items-center gap-1 text-[10px] font-normal text-ink-400">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllNavForRole(r.key)}
+                              className="hover:text-emerald-600 hover:underline"
+                            >
+                              All
+                            </button>
+                            <span>/</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeselectAllNavForRole(r.key)}
+                              className="hover:text-red-600 hover:underline"
+                            >
+                              None
+                            </button>
+                          </div>
+                        </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-50 text-ink-700">
-                  {NAV_ITEMS.map((nav) => (
-                    <tr key={nav.key} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-2.5 px-4 font-semibold text-ink-900">{nav.label}</td>
-                      {MATRIX_ROLES.map((r) => {
-                        const isChecked = systemForm.navVisibility?.[nav.key]?.[r.key] !== undefined
-                          ? Boolean(systemForm.navVisibility[nav.key][r.key])
-                          : (r.key === 'admin' || (r.key === 'cashier' && ['dashboard', 'products'].includes(nav.key)) || r.key === 'manager');
-
-                        return (
-                          <td key={r.key} className="py-2.5 px-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setSystemForm((prev) => ({
-                                  ...prev,
-                                  navVisibility: {
-                                    ...prev.navVisibility,
-                                    [nav.key]: {
-                                      ...prev.navVisibility?.[nav.key],
-                                      [r.key]: checked,
-                                    },
-                                  },
-                                }));
-                              }}
-                              className="h-4 w-4 rounded border-ink-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer transition hover:border-emerald-400"
-                            />
-                          </td>
-                        );
-                      })}
+                  {filteredNavItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={displayedRoles.length + 1} className="py-8 text-center text-xs text-ink-400 italic">
+                        No sidebar items match "{navSearch}".
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredNavItems.map((nav) => {
+                      const isSubmenu = Boolean(nav.parentKey);
+                      return (
+                        <tr key={nav.key} className={`hover:bg-slate-50/70 transition-colors ${isSubmenu ? 'bg-slate-50/30' : 'bg-white'}`}>
+                          <td className="py-3 px-4 font-semibold text-ink-900">
+                            <div className="flex items-center gap-2">
+                              {isSubmenu && (
+                                <span className="text-ink-300 font-mono text-[10px]">↳</span>
+                              )}
+                              <span className={`text-[13px] ${isSubmenu ? 'text-ink-700 font-medium' : 'text-ink-900 font-bold'}`}>
+                                {nav.label}
+                              </span>
+                              {nav.route && (
+                                <code className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-ink-400">
+                                  {nav.route}
+                                </code>
+                              )}
+                            </div>
+                          </td>
+                          {displayedRoles.map((r) => {
+                            const isChecked = systemForm.navVisibility?.[nav.key]?.[r.key] !== undefined
+                              ? Boolean(systemForm.navVisibility[nav.key][r.key])
+                              : (nav.navKey && systemForm.navVisibility?.[nav.navKey]?.[r.key] !== undefined
+                                ? Boolean(systemForm.navVisibility[nav.navKey][r.key])
+                                : (SCREENSHOT_NAV_DEFAULTS[nav.key]?.[r.key] ?? true));
+
+                            return (
+                              <td key={r.key} className="py-3 px-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => handleNavVisibilityToggle(nav.key, r.key, e.target.checked)}
+                                  className="h-4 w-4 rounded border-ink-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer transition hover:border-emerald-400"
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Table Footer */}
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-ink-400 border-t border-ink-50">
+              <p>🔒 Parent items automatically control submenus. Unchecking a menu item immediately hides it from that role's sidebar and prevents URL navigation.</p>
+              <button
+                type="button"
+                onClick={handleSystemSubmit}
+                disabled={systemSaving}
+                className="self-end inline-flex items-center gap-1.5 font-bold text-emerald-600 hover:text-emerald-800"
+              >
+                <Save size={13} /> {systemSaving ? 'Saving…' : 'Quick Save Visibility'}
+              </button>
             </div>
           </Card>
 

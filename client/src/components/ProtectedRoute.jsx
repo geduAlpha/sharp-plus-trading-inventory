@@ -2,8 +2,8 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const ProtectedRoute = ({ children, roles, capability }) => {
-  const { user, loading, can } = useAuth();
+const ProtectedRoute = ({ children, roles, capability, navKey }) => {
+  const { user, loading, can, canSeeNav } = useAuth();
 
   if (loading) {
     return (
@@ -15,6 +15,14 @@ const ProtectedRoute = ({ children, roles, capability }) => {
   }
 
   if (!user) return <Navigate to="/login" replace />;
+
+  // Developer role has universal master access over all routes
+  if (user.role === 'developer') return children;
+
+  // Enforce Sidebar Navigation Visibility access control on routes
+  if (navKey && !canSeeNav(navKey)) {
+    return <Navigate to="/" replace />;
+  }
 
   if (capability && !can(capability)) {
     return <Navigate to="/" replace />;

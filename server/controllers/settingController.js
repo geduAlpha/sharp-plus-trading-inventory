@@ -233,6 +233,16 @@ const updateSettings = asyncHandler(async (req, res) => {
   if (req.body.navVisibility !== undefined && typeof req.body.navVisibility === 'object') {
     settings.navVisibility = req.body.navVisibility;
     settings.markModified('navVisibility');
+    clearSettingsCache();
+    if (!Array.isArray(settings.auditLogs)) settings.auditLogs = [];
+    settings.auditLogs.unshift({
+      action: 'NAV_VISIBILITY_UPDATED',
+      details: `Sidebar Navigation Visibility matrix updated by ${req.user?.name || 'System Developer & Owner'}`,
+      actorId: req.user?._id,
+      actorName: req.user?.name || 'System Developer & Owner',
+      actorRole: req.user?.role || 'developer',
+      timestamp: new Date(),
+    });
   }
 
   // System Modules ON/OFF Control with Audit Trail

@@ -44,7 +44,11 @@ const resolveItemNavKey = (item) => {
   if (item.id === 'stock_requests' || item.to === '/stock-requests') return 'stockRequests';
   if (item.to === '/reports/inventory-count') return 'inventoryCount';
   if (item.id === 'movements_cash_grv' || item.id === 'movements_credit_grv') return 'purchases';
-  return null;
+  if (item.id === 'materials' || item.to === '/materials') return 'items';
+  if (item.id === 'employees' || item.to === '/employees') return 'staffAccounts';
+  if (item.to === '/analytics') return 'analytics';
+  if (item.id === 'reports' || item.to?.startsWith('/reports')) return 'reports';
+  return item.id || null;
 };
 
 /* ── Section label ── */
@@ -326,6 +330,8 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
 
     const resolvedKey = resolveItemNavKey(item);
     if (resolvedKey && !canSeeNav(resolvedKey)) return false;
+    if (item.id && !canSeeNav(item.id)) return false;
+    if (item.navKey && !canSeeNav(item.navKey)) return false;
     return true;
   }, [canSeeNav, isDev, modulesEnabled]);
 
@@ -336,18 +342,27 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     const admin = [];
 
     sortedSidebar.forEach((item) => {
-      if (!canDisplayItem(item)) return;
-
-      // If group, verify it has at least one accessible child
+      // If group, verify it has at least one accessible child and render ONLY permitted submenus
       if (item.isGroup) {
+        if (!canDisplayItem(item)) return;
         const visibleKids = (item.children || []).filter(canDisplayItem);
+        // Requirement 3: Parent menu should automatically become OFF when all its children are disabled
         if (visibleKids.length === 0) return;
+        const cloned = { ...item, children: visibleKids };
+
+        // If salesMarketing module is disabled, hide the salesMarketing sidebar section
+        if (cloned.id === 'salesMarketing' || cloned.navKey === 'salesMarketing') {
+          if (modulesEnabled?.salesMarketing === false && !isDev) return;
+        }
+
+        const sec = (cloned.section || 'main').toLowerCase();
+        if (sec === 'operations') operations.push(cloned);
+        else if (sec === 'admin') admin.push(cloned);
+        else main.push(cloned);
+        return;
       }
 
-      // If salesMarketing module is disabled, hide the salesMarketing sidebar section
-      if (item.id === 'salesMarketing' || item.navKey === 'salesMarketing') {
-        if (modulesEnabled?.salesMarketing === false && !isDev) return;
-      }
+      if (!canDisplayItem(item)) return;
 
       const sec = (item.section || 'main').toLowerCase();
       if (sec === 'operations') operations.push(item);

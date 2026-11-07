@@ -505,23 +505,37 @@ export const AuthProvider = ({ children }) => {
       navKey === 'cashSales' ||
       navKey === 'creditSales' ||
       navKey === 'sales_cash' ||
-      navKey === 'sales_credit';
+      navKey === 'sales_credit' ||
+      navKey === 'subsystem_cash_sales' ||
+      navKey === 'subsystem_pos_ordering';
 
     if (isSalesKey && modulesEnabled?.salesMarketing === false && user.role !== 'developer') {
       return false;
     }
 
     // Special composite group checks
-    if (navKey === 'salesMarketing') {
-      return canSeeNav('cashSales') || canSeeNav('creditSales');
+    if (navKey === 'salesMarketing' || navKey === 'subsystem') {
+      return canSeeNav('cashSales') || canSeeNav('creditSales') || canSeeNav('subsystem_cash_sales') || canSeeNav('subsystem_pos_ordering');
     }
-    if (navKey === 'storeOps') {
+    if (navKey === 'storeOps' || navKey === 'stock_operations') {
       return (
         canSeeNav('purchases') ||
         canSeeNav('stockMovements') ||
         canSeeNav('stockRequests') ||
-        canSeeNav('inventoryCount')
+        canSeeNav('inventoryCount') ||
+        canSeeNav('cash_grv') ||
+        canSeeNav('credit_grv')
       );
+    }
+    if (navKey === 'allIds' || navKey === 'inventory_items') {
+      return canSeeNav('items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('employees') || canSeeNav('raw_materials');
+    }
+    if (navKey === 'reports' || navKey === 'reports_analytics') {
+      const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
+      const reportsEntry = nav['reports'] || nav['reports_analytics'];
+      if (reportsEntry && reportsEntry[user.role] !== undefined) {
+        return Boolean(reportsEntry[user.role]);
+      }
     }
 
     // 1. Direct Employee Custom Permissions Override (Managed via Role Privileges)
@@ -544,22 +558,28 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // 2. Role Permissions Matrix Check
+    // 2. Direct navVisibility matrix check
+    const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
+    const entry =
+      nav[navKey] ||
+      nav[navKey.toLowerCase()] ||
+      (navKey.toLowerCase() === 'items' ? (nav['Items'] || nav['items'] || nav['raw_materials'] || nav['rawMaterials']) : undefined) ||
+      (navKey === 'cashSales' ? (nav['cashSales'] || nav['subsystem_cash_sales']) : undefined) ||
+      (navKey === 'creditSales' ? (nav['creditSales'] || nav['subsystem_pos_ordering']) : undefined) ||
+      (navKey === 'stockRequests' ? (nav['stockRequests'] || nav['consumption']) : undefined) ||
+      (navKey === 'expenses' ? (nav['expenses'] || nav['overhead_expenses']) : undefined) ||
+      (navKey === 'staffAccounts' ? (nav['staffAccounts'] || nav['staff_accounts']) : undefined);
+
+    if (entry && entry[user.role] !== undefined) {
+      return Boolean(entry[user.role]);
+    }
+
+    // 3. Fallback to Role Permissions Matrix Check
     if (rolePermissions) {
       const capKey = rolePermissions[navKey] ? navKey : rolePermissions[navKey.toLowerCase()] ? navKey.toLowerCase() : null;
       if (capKey) {
         return can(capKey, 'view') || can(capKey, 'read') || can(capKey);
       }
-    }
-
-    // 3. Fallback to navVisibility dictionary if defined
-    const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
-    const entry =
-      nav[navKey] ||
-      nav[navKey.toLowerCase()] ||
-      (navKey.toLowerCase() === 'items' ? (nav['Items'] || nav['items'] || nav['rawMaterials']) : undefined);
-    if (entry && entry[user.role] !== undefined) {
-      return Boolean(entry[user.role]);
     }
 
     // 4. Default: Admin is allowed by default; employees check general capability
