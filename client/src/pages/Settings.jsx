@@ -123,51 +123,89 @@ export const SCREENSHOT_NAV_DEFAULTS = {
   staff_accounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
 };
 
+export const CRUD_ACTIONS = [
+  { key: 'view', label: 'VIEW', color: 'text-emerald-600', bg: 'bg-emerald-50/60', dot: 'bg-emerald-500', desc: 'Permission to view and read records' },
+  { key: 'create', label: 'CREATE', color: 'text-blue-600', bg: 'bg-blue-50/60', dot: 'bg-blue-600', desc: 'Permission to add new records' },
+  { key: 'edit', label: 'EDIT', color: 'text-amber-500', bg: 'bg-amber-50/60', dot: 'bg-amber-500', desc: 'Permission to update and modify existing records' },
+  { key: 'delete', label: 'DELETE', color: 'text-red-600', bg: 'bg-red-50/60', dot: 'bg-red-600', desc: 'Permission to delete records' },
+  { key: 'approve', label: 'APPROVE', color: 'text-purple-600', bg: 'bg-purple-50/60', dot: 'bg-purple-600', desc: 'Permission to approve pending records, requests, or transactions' },
+  { key: 'reject', label: 'REJECT', color: 'text-rose-800', bg: 'bg-rose-50/60', dot: 'bg-rose-800', desc: 'Permission to reject submitted records, requests, or transactions' },
+  { key: 'export', label: 'PRINT / EXPORT', color: 'text-slate-600', bg: 'bg-slate-50/80', dot: 'bg-slate-500', desc: 'Permission to print reports and export data' },
+];
+
 export const CRUD_MODULE_ROWS = [
-  { key: 'raw_materials', label: 'Raw Materials', alias: 'items' },
-  { key: 'products', label: 'Products', alias: 'products' },
-  { key: 'suppliers', label: 'Suppliers', alias: 'suppliers' },
-  { key: 'overhead_expenses', label: 'Overhead Expenses', alias: 'expenses' },
-  { key: 'stock_movements', label: 'Stock Movements', alias: 'stockMovements' },
-  { key: 'purchases', label: 'Purchases / GRV', alias: 'purchases_grv' },
-  { key: 'employees', label: 'Employees', alias: 'staffAccounts' },
+  { key: 'raw_materials', label: 'Raw Materials', alias: 'items', desc: 'Stock items, inventory units & master catalogue' },
+  { key: 'products', label: 'Products', alias: 'products', desc: 'Finished goods, sales menu items & recipes' },
+  { key: 'suppliers', label: 'Suppliers', alias: 'suppliers', desc: 'Vendor records, contracts & contact directory' },
+  { key: 'overhead_expenses', label: 'Overhead Expenses', alias: 'expenses', desc: 'Operating expenses, utility vouchers & payments' },
+  { key: 'stock_movements', label: 'Stock Movements', alias: 'stockMovements', desc: 'Stock transfers, adjustments & SIV vouchers' },
+  { key: 'purchases', label: 'Purchases / GRV', alias: 'purchases_grv', desc: 'Goods Receiving Vouchers, invoices & purchase orders' },
+  { key: 'employees', label: 'Employees', alias: 'staffAccounts', desc: 'Staff directory, permissions & login accounts' },
 ];
 
 export const CRUD_SCREENSHOT_DEFAULTS = {
   raw_materials: {
-    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    view:    { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
+    create:  { storekeeper: true,  cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    edit:    { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    delete:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    approve: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    reject:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    export:  { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
   },
   products: {
-    view: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
-    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    view:    { storekeeper: true,  cashier: true,  waiter: true,  supervisor: true,  manager: true, admin: true },
+    create:  { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    edit:    { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    delete:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    approve: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    reject:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    export:  { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
   },
   suppliers: {
-    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
-    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    view:    { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
+    create:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    edit:    { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    delete:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    approve: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    reject:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    export:  { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
   },
   overhead_expenses: {
-    view: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    view:    { storekeeper: true,  cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    create:  { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    edit:    { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    delete:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    approve: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    reject:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    export:  { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
   },
   stock_movements: {
-    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    view:    { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
+    create:  { storekeeper: true,  cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    edit:    { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    delete:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    approve: { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    reject:  { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    export:  { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
   },
   purchases: {
-    view: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    view:    { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
+    create:  { storekeeper: true,  cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    edit:    { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    delete:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    approve: { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    reject:  { storekeeper: false, cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    export:  { storekeeper: true,  cashier: true,  waiter: false, supervisor: true,  manager: true, admin: true },
   },
   employees: {
-    view: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-    edit: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
-    delete: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    view:    { storekeeper: true,  cashier: false, waiter: false, supervisor: true,  manager: true, admin: true },
+    create:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    edit:    { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+    delete:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    approve: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    reject:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+    export:  { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
   },
 };
 
@@ -827,6 +865,206 @@ export default function Settings() {
         rolePermissions: perms,
       };
     });
+  };
+
+  // Bulk Permission Controls for 7 Actions & Individual Roles
+  const handleBulkToggleAction = (actionKey) => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+
+      // Determine if all visible checkboxes for this action are currently checked
+      let allChecked = true;
+      for (const mod of CRUD_MODULE_ROWS) {
+        for (const role of displayedRoles) {
+          if (!getCrudPermission(mod.key, actionKey, role.key)) {
+            allChecked = false;
+            break;
+          }
+        }
+        if (!allChecked) break;
+      }
+      const targetVal = !allChecked;
+
+      CRUD_MODULE_ROWS.forEach((mod) => {
+        const aliasMap = {
+          raw_materials: 'items',
+          items: 'raw_materials',
+          overhead_expenses: 'expenses',
+          expenses: 'overhead_expenses',
+          stock_movements: 'stockMovements',
+          stockMovements: 'stock_movements',
+          purchases: 'purchases_grv',
+          purchases_grv: 'purchases',
+          employees: 'staffAccounts',
+          staffAccounts: 'employees',
+        };
+        const altKey = aliasMap[mod.key];
+
+        const updateKey = (k) => {
+          const modObj = { ...(perms[k] || {}) };
+          const actObj = { ...(modObj[actionKey] || {}) };
+          displayedRoles.forEach((r) => {
+            actObj[r.key] = targetVal;
+          });
+          modObj[actionKey] = actObj;
+          perms[k] = modObj;
+        };
+
+        updateKey(mod.key);
+        if (altKey) updateKey(altKey);
+      });
+
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
+  const handleBulkToggleRole = (roleKey, forceValue) => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+
+      let targetVal = forceValue;
+      if (typeof targetVal !== 'boolean') {
+        let allChecked = true;
+        for (const mod of CRUD_MODULE_ROWS) {
+          for (const act of CRUD_ACTIONS) {
+            if (!getCrudPermission(mod.key, act.key, roleKey)) {
+              allChecked = false;
+              break;
+            }
+          }
+          if (!allChecked) break;
+        }
+        targetVal = !allChecked;
+      }
+
+      CRUD_MODULE_ROWS.forEach((mod) => {
+        const aliasMap = {
+          raw_materials: 'items',
+          items: 'raw_materials',
+          overhead_expenses: 'expenses',
+          expenses: 'overhead_expenses',
+          stock_movements: 'stockMovements',
+          stockMovements: 'stock_movements',
+          purchases: 'purchases_grv',
+          purchases_grv: 'purchases',
+          employees: 'staffAccounts',
+          staffAccounts: 'employees',
+        };
+        const altKey = aliasMap[mod.key];
+
+        const updateKey = (k) => {
+          const modObj = { ...(perms[k] || {}) };
+          CRUD_ACTIONS.forEach((act) => {
+            const actObj = { ...(modObj[act.key] || {}) };
+            actObj[roleKey] = targetVal;
+            modObj[act.key] = actObj;
+          });
+          perms[k] = modObj;
+        };
+
+        updateKey(mod.key);
+        if (altKey) updateKey(altKey);
+      });
+
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
+  const handleSelectAllCrud = () => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+      CRUD_MODULE_ROWS.forEach((mod) => {
+        const aliasMap = {
+          raw_materials: 'items',
+          items: 'raw_materials',
+          overhead_expenses: 'expenses',
+          expenses: 'overhead_expenses',
+          stock_movements: 'stockMovements',
+          stockMovements: 'stock_movements',
+          purchases: 'purchases_grv',
+          purchases_grv: 'purchases',
+          employees: 'staffAccounts',
+          staffAccounts: 'employees',
+        };
+        const altKey = aliasMap[mod.key];
+
+        const updateKey = (k) => {
+          const modObj = { ...(perms[k] || {}) };
+          CRUD_ACTIONS.forEach((act) => {
+            const actObj = { ...(modObj[act.key] || {}) };
+            displayedRoles.forEach((r) => {
+              actObj[r.key] = true;
+            });
+            modObj[act.key] = actObj;
+          });
+          perms[k] = modObj;
+        };
+
+        updateKey(mod.key);
+        if (altKey) updateKey(altKey);
+      });
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
+  const handleDeselectAllCrud = () => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+      CRUD_MODULE_ROWS.forEach((mod) => {
+        const aliasMap = {
+          raw_materials: 'items',
+          items: 'raw_materials',
+          overhead_expenses: 'expenses',
+          expenses: 'overhead_expenses',
+          stock_movements: 'stockMovements',
+          stockMovements: 'stock_movements',
+          purchases: 'purchases_grv',
+          purchases_grv: 'purchases',
+          employees: 'staffAccounts',
+          staffAccounts: 'employees',
+        };
+        const altKey = aliasMap[mod.key];
+
+        const updateKey = (k) => {
+          const modObj = { ...(perms[k] || {}) };
+          CRUD_ACTIONS.forEach((act) => {
+            const actObj = { ...(modObj[act.key] || {}) };
+            displayedRoles.forEach((r) => {
+              actObj[r.key] = false;
+            });
+            modObj[act.key] = actObj;
+          });
+          perms[k] = modObj;
+        };
+
+        updateKey(mod.key);
+        if (altKey) updateKey(altKey);
+      });
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
+  const handleResetCrudDefaults = () => {
+    if (!window.confirm('Reset all 7 CRUD Action Privileges to system standard defaults?')) return;
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+      Object.entries(CRUD_SCREENSHOT_DEFAULTS).forEach(([modKey, modVal]) => {
+        perms[modKey] = JSON.parse(JSON.stringify(modVal));
+        const aliasMap = {
+          raw_materials: 'items',
+          overhead_expenses: 'expenses',
+          stock_movements: 'stockMovements',
+          purchases: 'purchases_grv',
+          employees: 'staffAccounts',
+        };
+        if (aliasMap[modKey]) {
+          perms[aliasMap[modKey]] = JSON.parse(JSON.stringify(modVal));
+        }
+      });
+      return { ...prev, rolePermissions: perms };
+    });
+    setSystemSuccess('Role action privileges reset to defaults. Click "Save Role Permissions" to apply.');
+    setTimeout(() => setSystemSuccess(''), 4000);
   };
 
   // ── Developer / Owner Controls Handlers (Matching Screenshots) ──
@@ -2309,84 +2547,203 @@ export default function Settings() {
             </div>
           </Card>
 
-          {/* ── CRUD Action Privileges Card (Exact Match to Screenshot 3) ── */}
-          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between pb-4 border-b border-ink-100 gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-500 border border-red-200 flex-shrink-0">
-                  <Shield size={18} />
+          {/* ── Upgraded 7-Action Role-Based Permission Matrix Card ── */}
+          <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-5">
+            {/* Header with Title, Description & Action Buttons */}
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between pb-4 border-b border-ink-100 gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200/60 shadow-xs flex-shrink-0">
+                  <Shield size={20} />
                 </div>
                 <div>
-                  <h3 className="font-display text-base font-bold text-ink-900">
-                    CRUD Action Privileges
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display text-base font-bold text-ink-900">
+                      CRUD Action Privileges — Role-Based Permission Matrix
+                    </h3>
+                    <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                      7 Actions
+                    </span>
+                  </div>
                   <p className="text-xs text-ink-400 mt-0.5">
-                    Control which roles can <strong className="text-ink-700">View</strong>, <strong className="text-ink-700">Edit</strong>, and <strong className="text-ink-700">Delete</strong> records in each module.
+                    Control which roles can <strong className="text-emerald-600">View</strong>, <strong className="text-blue-600">Create</strong>, <strong className="text-amber-500">Edit</strong>, <strong className="text-red-600">Delete</strong>, <strong className="text-purple-600">Approve</strong>, <strong className="text-rose-800">Reject</strong>, and <strong className="text-slate-600">Print / Export</strong> records in each module.
                   </p>
                 </div>
               </div>
+
+              {/* Quick Save & Reset Controls */}
+              <div className="flex items-center gap-2.5 self-end lg:self-center">
+                <button
+                  type="button"
+                  onClick={handleResetCrudDefaults}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white hover:bg-ink-50 px-3.5 py-2 text-xs font-bold text-ink-600 transition shadow-xs"
+                  title="Reset CRUD permissions to standard defaults"
+                >
+                  <RotateCcw size={13} className="text-ink-500" />
+                  <span>Reset Defaults</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSystemSubmit}
+                  disabled={systemSaving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-xs transition active:scale-[0.98] disabled:opacity-50"
+                >
+                  <Save size={14} />
+                  <span>{systemSaving ? 'Saving…' : 'Save Changes'}</span>
+                </button>
+              </div>
             </div>
 
-            {/* CRUD Table matching screenshot 3 */}
-            <div className="overflow-x-auto rounded-xl border border-ink-100">
+            {/* Bulk Permission Controls Bar */}
+            <div className="rounded-xl border border-ink-200/80 bg-slate-50/70 p-3.5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+                    <SlidersHorizontal size={13} />
+                  </span>
+                  <span className="text-xs font-bold text-ink-800 uppercase tracking-wide">
+                    Bulk Permission Controls
+                  </span>
+                  <span className="text-[11px] text-ink-400">
+                    (Click an action to toggle across all modules and active roles)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllCrud}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                  >
+                    <CheckSquare size={13} className="text-blue-600" />
+                    <span>Select All</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllCrud}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                  >
+                    <Square size={13} className="text-red-600" />
+                    <span>Clear All</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 7 Action Bulk Toggles with Distinct Colors */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-ink-200/60">
+                {CRUD_ACTIONS.map((act) => (
+                  <button
+                    key={act.key}
+                    type="button"
+                    onClick={() => handleBulkToggleAction(act.key)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-white/90 px-3 py-1.5 text-xs font-bold ${act.color} shadow-2xs transition hover:scale-102 hover:border-ink-300 active:scale-98`}
+                    title={`Toggle ${act.label} across all modules and roles`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${act.dot}`} />
+                    <span>Toggle All {act.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Upgraded 7-Action Role-Based Permission Matrix Table */}
+            <div className="overflow-x-auto rounded-xl border border-ink-200 shadow-2xs max-h-[640px] overflow-y-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-ink-100 bg-slate-50/70 text-ink-700">
-                    <th rowSpan={2} className="py-3 px-4 font-bold text-ink-900 align-middle border-r border-ink-100 bg-slate-50/70 min-w-[140px]">
-                      Module
+                <thead className="sticky top-0 z-30 bg-white shadow-2xs">
+                  {/* Top Level: Module Header & Grouped Role Headers */}
+                  <tr className="border-b border-ink-200 bg-slate-100/90 text-ink-900">
+                    <th
+                      rowSpan={2}
+                      className="sticky left-0 top-0 z-40 py-3 px-4 font-black text-xs text-ink-900 align-middle border-r-2 border-b border-ink-200 bg-slate-100 min-w-[200px] shadow-sm uppercase tracking-wider"
+                    >
+                      Module / Feature
                     </th>
                     {displayedRoles.map((role) => (
                       <th
                         key={role.key}
-                        colSpan={3}
-                        className="py-2.5 px-2 text-center font-bold text-ink-800 border-r border-ink-100 last:border-r-0 min-w-[110px]"
+                        colSpan={7}
+                        className="py-2.5 px-3 text-center font-extrabold text-xs text-ink-900 border-r-2 border-b border-ink-200 bg-slate-100/90 min-w-[480px]"
                       >
-                        {role.label}
+                        <div className="flex items-center justify-between px-2">
+                          <span className="font-extrabold text-xs uppercase tracking-wider text-ink-900 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
+                            {role.label}
+                          </span>
+                          <div className="flex items-center gap-1 text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => handleBulkToggleRole(role.key, true)}
+                              className="rounded px-2 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
+                              title={`Check all 7 permissions for ${role.label}`}
+                            >
+                              ✓ All
+                            </button>
+                            <span className="text-ink-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => handleBulkToggleRole(role.key, false)}
+                              className="rounded px-2 py-0.5 bg-red-50 text-red-700 hover:bg-red-100 transition"
+                              title={`Uncheck all permissions for ${role.label}`}
+                            >
+                              ✕ None
+                            </button>
+                          </div>
+                        </div>
                       </th>
                     ))}
                   </tr>
-                  <tr className="border-b border-ink-100 bg-slate-50/50 text-[10px] font-bold">
+
+                  {/* Second Level: 7 Individual Action Headers per Role */}
+                  <tr className="border-b border-ink-200 bg-slate-50 text-[10px] font-black">
                     {displayedRoles.map((role) => (
                       <React.Fragment key={role.key}>
-                        <th className="py-1.5 px-1.5 text-center text-emerald-600 tracking-wider">VIEW</th>
-                        <th className="py-1.5 px-1.5 text-center text-amber-500 tracking-wider">EDIT</th>
-                        <th className="py-1.5 px-1.5 text-center text-red-500 tracking-wider border-r border-ink-100 last:border-r-0">DELETE</th>
+                        {CRUD_ACTIONS.map((act) => (
+                          <th
+                            key={`${role.key}-${act.key}`}
+                            className={`py-2 px-1 text-center font-black tracking-wider ${act.color} ${act.bg} ${
+                              act.key === 'export' ? 'border-r-2 border-ink-200' : 'border-r border-ink-100'
+                            }`}
+                            title={`${role.label}: ${act.desc}`}
+                          >
+                            {act.label}
+                          </th>
+                        ))}
                       </React.Fragment>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ink-50 text-ink-800">
+
+                <tbody className="divide-y divide-ink-100 text-ink-800 bg-white">
                   {CRUD_MODULE_ROWS.map((mod) => (
-                    <tr key={mod.key} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-ink-900 border-r border-ink-100 whitespace-nowrap">
-                        {mod.label}
+                    <tr key={mod.key} className="hover:bg-blue-50/20 transition-colors">
+                      {/* Sticky Left Column: Module / Feature */}
+                      <td className="sticky left-0 z-20 py-3.5 px-4 font-bold text-ink-900 border-r-2 border-ink-200 bg-white whitespace-nowrap shadow-xs">
+                        <div className="pr-2">
+                          <p className="text-xs font-bold text-ink-900 leading-tight">{mod.label}</p>
+                          <p className="text-[10px] text-ink-400 font-normal leading-tight mt-0.5">{mod.desc}</p>
+                        </div>
                       </td>
+
+                      {/* 7 Permission Checkboxes per Role */}
                       {displayedRoles.map((role) => (
                         <React.Fragment key={role.key}>
-                          <td className="py-3 px-1.5 text-center">
-                            <input
-                              type="checkbox"
-                              checked={getCrudPermission(mod.key, 'view', role.key)}
-                              onChange={(e) => handleCrudToggle(mod.key, 'view', role.key, e.target.checked)}
-                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-400"
-                            />
-                          </td>
-                          <td className="py-3 px-1.5 text-center">
-                            <input
-                              type="checkbox"
-                              checked={getCrudPermission(mod.key, 'edit', role.key)}
-                              onChange={(e) => handleCrudToggle(mod.key, 'edit', role.key, e.target.checked)}
-                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-400"
-                            />
-                          </td>
-                          <td className="py-3 px-1.5 text-center border-r border-ink-100 last:border-r-0">
-                            <input
-                              type="checkbox"
-                              checked={getCrudPermission(mod.key, 'delete', role.key)}
-                              onChange={(e) => handleCrudToggle(mod.key, 'delete', role.key, e.target.checked)}
-                              className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-400"
-                            />
-                          </td>
+                          {CRUD_ACTIONS.map((act) => (
+                            <td
+                              key={`${mod.key}-${role.key}-${act.key}`}
+                              className={`py-3 px-1 text-center align-middle ${
+                                act.key === 'export' ? 'border-r-2 border-ink-200' : 'border-r border-ink-100'
+                              } hover:bg-blue-50/40 transition-colors`}
+                            >
+                              <div className="flex items-center justify-center">
+                                <input
+                                  type="checkbox"
+                                  checked={getCrudPermission(mod.key, act.key, role.key)}
+                                  onChange={(e) => handleCrudToggle(mod.key, act.key, role.key, e.target.checked)}
+                                  className="h-4 w-4 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition hover:border-blue-500"
+                                  title={`${mod.label} • ${role.label} • ${act.label} (${act.desc})`}
+                                />
+                              </div>
+                            </td>
+                          ))}
                         </React.Fragment>
                       ))}
                     </tr>
@@ -2395,32 +2752,60 @@ export default function Settings() {
               </table>
             </div>
 
-            {/* Bottom Legend & Save Button matching screenshot 3 */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-ink-100">
-              <div className="flex flex-wrap items-center gap-5 text-xs text-ink-600">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                  <span className="font-semibold text-ink-800">View</span> — Can see records
+            {/* Bottom Legend & Save Action Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-3 border-t border-ink-100">
+              {/* 7 Permission Actions Legend */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-600">
+                <div className="flex items-center gap-1.5 font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>View</span> <span className="font-normal text-[11px] text-ink-500">— Read records</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
-                  <span className="font-semibold text-ink-800">Edit</span> — Can update records
+                <div className="flex items-center gap-1.5 font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                  <span className="w-2 h-2 rounded-full bg-blue-600" />
+                  <span>Create</span> <span className="font-normal text-[11px] text-ink-500">— Add records</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
-                  <span className="font-semibold text-ink-800">Delete</span> — Can permanently remove records
+                <div className="flex items-center gap-1.5 font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span>Edit</span> <span className="font-normal text-[11px] text-ink-500">— Update records</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-md border border-red-200">
+                  <span className="w-2 h-2 rounded-full bg-red-600" />
+                  <span>Delete</span> <span className="font-normal text-[11px] text-ink-500">— Remove records</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                  <span className="w-2 h-2 rounded-full bg-purple-600" />
+                  <span>Approve</span> <span className="font-normal text-[11px] text-ink-500">— Approve vouchers</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-semibold text-rose-800 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                  <span className="w-2 h-2 rounded-full bg-rose-800" />
+                  <span>Reject</span> <span className="font-normal text-[11px] text-ink-500">— Reject vouchers</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-300">
+                  <span className="w-2 h-2 rounded-full bg-slate-500" />
+                  <span>Print / Export</span> <span className="font-normal text-[11px] text-ink-500">— Export reports</span>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleSystemSubmit}
-                disabled={systemSaving}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition active:scale-[0.98] disabled:opacity-50 self-end sm:self-auto"
-              >
-                <Save size={15} />
-                {systemSaving ? 'Saving…' : 'Save Role Permissions'}
-              </button>
+              {/* Save & Reset Buttons */}
+              <div className="flex items-center gap-2.5 self-end lg:self-auto">
+                <button
+                  type="button"
+                  onClick={handleResetCrudDefaults}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white hover:bg-ink-50 px-3.5 py-2 text-xs font-bold text-ink-600 transition shadow-xs"
+                >
+                  <RotateCcw size={13} className="text-ink-500" />
+                  <span>Reset Defaults</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSystemSubmit}
+                  disabled={systemSaving}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-xs font-bold text-white shadow-md transition active:scale-[0.98] disabled:opacity-50"
+                >
+                  <Save size={15} />
+                  <span>{systemSaving ? 'Saving…' : 'Save Role Permissions'}</span>
+                </button>
+              </div>
             </div>
           </Card>
 

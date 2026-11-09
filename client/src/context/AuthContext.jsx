@@ -472,6 +472,7 @@ export const AuthProvider = ({ children }) => {
     if (action === 'read') actionKeys.push('view');
     if (action === 'edit') actionKeys.push('update');
     if (action === 'update') actionKeys.push('edit');
+    if (action === 'export' || action === 'print') actionKeys.push('export', 'print', 'print_export');
 
     // Capability aliases
     const capAliases = [capability];
