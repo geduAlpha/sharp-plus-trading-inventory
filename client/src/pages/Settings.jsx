@@ -713,6 +713,58 @@ export default function Settings() {
     });
   };
 
+  // Bulk Capability Handlers
+  const handleSelectAllCapabilities = (forceValue = true) => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+      CAPABILITIES.forEach((cap) => {
+        const currentCap = { ...(perms[cap.key] || DEFAULT_CAPABILITY_DEFAULTS[cap.key] || {}) };
+        MATRIX_ROLES.forEach((r) => {
+          currentCap[r.key] = forceValue;
+        });
+        perms[cap.key] = currentCap;
+      });
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
+  const handleBulkToggleCapabilityRole = (roleKey, forceValue) => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+      let targetVal = forceValue;
+      if (typeof targetVal !== 'boolean') {
+        const allChecked = CAPABILITIES.every((cap) => {
+          const capObj = perms[cap.key] || DEFAULT_CAPABILITY_DEFAULTS[cap.key] || {};
+          return Boolean(capObj[roleKey]);
+        });
+        targetVal = !allChecked;
+      }
+      CAPABILITIES.forEach((cap) => {
+        const currentCap = { ...(perms[cap.key] || DEFAULT_CAPABILITY_DEFAULTS[cap.key] || {}) };
+        currentCap[roleKey] = targetVal;
+        perms[cap.key] = currentCap;
+      });
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
+  const handleToggleCapabilityRow = (capKey, forceValue) => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+      const currentCap = { ...(perms[capKey] || DEFAULT_CAPABILITY_DEFAULTS[capKey] || {}) };
+      let targetVal = forceValue;
+      if (typeof targetVal !== 'boolean') {
+        const allChecked = MATRIX_ROLES.every((r) => Boolean(currentCap[r.key]));
+        targetVal = !allChecked;
+      }
+      MATRIX_ROLES.forEach((r) => {
+        currentCap[r.key] = targetVal;
+      });
+      perms[capKey] = currentCap;
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
   // Reset Role Capabilities to default
   const handleResetCapabilityDefaults = () => {
     if (!window.confirm('Reset all role capabilities to system standard defaults?')) return;
@@ -759,6 +811,34 @@ export default function Settings() {
   };
 
   // Bulk Navigation Visibility actions
+  const handleSelectAllNav = (forceValue = true) => {
+    setSystemForm((prev) => {
+      const nav = { ...(prev.navVisibility || {}) };
+      SIDEBAR_NAV_ITEMS.forEach((item) => {
+        const itemObj = { ...(nav[item.key] || {}) };
+        displayedRoles.forEach((r) => {
+          itemObj[r.key] = forceValue;
+        });
+        nav[item.key] = itemObj;
+        if (item.navKey && item.navKey !== item.key) {
+          const altObj = { ...(nav[item.navKey] || {}) };
+          displayedRoles.forEach((r) => {
+            altObj[r.key] = forceValue;
+          });
+          nav[item.navKey] = altObj;
+        }
+        if (item.parentKey) {
+          const parentObj = { ...(nav[item.parentKey] || {}) };
+          displayedRoles.forEach((r) => {
+            parentObj[r.key] = forceValue;
+          });
+          nav[item.parentKey] = parentObj;
+        }
+      });
+      return { ...prev, navVisibility: nav };
+    });
+  };
+
   const handleSelectAllNavForRole = (roleKey) => {
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
@@ -779,6 +859,46 @@ export default function Settings() {
         if (item.navKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: false };
         if (item.parentKey) nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: false };
       });
+      return { ...prev, navVisibility: nav };
+    });
+  };
+
+  const handleToggleNavRow = (itemKey, forceValue) => {
+    setSystemForm((prev) => {
+      const nav = { ...(prev.navVisibility || {}) };
+      const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === itemKey);
+      let targetVal = forceValue;
+      if (typeof targetVal !== 'boolean') {
+        const allChecked = displayedRoles.every((r) => {
+          return nav[itemKey]?.[r.key] !== undefined
+            ? Boolean(nav[itemKey][r.key])
+            : (item?.navKey && nav[item.navKey]?.[r.key] !== undefined
+              ? Boolean(nav[item.navKey][r.key])
+              : (SCREENSHOT_NAV_DEFAULTS[itemKey]?.[r.key] ?? true));
+        });
+        targetVal = !allChecked;
+      }
+
+      displayedRoles.forEach((r) => {
+        nav[itemKey] = { ...(nav[itemKey] || {}), [r.key]: targetVal };
+        if (item?.navKey && item.navKey !== itemKey) {
+          nav[item.navKey] = { ...(nav[item.navKey] || {}), [r.key]: targetVal };
+        }
+        if (item?.parentKey) {
+          if (targetVal) {
+            nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [r.key]: true };
+          } else {
+            const siblings = SIDEBAR_NAV_ITEMS.filter((i) => i.parentKey === item.parentKey && i.key !== itemKey);
+            const anySiblingActive = siblings.some(
+              (s) => nav[s.key]?.[r.key] === true || (s.navKey && nav[s.navKey]?.[r.key] === true)
+            );
+            if (!anySiblingActive) {
+              nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [r.key]: false };
+            }
+          }
+        }
+      });
+
       return { ...prev, navVisibility: nav };
     });
   };
@@ -868,22 +988,25 @@ export default function Settings() {
   };
 
   // Bulk Permission Controls for 7 Actions & Individual Roles
-  const handleBulkToggleAction = (actionKey) => {
+  const handleBulkToggleAction = (actionKey, forceValue) => {
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
 
-      // Determine if all visible checkboxes for this action are currently checked
-      let allChecked = true;
-      for (const mod of CRUD_MODULE_ROWS) {
-        for (const role of displayedRoles) {
-          if (!getCrudPermission(mod.key, actionKey, role.key)) {
-            allChecked = false;
-            break;
+      let targetVal = forceValue;
+      if (typeof targetVal !== 'boolean') {
+        // Determine if all visible checkboxes for this action are currently checked
+        let allChecked = true;
+        for (const mod of CRUD_MODULE_ROWS) {
+          for (const role of displayedRoles) {
+            if (!getCrudPermission(mod.key, actionKey, role.key)) {
+              allChecked = false;
+              break;
+            }
           }
+          if (!allChecked) break;
         }
-        if (!allChecked) break;
+        targetVal = !allChecked;
       }
-      const targetVal = !allChecked;
 
       CRUD_MODULE_ROWS.forEach((mod) => {
         const aliasMap = {
@@ -913,6 +1036,57 @@ export default function Settings() {
         updateKey(mod.key);
         if (altKey) updateKey(altKey);
       });
+
+      return { ...prev, rolePermissions: perms };
+    });
+  };
+
+  const handleToggleCrudModuleRow = (moduleKey, forceValue) => {
+    setSystemForm((prev) => {
+      const perms = { ...(prev.rolePermissions || {}) };
+      const aliasMap = {
+        raw_materials: 'items',
+        items: 'raw_materials',
+        overhead_expenses: 'expenses',
+        expenses: 'overhead_expenses',
+        stock_movements: 'stockMovements',
+        stockMovements: 'stock_movements',
+        purchases: 'purchases_grv',
+        purchases_grv: 'purchases',
+        employees: 'staffAccounts',
+        staffAccounts: 'employees',
+      };
+      const altKey = aliasMap[moduleKey];
+
+      let targetVal = forceValue;
+      if (typeof targetVal !== 'boolean') {
+        let allChecked = true;
+        for (const act of CRUD_ACTIONS) {
+          for (const r of displayedRoles) {
+            if (!getCrudPermission(moduleKey, act.key, r.key)) {
+              allChecked = false;
+              break;
+            }
+          }
+          if (!allChecked) break;
+        }
+        targetVal = !allChecked;
+      }
+
+      const updateKey = (k) => {
+        const modObj = { ...(perms[k] || {}) };
+        CRUD_ACTIONS.forEach((act) => {
+          const actObj = { ...(modObj[act.key] || {}) };
+          displayedRoles.forEach((r) => {
+            actObj[r.key] = targetVal;
+          });
+          modObj[act.key] = actObj;
+        });
+        perms[k] = modObj;
+      };
+
+      updateKey(moduleKey);
+      if (altKey) updateKey(altKey);
 
       return { ...prev, rolePermissions: perms };
     });
@@ -2318,6 +2492,42 @@ export default function Settings() {
               </div>
             </div>
 
+            {/* Bulk Action Controls Bar for Capabilities */}
+            <div className="mt-4 rounded-xl border border-ink-200/80 bg-slate-50/70 p-3.5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+                    <SlidersHorizontal size={13} />
+                  </span>
+                  <span className="text-xs font-bold text-ink-800 uppercase tracking-wide">
+                    Capability Controls
+                  </span>
+                  <span className="text-[11px] text-ink-400">
+                    (Bulk toggle role capabilities across all system roles)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAllCapabilities(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                  >
+                    <CheckSquare size={13} className="text-blue-600" />
+                    <span>All ON</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAllCapabilities(false)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                  >
+                    <Square size={13} className="text-red-600" />
+                    <span>None (OFF)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Matrix Table matching screenshot */}
             <div className="overflow-x-auto mt-4 rounded-xl border border-ink-100">
               <table className="w-full text-left text-sm">
@@ -2326,7 +2536,28 @@ export default function Settings() {
                     <th className="py-3.5 px-4 font-bold">System Capability</th>
                     {MATRIX_ROLES.map((r) => (
                       <th key={r.key} className="py-3.5 px-3 text-center font-bold">
-                        {r.label}
+                        <div className="flex flex-col items-center gap-1">
+                          <span>{r.label}</span>
+                          <div className="flex items-center gap-1 text-[10px] font-normal text-ink-400">
+                            <button
+                              type="button"
+                              onClick={() => handleBulkToggleCapabilityRole(r.key, true)}
+                              className="hover:text-blue-600 hover:underline font-bold"
+                              title={`Enable all capabilities for ${r.label}`}
+                            >
+                              All
+                            </button>
+                            <span>/</span>
+                            <button
+                              type="button"
+                              onClick={() => handleBulkToggleCapabilityRole(r.key, false)}
+                              className="hover:text-red-600 hover:underline font-bold"
+                              title={`Disable all capabilities for ${r.label}`}
+                            >
+                              None
+                            </button>
+                          </div>
+                        </div>
                       </th>
                     ))}
                   </tr>
@@ -2335,7 +2566,27 @@ export default function Settings() {
                   {CAPABILITIES.map((cap) => (
                     <tr key={cap.key} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3 px-4 font-medium text-ink-800 text-[13px]">
-                        {cap.label}
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{cap.label}</span>
+                          <div className="flex items-center gap-1 text-[10px] font-bold opacity-75 hover:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCapabilityRow(cap.key, true)}
+                              className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
+                              title={`Enable ${cap.label} for all roles`}
+                            >
+                              All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCapabilityRow(cap.key, false)}
+                              className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
+                              title={`Disable ${cap.label} for all roles`}
+                            >
+                              None
+                            </button>
+                          </div>
+                        </div>
                       </td>
                       {MATRIX_ROLES.map((r) => {
                         const isChecked = systemForm.rolePermissions?.[cap.key]?.[r.key] !== undefined
@@ -2405,6 +2656,42 @@ export default function Settings() {
                 >
                   <Save size={13} /> {systemSaving ? 'Saving Visibility…' : 'Save Changes'}
                 </Button>
+              </div>
+            </div>
+
+            {/* Visibility Bulk Controls Bar */}
+            <div className="rounded-xl border border-ink-200/80 bg-slate-50/70 p-3.5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+                    <SlidersHorizontal size={13} />
+                  </span>
+                  <span className="text-xs font-bold text-ink-800 uppercase tracking-wide">
+                    Visibility Controls
+                  </span>
+                  <span className="text-[11px] text-ink-400">
+                    (Bulk toggle sidebar menu visibility across active roles)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAllNav(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                  >
+                    <CheckSquare size={13} className="text-emerald-600" />
+                    <span>All Visible (ON)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAllNav(false)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                  >
+                    <Square size={13} className="text-red-600" />
+                    <span>Hide All (OFF)</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2493,18 +2780,38 @@ export default function Settings() {
                       return (
                         <tr key={nav.key} className={`hover:bg-slate-50/70 transition-colors ${isSubmenu ? 'bg-slate-50/30' : 'bg-white'}`}>
                           <td className="py-3 px-4 font-semibold text-ink-900">
-                            <div className="flex items-center gap-2">
-                              {isSubmenu && (
-                                <span className="text-ink-300 font-mono text-[10px]">↳</span>
-                              )}
-                              <span className={`text-[13px] ${isSubmenu ? 'text-ink-700 font-medium' : 'text-ink-900 font-bold'}`}>
-                                {nav.label}
-                              </span>
-                              {nav.route && (
-                                <code className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-ink-400">
-                                  {nav.route}
-                                </code>
-                              )}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                {isSubmenu && (
+                                  <span className="text-ink-300 font-mono text-[10px]">↳</span>
+                                )}
+                                <span className={`text-[13px] ${isSubmenu ? 'text-ink-700 font-medium' : 'text-ink-900 font-bold'}`}>
+                                  {nav.label}
+                                </span>
+                                {nav.route && (
+                                  <code className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-ink-400">
+                                    {nav.route}
+                                  </code>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 text-[10px] font-bold opacity-75 hover:opacity-100">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleNavRow(nav.key, true)}
+                                  className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
+                                  title={`Make ${nav.label} visible for all roles`}
+                                >
+                                  All
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleNavRow(nav.key, false)}
+                                  className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
+                                  title={`Hide ${nav.label} for all roles`}
+                                >
+                                  None
+                                </button>
+                              </div>
                             </div>
                           </td>
                           {displayedRoles.map((r) => {
@@ -2628,19 +2935,39 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* 7 Action Bulk Toggles with Distinct Colors */}
+              {/* 7 Action Bulk Toggles with Distinct Colors & ON/OFF Controls */}
               <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-ink-200/60">
                 {CRUD_ACTIONS.map((act) => (
-                  <button
+                  <div
                     key={act.key}
-                    type="button"
-                    onClick={() => handleBulkToggleAction(act.key)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-white/90 px-3 py-1.5 text-xs font-bold ${act.color} shadow-2xs transition hover:scale-102 hover:border-ink-300 active:scale-98`}
-                    title={`Toggle ${act.label} across all modules and roles`}
+                    className="inline-flex items-center rounded-lg border border-ink-200 bg-white overflow-hidden shadow-2xs hover:border-ink-300 transition"
                   >
-                    <span className={`w-2 h-2 rounded-full ${act.dot}`} />
-                    <span>Toggle All {act.label}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkToggleAction(act.key)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold ${act.color} hover:bg-slate-50 transition border-r border-ink-100`}
+                      title={`Toggle ${act.label} across all modules and roles`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${act.dot}`} />
+                      <span>{act.label}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkToggleAction(act.key, true)}
+                      className="px-2 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 transition border-r border-ink-100"
+                      title={`Turn ON ${act.label} for all modules & roles`}
+                    >
+                      ON
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkToggleAction(act.key, false)}
+                      className="px-2 py-1.5 text-[11px] font-bold text-red-600 hover:bg-red-50 transition"
+                      title={`Turn OFF ${act.label} for all modules & roles`}
+                    >
+                      OFF
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -2718,7 +3045,27 @@ export default function Settings() {
                       {/* Sticky Left Column: Module / Feature */}
                       <td className="sticky left-0 z-20 py-3.5 px-4 font-bold text-ink-900 border-r-2 border-ink-200 bg-white whitespace-nowrap shadow-xs">
                         <div className="pr-2">
-                          <p className="text-xs font-bold text-ink-900 leading-tight">{mod.label}</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-bold text-ink-900 leading-tight">{mod.label}</p>
+                            <div className="flex items-center gap-1 text-[10px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCrudModuleRow(mod.key, true)}
+                                className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
+                                title={`Enable all 7 actions for ${mod.label}`}
+                              >
+                                All
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCrudModuleRow(mod.key, false)}
+                                className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
+                                title={`Disable all 7 actions for ${mod.label}`}
+                              >
+                                None
+                              </button>
+                            </div>
+                          </div>
                           <p className="text-[10px] text-ink-400 font-normal leading-tight mt-0.5">{mod.desc}</p>
                         </div>
                       </td>
