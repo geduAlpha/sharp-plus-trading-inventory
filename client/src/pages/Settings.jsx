@@ -48,6 +48,9 @@ import {
   CheckSquare,
   Square,
   AlertTriangle,
+  UserX,
+  Pencil,
+  MoreVertical,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -178,7 +181,7 @@ const DEFAULT_PRINTERS = [
 const SETTINGS_TABS = [
   { id: 'profile', label: 'My Profile', icon: User },
   { id: 'security', label: 'Security & Password', icon: Shield },
-  { id: 'system', label: 'Hotel & System Config', icon: Building2, adminOnly: true },
+  { id: 'system', label: 'Company & System Config', icon: Building2, adminOnly: true },
   { id: 'permissions', label: 'Role Privileges', icon: Layers, adminOnly: true },
   { id: 'telegram', label: 'Telegram Subscribers', icon: Send, adminOnly: true },
   { id: 'printers', label: 'Order Printers', icon: Printer, adminOnly: true },
@@ -323,6 +326,18 @@ export default function Settings() {
   const [tgAddOpen, setTgAddOpen] = useState(false);
   const [tgAddForm, setTgAddForm] = useState({ name: '', phone: '', username: '', chatId: '' });
   const [tgAddSaving, setTgAddSaving] = useState(false);
+  // Action dropdown & edit modal state for Telegram subscribers
+  const [activeActionMenu, setActiveActionMenu] = useState(null);
+  const [tgEditModalSub, setTgEditModalSub] = useState(null);
+  const [tgEditForm, setTgEditForm] = useState({ name: '', username: '', phone: '' });
+  const [tgEditSaving, setTgEditSaving] = useState(false);
+
+  // Close active action dropdown when clicking anywhere outside
+  useEffect(() => {
+    const handleOutsideClick = () => setActiveActionMenu(null);
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   // Sync profile when user updates
   useEffect(() => {
@@ -420,6 +435,50 @@ export default function Settings() {
       setTgError(err.response?.data?.message || 'Failed to add subscriber.');
     } finally {
       setTgAddSaving(false);
+    }
+  };
+
+  const handleOpenEditModal = (sub) => {
+    setTgEditModalSub(sub);
+    setTgEditForm({
+      name: sub.name || '',
+      username: sub.username || '',
+      phone: sub.phone || '',
+    });
+    setActiveActionMenu(null);
+  };
+
+  const handleUpdateSubscriber = async (e) => {
+    e.preventDefault();
+    if (!tgEditModalSub) return;
+    setTgEditSaving(true);
+    setTgError('');
+    try {
+      await api.put(`/telegram/subscribers/${tgEditModalSub.chatId}`, tgEditForm);
+      setTgSuccess(`Subscriber "${tgEditForm.name || tgEditModalSub.name}" updated successfully.`);
+      setTimeout(() => setTgSuccess(''), 4000);
+      setTgEditModalSub(null);
+      loadTgSubscribers();
+    } catch (err) {
+      setTgError(err.response?.data?.message || 'Failed to update subscriber.');
+    } finally {
+      setTgEditSaving(false);
+    }
+  };
+
+  const handleDeleteSubscriber = async (chatId, name) => {
+    if (!window.confirm(`Permanently delete subscriber record for "${name}"? This will completely remove them.`)) return;
+    setTgRemoving(chatId);
+    setTgError('');
+    try {
+      await api.delete(`/telegram/subscribers/${chatId}`);
+      setTgSuccess(`Subscriber "${name}" deleted permanently.`);
+      setTimeout(() => setTgSuccess(''), 4000);
+      loadTgSubscribers();
+    } catch (err) {
+      setTgError(err.response?.data?.message || 'Failed to delete subscriber.');
+    } finally {
+      setTgRemoving(null);
     }
   };
 
@@ -811,7 +870,7 @@ export default function Settings() {
         setSystemForm((prev) => ({ ...prev, ...res.data }));
         await refreshPermissions(res.data);
       }
-      setSystemSuccess(`Hotel Admin Theme & Icon Customization set to ${newValue ? 'ALLOWED (VISIBLE TO ADMIN)' : 'RESTRICTED / HIDDEN'}.`);
+      setSystemSuccess(`Company Admin Theme & Icon Customization set to ${newValue ? 'ALLOWED (VISIBLE TO ADMIN)' : 'RESTRICTED / HIDDEN'}.`);
       setTimeout(() => setSystemSuccess(''), 3000);
     } catch (err) {
       setSystemError(err.response?.data?.message || 'Failed to update theme customization delegation.');
@@ -958,15 +1017,14 @@ export default function Settings() {
             <button
               key={tab.id}
               onClick={() => setTab(tab.id)}
-              className={`flex items-center gap-2 border-b-2 px-3 py-3 text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-                isActive
+              className={`flex items-center gap-2 border-b-2 px-3 py-3 text-xs sm:text-sm font-semibold transition whitespace-nowrap ${isActive
                   ? isDevTab
                     ? 'border-amber-500 text-amber-600 font-bold'
                     : 'border-blue-600 text-blue-600 font-bold'
                   : isDevTab
-                  ? 'border-transparent text-amber-700 hover:text-amber-900'
-                  : 'border-transparent text-ink-500 hover:text-ink-800'
-              }`}
+                    ? 'border-transparent text-amber-700 hover:text-amber-900'
+                    : 'border-transparent text-ink-500 hover:text-ink-800'
+                }`}
             >
               <Icon size={16} className={isDevTab ? 'text-amber-500' : isActive ? 'text-blue-600' : 'text-ink-400'} />
               <span>{tab.label}</span>
@@ -1923,7 +1981,7 @@ export default function Settings() {
             </form>
           </Card>
 
-          {/* Hotel Appearance Customizer (Controlled by Developer) */}
+          {/* Company Appearance Customizer (Controlled by Developer) */}
           {systemForm.allowAdminThemeCustomization !== false && (
             <Card className="max-w-3xl">
               <div className="flex items-center justify-between pb-4 border-b border-ink-100 mb-4">
@@ -1932,7 +1990,7 @@ export default function Settings() {
                     <Palette size={20} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-ink-900">Hotel Appearance &amp; Brand Color Theme</h3>
+                    <h3 className="font-bold text-sm text-ink-900">Company Appearance &amp; Brand Color Theme</h3>
                     <p className="text-xs text-ink-400 mt-0.5">Customize your company sidebar and branding colors</p>
                   </div>
                 </div>
@@ -1952,11 +2010,10 @@ export default function Settings() {
                     <div
                       key={th.id}
                       onClick={() => handleDevThemeSelect(th.id)}
-                      className={`p-3.5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between ${
-                        isSelected
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between ${isSelected
                           ? 'border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/20 shadow-xs'
                           : 'border-ink-200 bg-white hover:border-ink-300'
-                      }`}
+                        }`}
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
@@ -2475,13 +2532,18 @@ export default function Settings() {
               <p className="text-xs text-ink-300 mt-1">Share t.me/Sharp PlusBot to get started</p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-ink-100">
+            <div className="overflow-x-auto overflow-y-visible rounded-xl border border-ink-100 min-h-[180px]">
               <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                 <thead style={{ background: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%)' }}>
                   <tr>
-                    {['#', 'Name', 'Username', 'Phone (OTP)', 'Subscribed At', 'Actions'].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-blue-100"
-                        style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }}>
+                    {['#', 'Name', 'Username', 'Phone (OTP)', 'Subscribed At', 'Action'].map((h, idx) => (
+                      <th
+                        key={h}
+                        className={`px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-blue-100 ${
+                          idx === 5 ? 'text-right' : 'text-left'
+                        }`}
+                        style={{ borderBottom: '1px solid rgba(147,197,253,0.3)' }}
+                      >
                         {h}
                       </th>
                     ))}
@@ -2489,7 +2551,11 @@ export default function Settings() {
                 </thead>
                 <tbody>
                   {tgSubscribers.map((sub, i) => (
-                    <tr key={sub.chatId} className="hover:bg-ink-50/40" style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr
+                      key={sub.chatId}
+                      className={`hover:bg-ink-50/40 ${activeActionMenu === sub.chatId ? 'relative z-20 bg-blue-50/20' : ''}`}
+                      style={{ borderBottom: '1px solid #f1f5f9' }}
+                    >
                       <td className="px-4 py-3 text-xs text-ink-400 tabular-nums">{i + 1}</td>
                       <td className="px-4 py-3 font-semibold text-ink-800">{sub.name || '—'}</td>
                       <td className="px-4 py-3 text-xs text-blue-600">
@@ -2546,15 +2612,89 @@ export default function Settings() {
                       <td className="px-4 py-3 text-xs text-ink-400 whitespace-nowrap">
                         {sub.subscribedAt ? new Date(sub.subscribedAt).toLocaleString() : '—'}
                       </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleRemoveTgSubscriber(sub.chatId, sub.name)}
-                          disabled={tgRemoving === sub.chatId}
-                          className="inline-flex items-center gap-1 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 transition disabled:opacity-50"
-                        >
-                          <Trash2 size={12} />
-                          {tgRemoving === sub.chatId ? 'Removing…' : 'Remove'}
-                        </button>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="relative inline-block text-left">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveActionMenu(activeActionMenu === sub.chatId ? null : sub.chatId);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-blue-50/50 hover:border-blue-400 px-3 py-1.5 text-xs font-bold text-ink-700 shadow-xs transition focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          >
+                            <span>Action</span>
+                            <ChevronDown
+                              size={13}
+                              className={`text-ink-400 transition-transform duration-150 ${activeActionMenu === sub.chatId ? 'rotate-180 text-blue-600' : ''}`}
+                            />
+                          </button>
+
+                          {activeActionMenu === sub.chatId && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 z-50 mt-1.5 w-52 rounded-xl border border-ink-200 bg-white py-1.5 shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-100 text-left"
+                            >
+                              <div className="px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-400 border-b border-ink-100 mb-1">
+                                Action Menu
+                              </div>
+
+                              {/* 1. Edit */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(sub)}
+                                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-ink-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                              >
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                  <Pencil size={13} />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-ink-900">Edit Details</div>
+                                  <div className="text-[10px] text-ink-400">Name, username &amp; phone</div>
+                                </div>
+                              </button>
+
+                              {/* 2. Remove */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveActionMenu(null);
+                                  handleRemoveTgSubscriber(sub.chatId, sub.name);
+                                }}
+                                disabled={tgRemoving === sub.chatId}
+                                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-amber-700 hover:bg-amber-50 transition"
+                              >
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                                  <UserX size={13} />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-amber-900">Remove</div>
+                                  <div className="text-[10px] text-amber-700/70">Unsubscribe from bot</div>
+                                </div>
+                              </button>
+
+                              <div className="my-1 border-t border-ink-100" />
+
+                              {/* 3. Delete */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveActionMenu(null);
+                                  handleDeleteSubscriber(sub.chatId, sub.name);
+                                }}
+                                disabled={tgRemoving === sub.chatId}
+                                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 transition"
+                              >
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                                  <Trash2 size={13} />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-red-700">Delete</div>
+                                  <div className="text-[10px] text-red-500/70">Permanently delete record</div>
+                                </div>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2634,6 +2774,110 @@ export default function Settings() {
               </div>
             </div>
           )}
+
+          {/* ── Edit Subscriber Modal ── */}
+          {tgEditModalSub && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+              <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-ink-100 overflow-hidden">
+                <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4 bg-gradient-to-r from-blue-50 to-indigo-50/50">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                      <Pencil size={15} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-ink-900 text-sm">Edit Telegram Subscriber</h3>
+                      <p className="text-[11px] text-ink-500">Update subscriber details and OTP phone</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setTgEditModalSub(null); setTgError(''); }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-400 hover:bg-white hover:text-ink-700 text-base font-bold transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdateSubscriber} className="p-5 space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-700 mb-1">Full Name *</label>
+                    <input
+                      required
+                      type="text"
+                      value={tgEditForm.name}
+                      onChange={e => setTgEditForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Gedamu Waleigh"
+                      className="w-full rounded-xl border border-ink-200 px-3.5 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-700 mb-1">
+                      Phone Number * <span className="text-blue-600 font-normal">(used for OTP verification)</span>
+                    </label>
+                    <input
+                      required
+                      type="tel"
+                      value={tgEditForm.phone}
+                      onChange={e => setTgEditForm(f => ({ ...f, phone: e.target.value }))}
+                      placeholder="e.g. 0912627366"
+                      className="w-full rounded-xl border border-ink-200 px-3.5 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-ink-700 mb-1">
+                      Telegram Username <span className="text-ink-400 font-normal">(without @)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={tgEditForm.username}
+                      onChange={e => setTgEditForm(f => ({ ...f, username: e.target.value.replace(/^@/, '') }))}
+                      placeholder="e.g. GreatestValue"
+                      className="w-full rounded-xl border border-ink-200 px-3.5 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                    />
+                  </div>
+
+                  <div className="rounded-xl bg-ink-50 p-3 border border-ink-200/70">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-ink-500">Telegram Chat ID:</span>
+                      <span className="font-mono text-ink-700 font-bold">{tgEditModalSub.chatId || '—'}</span>
+                    </div>
+                    {tgEditModalSub.subscribedAt && (
+                      <div className="flex items-center justify-between text-[11px] mt-1 pt-1 border-t border-ink-200/50">
+                        <span className="font-semibold text-ink-500">Subscribed At:</span>
+                        <span className="text-ink-600">{new Date(tgEditModalSub.subscribedAt).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {tgError && (
+                    <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
+                      <AlertCircle size={14} className="flex-shrink-0" />
+                      <span>{tgError}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => { setTgEditModalSub(null); setTgError(''); }}
+                      className="rounded-xl border border-ink-200 px-4 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={tgEditSaving}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-50 shadow-xs"
+                    >
+                      <Save size={14} />
+                      {tgEditSaving ? 'Saving…' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -2678,9 +2922,8 @@ export default function Settings() {
               {(systemForm.printers || []).map((p) => (
                 <div
                   key={p.id}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    p.isDefault ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 bg-white hover:border-ink-200'
-                  }`}
+                  className={`p-4 rounded-xl border-2 transition-all ${p.isDefault ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 bg-white hover:border-ink-200'
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2.5">
@@ -2819,9 +3062,8 @@ export default function Settings() {
               <div className="pt-3 border-t border-ink-50">
                 <label className="block text-xs font-bold text-ink-800 mb-2">Price Tax Calculation Mode</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${
-                    systemForm.taxMode === 'inclusive' ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 hover:border-ink-200'
-                  }`}>
+                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${systemForm.taxMode === 'inclusive' ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 hover:border-ink-200'
+                    }`}>
                     <input
                       type="radio"
                       name="taxMode"
@@ -2836,9 +3078,8 @@ export default function Settings() {
                     </div>
                   </label>
 
-                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${
-                    systemForm.taxMode === 'exclusive' ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 hover:border-ink-200'
-                  }`}>
+                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${systemForm.taxMode === 'exclusive' ? 'border-blue-500 bg-blue-50/20' : 'border-ink-100 hover:border-ink-200'
+                    }`}>
                     <input
                       type="radio"
                       name="taxMode"
@@ -3029,7 +3270,7 @@ export default function Settings() {
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 flex items-start gap-3">
               <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <strong>⚠ Developer Security Area:</strong> Modules disabled here (Subsystem Suite, Finance &amp; Expenses, or Hotel Appearance Customizer) are locked and hidden across all hotel accounts including Admin. Only users with the Developer (dev) role can re-enable or manage them.
+                <strong>⚠ Developer Security Area:</strong> Modules disabled here (Subsystem Suite, Finance &amp; Expenses, or Company Appearance Customizer) are locked and hidden across all Company accounts including Admin. Only users with the Developer (dev) role can re-enable or manage them.
               </div>
             </div>
 
@@ -3041,7 +3282,7 @@ export default function Settings() {
                   <span>Module &amp; Interface Licensing</span>
                 </div>
                 <p className="text-xs text-ink-400">
-                  Enable or disable premium hotel modules and interface privileges per customer installation. Changes apply immediately across all devices.
+                  Enable or disable premium Company modules and interface privileges per customer installation. Changes apply immediately across all devices.
                 </p>
               </div>
 
@@ -3076,15 +3317,13 @@ export default function Settings() {
                         role="switch"
                         aria-checked={isLicensed}
                         onClick={() => handleDevModuleToggle('salesMarketing', !isLicensed)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
                       >
                         <span
                           aria-hidden="true"
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            isLicensed ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${isLicensed ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
@@ -3121,15 +3360,13 @@ export default function Settings() {
                         role="switch"
                         aria-checked={isLicensed}
                         onClick={() => handleDevModuleToggle('digitalMenu', !isLicensed)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
                       >
                         <span
                           aria-hidden="true"
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            isLicensed ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${isLicensed ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
@@ -3157,7 +3394,7 @@ export default function Settings() {
                           )}
                         </div>
                         <p className="text-xs text-ink-400 leading-normal">
-                          Overhead Expenses &amp; Analytics P&amp;L reports. When disabled, completely hidden and locked from non-developer hotel accounts.
+                          Overhead Expenses &amp; Analytics P&amp;L reports. When disabled, completely hidden and locked from non-developer Company accounts.
                         </p>
                       </div>
 
@@ -3166,15 +3403,13 @@ export default function Settings() {
                         role="switch"
                         aria-checked={isLicensed}
                         onClick={() => handleDevModuleToggle('accounting', !isLicensed)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
                       >
                         <span
                           aria-hidden="true"
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            isLicensed ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${isLicensed ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
@@ -3211,22 +3446,20 @@ export default function Settings() {
                         role="switch"
                         aria-checked={isLicensed}
                         onClick={() => handleDevModuleToggle('items', !isLicensed)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          isLicensed ? 'bg-amber-500' : 'bg-slate-200'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isLicensed ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
                       >
                         <span
                           aria-hidden="true"
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            isLicensed ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${isLicensed ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
                   );
                 })()}
 
-                {/* 5. Allow Hotel Admin Theme & Icon Customization */}
+                {/* 5. Allow Company Admin Theme & Icon Customization */}
                 {(() => {
                   const isAllowed = systemForm.allowAdminThemeCustomization !== false;
                   return (
@@ -3234,7 +3467,7 @@ export default function Settings() {
                       <div className="space-y-1 pr-4">
                         <div className="flex items-center gap-2.5 flex-wrap">
                           <h4 className="font-bold text-sm text-ink-900">
-                            Allow Hotel Admin Theme &amp; Icon Customization
+                            Allow Company Admin Theme &amp; Icon Customization
                           </h4>
                           {isAllowed ? (
                             <span className="rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 border border-emerald-200">
@@ -3247,7 +3480,7 @@ export default function Settings() {
                           )}
                         </div>
                         <p className="text-xs text-ink-400 leading-normal">
-                          When active, hotel Admin can change sidebar themes and icon modes in System Settings. When disabled, the entire Appearance card disappears from Hotel Settings and is controlled exclusively by the developer.
+                          When active, Company Admin can change sidebar themes and icon modes in System Settings. When disabled, the entire Appearance card disappears from Company Settings and is controlled exclusively by the developer.
                         </p>
                       </div>
 
@@ -3256,15 +3489,13 @@ export default function Settings() {
                         role="switch"
                         aria-checked={isAllowed}
                         onClick={() => handleDevAdminThemeToggle(!isAllowed)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          isAllowed ? 'bg-amber-500' : 'bg-slate-200'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isAllowed ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
                       >
                         <span
                           aria-hidden="true"
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            isAllowed ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${isAllowed ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
@@ -3301,15 +3532,13 @@ export default function Settings() {
                         role="switch"
                         aria-checked={isMaterial}
                         onClick={() => handleDevIconModeToggle(!isMaterial)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          isMaterial ? 'bg-amber-500' : 'bg-slate-200'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isMaterial ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
                       >
                         <span
                           aria-hidden="true"
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            isMaterial ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${isMaterial ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
@@ -3326,7 +3555,7 @@ export default function Settings() {
                   <span>Sidebar Appearance &amp; Brand Color Theme</span>
                 </div>
                 <p className="text-xs text-ink-400">
-                  Configure the hotel sidebar color palette to match the customer brand identity.
+                  Configure the Company sidebar color palette to match the customer brand identity.
                 </p>
               </div>
 
@@ -3360,11 +3589,10 @@ export default function Settings() {
                     <div
                       key={th.id}
                       onClick={() => handleDevThemeSelect(th.id)}
-                      className={`p-3.5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between ${
-                        isSelected
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between ${isSelected
                           ? 'border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/20 shadow-xs'
                           : 'border-ink-200 bg-white hover:border-ink-300'
-                      }`}
+                        }`}
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
@@ -3384,9 +3612,8 @@ export default function Settings() {
                               DARK
                             </span>
                             <div
-                              className={`h-5 w-5 rounded-full flex items-center justify-center transition ${
-                                isSelected ? 'bg-amber-500 text-white shadow-xs' : 'border border-ink-300'
-                              }`}
+                              className={`h-5 w-5 rounded-full flex items-center justify-center transition ${isSelected ? 'bg-amber-500 text-white shadow-xs' : 'border border-ink-300'
+                                }`}
                             >
                               {isSelected && <Check size={12} strokeWidth={3} />}
                             </div>

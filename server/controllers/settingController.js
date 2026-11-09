@@ -178,7 +178,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     if (!Array.isArray(settings.auditLogs)) settings.auditLogs = [];
     settings.auditLogs.unshift({
       action: 'ADMIN_THEME_CUSTOMIZATION_TOGGLED',
-      details: `Hotel Administrator Theme & Icon Customization set to ${settings.allowAdminThemeCustomization ? 'ALLOWED' : 'LOCKED (Developer Exclusive)'} by System Developer & Owner`,
+      details: `Company Administrator Theme & Icon Customization set to ${settings.allowAdminThemeCustomization ? 'ALLOWED' : 'LOCKED (Developer Exclusive)'} by System Developer & Owner`,
       actorId: req.user?._id,
       actorName: req.user?.name || 'System Developer & Owner',
       actorRole: 'developer',
@@ -242,7 +242,7 @@ const updateSettings = asyncHandler(async (req, res) => {
         resourceName: 'Role Privileges Matrix',
         details: { actor: req.user?.name, role: req.user?.role },
       });
-    } catch {}
+    } catch { }
   }
 
   if (req.body.navVisibility !== undefined && typeof req.body.navVisibility === 'object') {
@@ -286,7 +286,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     try {
       const { clearModulesCache } = require('../middleware/moduleGateMiddleware');
       clearModulesCache();
-    } catch {}
+    } catch { }
   }
 
   // Theme & Appearance Configuration with Audit Trail

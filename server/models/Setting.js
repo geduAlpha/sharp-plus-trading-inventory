@@ -121,7 +121,7 @@ const settingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // Authority Delegation: Developer/Owner controls whether hotel admin can customize sidebar themes and icon modes
+    // Authority Delegation: Developer/Owner controls whether Company admin can customize sidebar themes and icon modes
     allowAdminThemeCustomization: {
       type: Boolean,
       default: true,

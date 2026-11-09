@@ -310,6 +310,43 @@ const updateSubscriberPhone = asyncHandler(async (req, res) => {
   res.json({ message: 'Phone registered.', subscriber: subscribers[idx] });
 });
 
+// ── PUT /api/telegram/subscribers/:chatId (admin only) ───────────
+// Update subscriber full details (name, username, phone)
+const updateSubscriber = asyncHandler(async (req, res) => {
+  const { name, username, phone } = req.body;
+  const settings = await Setting.findOne();
+  if (!settings) { res.status(404); throw new Error('Settings not found'); }
+
+  const subscribers = settings.telegramSubscribers || [];
+  const idx = subscribers.findIndex(s => String(s.chatId) === String(req.params.chatId));
+  if (idx === -1) { res.status(404); throw new Error('Subscriber not found'); }
+
+  if (phone !== undefined) {
+    const normalized = String(phone).trim();
+    if (normalized) {
+      const duplicate = subscribers.find((s, i) => i !== idx && s.phone === normalized);
+      if (duplicate) {
+        res.status(400);
+        throw new Error(`Phone ${normalized} is already registered to ${duplicate.name}`);
+      }
+    }
+    subscribers[idx].phone = normalized;
+  }
+
+  if (name && name.trim()) {
+    subscribers[idx].name = name.trim();
+  }
+  if (username !== undefined) {
+    subscribers[idx].username = username ? username.trim().replace(/^@/, '') : '';
+  }
+
+  settings.telegramSubscribers = subscribers;
+  settings.markModified('telegramSubscribers');
+  await settings.save();
+
+  res.json({ message: 'Subscriber updated successfully.', subscriber: subscribers[idx] });
+});
+
 // ── DELETE /api/telegram/subscribers/:chatId (admin only) ────────
 const removeSubscriber = asyncHandler(async (req, res) => {
   const settings = await Setting.findOne();
@@ -369,6 +406,7 @@ module.exports = {
   getSubscribers,
   addSubscriber,
   updateSubscriberPhone,
+  updateSubscriber,
   removeSubscriber,
   loadSubscribersFromFile,
   saveSubscribersToFile,
