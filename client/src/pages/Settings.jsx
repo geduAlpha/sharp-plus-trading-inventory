@@ -75,8 +75,6 @@ const CAPABILITIES = [
 const MATRIX_ROLES = [
   { key: 'storekeeper', label: 'Storekeeper' },
   { key: 'cashier', label: 'Cashier' },
-  { key: 'waiter', label: 'Waiter' },
-  { key: 'supervisor', label: 'Supervisor' },
   { key: 'manager', label: 'Manager' },
   { key: 'admin', label: 'Admin' },
 ];
