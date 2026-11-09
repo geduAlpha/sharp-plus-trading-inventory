@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   User,
@@ -344,6 +344,8 @@ export default function Settings() {
   const [systemSaving, setSystemSaving] = useState(false);
   const [systemSuccess, setSystemSuccess] = useState('');
   const [systemError, setSystemError] = useState('');
+  const [hasUnsavedPerms, setHasUnsavedPerms] = useState(false);
+  const settingsLoadedRef = useRef(false);
 
   // Bulk product price adjustment state
   const [bulkPricePercent, setBulkPricePercent] = useState('');
@@ -389,21 +391,22 @@ export default function Settings() {
     }
   }, [user]);
 
-  // Load system settings
+  // Load system settings (guarded against overwriting unsaved user edits)
   useEffect(() => {
-    if (user) {
+    if (user && !settingsLoadedRef.current) {
       setSystemLoading(true);
       api
         .get('/settings')
         .then((res) => {
           if (res.data) {
+            settingsLoadedRef.current = true;
             setSystemForm((prev) => ({ ...prev, ...res.data }));
           }
         })
         .catch((err) => console.error('Failed to load settings', err))
         .finally(() => setSystemLoading(false));
     }
-  }, [user]);
+  }, [user?._id]);
 
   // Load Telegram subscribers (admin only)
   const loadTgSubscribers = () => {
@@ -652,13 +655,17 @@ export default function Settings() {
   };
   // Handle System Settings Update
   const handleSystemSubmit = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     setSystemSaving(true);
     setSystemSuccess('');
     setSystemError('');
     try {
       const res = await api.put('/settings', systemForm);
       setSystemForm((prev) => ({ ...prev, ...res.data }));
+      setHasUnsavedPerms(false);
+      settingsLoadedRef.current = true;
       if (updateCompanyInfo) {
         updateCompanyInfo(res.data);
       }
@@ -667,10 +674,14 @@ export default function Settings() {
       } else {
         await refreshPermissions();
       }
-      setSystemSuccess(`${res.data?.companyName || 'Company'} profile & system settings saved and activated immediately.`);
-      setTimeout(() => setSystemSuccess(''), 4000);
+      setSystemSuccess(
+        `✓ Role Privileges & System Settings saved successfully! All permissions and sidebar visibility are now permanently stored in the database and active immediately across all user sessions.`
+      );
+      setTimeout(() => setSystemSuccess(''), 7000);
     } catch (err) {
+      console.error('Failed to update system settings:', err);
       setSystemError(err.response?.data?.message || 'Failed to update system settings.');
+      setTimeout(() => setSystemError(''), 7000);
     } finally {
       setSystemSaving(false);
     }
@@ -698,6 +709,7 @@ export default function Settings() {
 
   // Handle Role Capability Toggle
   const handleCapabilityToggle = (capKey, roleKey, checked) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const currentCap = prev.rolePermissions?.[capKey] || DEFAULT_CAPABILITY_DEFAULTS[capKey] || {};
       return {
@@ -715,6 +727,7 @@ export default function Settings() {
 
   // Bulk Capability Handlers
   const handleSelectAllCapabilities = (forceValue = true) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
       CAPABILITIES.forEach((cap) => {
@@ -729,6 +742,7 @@ export default function Settings() {
   };
 
   const handleBulkToggleCapabilityRole = (roleKey, forceValue) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
       let targetVal = forceValue;
@@ -749,6 +763,7 @@ export default function Settings() {
   };
 
   const handleToggleCapabilityRow = (capKey, forceValue) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
       const currentCap = { ...(perms[capKey] || DEFAULT_CAPABILITY_DEFAULTS[capKey] || {}) };
@@ -768,23 +783,42 @@ export default function Settings() {
   // Reset Role Capabilities to default
   const handleResetCapabilityDefaults = () => {
     if (!window.confirm('Reset all role capabilities to system standard defaults?')) return;
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => ({
       ...prev,
       rolePermissions: JSON.parse(JSON.stringify(DEFAULT_CAPABILITY_DEFAULTS)),
     }));
-    setSystemSuccess('Role capabilities reset to standard defaults. Click Save to apply.');
-    setTimeout(() => setSystemSuccess(''), 4000);
+    setSystemSuccess('Role capabilities reset to standard defaults. Click Save Changes to apply permanently.');
+    setTimeout(() => setSystemSuccess(''), 6000);
+  };
+
+  // Dedicated helper to safely resolve navigation visibility for any item and role
+  const getNavVisibility = (itemKey, roleKey) => {
+    const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === itemKey);
+    const nav = systemForm.navVisibility || {};
+    if (nav[itemKey]?.[roleKey] !== undefined) {
+      return Boolean(nav[itemKey][roleKey]);
+    }
+    if (item?.navKey && nav[item.navKey]?.[roleKey] !== undefined && item.navKey !== item?.parentKey) {
+      return Boolean(nav[item.navKey][roleKey]);
+    }
+    const defaultVal = SCREENSHOT_NAV_DEFAULTS[itemKey]?.[roleKey];
+    if (defaultVal !== undefined) return Boolean(defaultVal);
+    return true;
   };
 
   // Handle Hierarchical Sidebar Navigation Visibility Toggle
   const handleNavVisibilityToggle = (itemKey, roleKey, checked) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === itemKey);
 
       // 1. Set current item permission
       nav[itemKey] = { ...(nav[itemKey] || {}), [roleKey]: checked };
-      if (item?.navKey && item.navKey !== itemKey) {
+
+      // Sync specific leaf alias if not the parent group key
+      if (item?.navKey && item.navKey !== itemKey && item.navKey !== item?.parentKey) {
         nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: checked };
       }
 
@@ -794,11 +828,15 @@ export default function Settings() {
           // Child ON -> Parent must be ON
           nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: true };
         } else {
-          // Child OFF -> Check if any sibling is still active
+          // Child OFF -> Check if any other sibling is still active
           const siblings = SIDEBAR_NAV_ITEMS.filter((i) => i.parentKey === item.parentKey && i.key !== itemKey);
-          const anySiblingActive = siblings.some(
-            (s) => nav[s.key]?.[roleKey] === true || (s.navKey && nav[s.navKey]?.[roleKey] === true)
-          );
+          const anySiblingActive = siblings.some((s) => {
+            if (nav[s.key]?.[roleKey] !== undefined) return Boolean(nav[s.key][roleKey]);
+            if (s.navKey && nav[s.navKey]?.[roleKey] !== undefined && s.navKey !== s.parentKey) {
+              return Boolean(nav[s.navKey][roleKey]);
+            }
+            return Boolean(SCREENSHOT_NAV_DEFAULTS[s.key]?.[roleKey] ?? true);
+          });
           if (!anySiblingActive) {
             // All children OFF -> Parent becomes OFF automatically
             nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: false };
@@ -812,6 +850,7 @@ export default function Settings() {
 
   // Bulk Navigation Visibility actions
   const handleSelectAllNav = (forceValue = true) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       SIDEBAR_NAV_ITEMS.forEach((item) => {
@@ -820,7 +859,7 @@ export default function Settings() {
           itemObj[r.key] = forceValue;
         });
         nav[item.key] = itemObj;
-        if (item.navKey && item.navKey !== item.key) {
+        if (item.navKey && item.navKey !== item.key && item.navKey !== item.parentKey) {
           const altObj = { ...(nav[item.navKey] || {}) };
           displayedRoles.forEach((r) => {
             altObj[r.key] = forceValue;
@@ -840,11 +879,12 @@ export default function Settings() {
   };
 
   const handleSelectAllNavForRole = (roleKey) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       SIDEBAR_NAV_ITEMS.forEach((item) => {
         nav[item.key] = { ...(nav[item.key] || {}), [roleKey]: true };
-        if (item.navKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: true };
+        if (item.navKey && item.navKey !== item.parentKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: true };
         if (item.parentKey) nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: true };
       });
       return { ...prev, navVisibility: nav };
@@ -852,11 +892,12 @@ export default function Settings() {
   };
 
   const handleDeselectAllNavForRole = (roleKey) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       SIDEBAR_NAV_ITEMS.forEach((item) => {
         nav[item.key] = { ...(nav[item.key] || {}), [roleKey]: false };
-        if (item.navKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: false };
+        if (item.navKey && item.navKey !== item.parentKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: false };
         if (item.parentKey) nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: false };
       });
       return { ...prev, navVisibility: nav };
@@ -864,24 +905,19 @@ export default function Settings() {
   };
 
   const handleToggleNavRow = (itemKey, forceValue) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === itemKey);
       let targetVal = forceValue;
       if (typeof targetVal !== 'boolean') {
-        const allChecked = displayedRoles.every((r) => {
-          return nav[itemKey]?.[r.key] !== undefined
-            ? Boolean(nav[itemKey][r.key])
-            : (item?.navKey && nav[item.navKey]?.[r.key] !== undefined
-              ? Boolean(nav[item.navKey][r.key])
-              : (SCREENSHOT_NAV_DEFAULTS[itemKey]?.[r.key] ?? true));
-        });
+        const allChecked = displayedRoles.every((r) => getNavVisibility(itemKey, r.key));
         targetVal = !allChecked;
       }
 
       displayedRoles.forEach((r) => {
         nav[itemKey] = { ...(nav[itemKey] || {}), [r.key]: targetVal };
-        if (item?.navKey && item.navKey !== itemKey) {
+        if (item?.navKey && item.navKey !== itemKey && item.navKey !== item.parentKey) {
           nav[item.navKey] = { ...(nav[item.navKey] || {}), [r.key]: targetVal };
         }
         if (item?.parentKey) {
@@ -889,9 +925,13 @@ export default function Settings() {
             nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [r.key]: true };
           } else {
             const siblings = SIDEBAR_NAV_ITEMS.filter((i) => i.parentKey === item.parentKey && i.key !== itemKey);
-            const anySiblingActive = siblings.some(
-              (s) => nav[s.key]?.[r.key] === true || (s.navKey && nav[s.navKey]?.[r.key] === true)
-            );
+            const anySiblingActive = siblings.some((s) => {
+              if (nav[s.key]?.[r.key] !== undefined) return Boolean(nav[s.key][r.key]);
+              if (s.navKey && nav[s.navKey]?.[r.key] !== undefined && s.navKey !== s.parentKey) {
+                return Boolean(nav[s.navKey][r.key]);
+              }
+              return Boolean(SCREENSHOT_NAV_DEFAULTS[s.key]?.[r.key] ?? true);
+            });
             if (!anySiblingActive) {
               nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [r.key]: false };
             }
@@ -905,19 +945,20 @@ export default function Settings() {
 
   const handleResetNavDefaults = () => {
     if (!window.confirm('Reset all sidebar navigation visibility settings to standard screenshot defaults?')) return;
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       Object.entries(SCREENSHOT_NAV_DEFAULTS).forEach(([key, roleMap]) => {
         nav[key] = { ...(nav[key] || {}), ...roleMap };
         const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === key);
-        if (item?.navKey) {
+        if (item?.navKey && item.navKey !== item.parentKey) {
           nav[item.navKey] = { ...(nav[item.navKey] || {}), ...roleMap };
         }
       });
       return { ...prev, navVisibility: nav };
     });
-    setSystemSuccess('Sidebar navigation visibility reset to screenshot defaults. Click Save Visibility to apply.');
-    setTimeout(() => setSystemSuccess(''), 4000);
+    setSystemSuccess('Sidebar navigation visibility reset to screenshot defaults. Click Save Changes to apply permanently.');
+    setTimeout(() => setSystemSuccess(''), 6000);
   };
 
   // CRUD Action Privileges Handlers (Matching Screenshot 3)
@@ -952,6 +993,7 @@ export default function Settings() {
   };
 
   const handleCrudToggle = (moduleKey, actionKey, roleKey, checked) => {
+    setHasUnsavedPerms(true);
     const aliasMap = {
       raw_materials: 'items',
       items: 'raw_materials',
@@ -989,6 +1031,7 @@ export default function Settings() {
 
   // Bulk Permission Controls for 7 Actions & Individual Roles
   const handleBulkToggleAction = (actionKey, forceValue) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
 
@@ -1042,6 +1085,7 @@ export default function Settings() {
   };
 
   const handleToggleCrudModuleRow = (moduleKey, forceValue) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
       const aliasMap = {
@@ -1093,6 +1137,7 @@ export default function Settings() {
   };
 
   const handleBulkToggleRole = (roleKey, forceValue) => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
 
@@ -1145,6 +1190,7 @@ export default function Settings() {
   };
 
   const handleSelectAllCrud = () => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
       CRUD_MODULE_ROWS.forEach((mod) => {
@@ -1182,6 +1228,7 @@ export default function Settings() {
   };
 
   const handleDeselectAllCrud = () => {
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
       CRUD_MODULE_ROWS.forEach((mod) => {
@@ -1220,6 +1267,7 @@ export default function Settings() {
 
   const handleResetCrudDefaults = () => {
     if (!window.confirm('Reset all 7 CRUD Action Privileges to system standard defaults?')) return;
+    setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const perms = { ...(prev.rolePermissions || {}) };
       Object.entries(CRUD_SCREENSHOT_DEFAULTS).forEach(([modKey, modVal]) => {
@@ -1237,8 +1285,8 @@ export default function Settings() {
       });
       return { ...prev, rolePermissions: perms };
     });
-    setSystemSuccess('Role action privileges reset to defaults. Click "Save Role Permissions" to apply.');
-    setTimeout(() => setSystemSuccess(''), 4000);
+    setSystemSuccess('Role action privileges reset to defaults. Click "Save Changes" to apply permanently.');
+    setTimeout(() => setSystemSuccess(''), 6000);
   };
 
   // ── Developer / Owner Controls Handlers (Matching Screenshots) ──
@@ -2455,6 +2503,86 @@ export default function Settings() {
       {/* ── Tab: Role Privileges (Exact Match to Screenshot) ── */}
       {currentTab === 'permissions' && (hasRole('admin') || hasRole('manager') || user?.role === 'developer') && (
         <div className="space-y-6 w-full max-w-6xl">
+          {/* Prominent Real-Time Feedback Banners */}
+          {hasUnsavedPerms && (
+            <div className="sticky top-2 z-40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl bg-amber-500/15 border-2 border-amber-500/60 p-4 shadow-lg backdrop-blur-md animate-in fade-in duration-200">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-white font-black text-sm shadow-xs flex-shrink-0">
+                  !
+                </span>
+                <div>
+                  <p className="text-xs font-black text-amber-950 uppercase tracking-wide">
+                    Unsaved Privilege &amp; Visibility Changes
+                  </p>
+                  <p className="text-xs text-amber-900 mt-0.5 font-medium">
+                    You have toggled permissions. Your selections will stay active; click <strong>Save Changes</strong> to store them permanently in the database.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSystemSubmit}
+                disabled={systemSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-5 py-2.5 text-xs font-black text-white shadow-md transition active:scale-[0.98] disabled:opacity-50 flex-shrink-0"
+              >
+                <Save size={14} />
+                <span>{systemSaving ? 'Saving to Database…' : 'Save Changes Now'}</span>
+              </button>
+            </div>
+          )}
+
+          {systemSuccess && currentTab === 'permissions' && (
+            <div className="sticky top-2 z-40 flex items-center justify-between gap-3 rounded-2xl bg-emerald-600 text-white p-4 shadow-xl border border-emerald-500 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white flex-shrink-0">
+                  <CheckCircle2 size={22} className="stroke-[2.5]" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-emerald-100">
+                    Changes Successfully Saved &amp; Active
+                  </p>
+                  <p className="text-xs font-semibold text-white mt-0.5 leading-relaxed">
+                    {systemSuccess}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSystemSuccess('')}
+                className="text-white/80 hover:text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-white/10 transition"
+                title="Dismiss notice"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {systemError && currentTab === 'permissions' && (
+            <div className="sticky top-2 z-40 flex items-center justify-between gap-3 rounded-2xl bg-rose-600 text-white p-4 shadow-xl border border-rose-500 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white flex-shrink-0">
+                  <AlertCircle size={22} className="stroke-[2.5]" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-rose-100">
+                    Save Failed
+                  </p>
+                  <p className="text-xs font-semibold text-white mt-0.5">
+                    {systemError}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSystemError('')}
+                className="text-white/80 hover:text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-white/10 transition"
+                title="Dismiss error"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Main Matrix Card */}
           <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
             {/* Header with shield icon */}
@@ -2815,11 +2943,7 @@ export default function Settings() {
                             </div>
                           </td>
                           {displayedRoles.map((r) => {
-                            const isChecked = systemForm.navVisibility?.[nav.key]?.[r.key] !== undefined
-                              ? Boolean(systemForm.navVisibility[nav.key][r.key])
-                              : (nav.navKey && systemForm.navVisibility?.[nav.navKey]?.[r.key] !== undefined
-                                ? Boolean(systemForm.navVisibility[nav.navKey][r.key])
-                                : (SCREENSHOT_NAV_DEFAULTS[nav.key]?.[r.key] ?? true));
+                            const isChecked = getNavVisibility(nav.key, r.key);
 
                             return (
                               <td key={r.key} className="py-3 px-3 text-center">

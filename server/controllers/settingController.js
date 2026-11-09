@@ -100,19 +100,23 @@ const updateSettings = asyncHandler(async (req, res) => {
     settings = new Setting();
   }
 
-  // Restrict global theme, sidebar, module activation, admin delegation, and role permissions configuration exclusively to System Owner/Developer
-  const isPrivilegedSettingUpdate =
-    req.body.rolePermissions !== undefined ||
-    req.body.themeConfig !== undefined ||
-    req.body.sidebarConfig !== undefined ||
+  // Restrict developer-exclusive controls (module licensing, delegation toggles) exclusively to System Owner/Developer
+  const isDevExclusiveUpdate =
     req.body.modulesEnabled !== undefined ||
     req.body.allowAdminManagePermissions !== undefined ||
     req.body.allowAdminVoidDelete !== undefined ||
     req.body.allowAdminThemeCustomization !== undefined;
 
-  if (isPrivilegedSettingUpdate && req.user?.role !== 'developer' && !(settings.allowAdminManagePermissions && req.user?.role === 'admin')) {
+  if (isDevExclusiveUpdate && req.user?.role !== 'developer') {
     res.status(403);
-    throw new Error('Access denied: Only the authenticated System Developer & Owner (or delegated Admin) can manage role permissions, administrator authority delegation, global appearance, or system module activation.');
+    throw new Error('Access denied: Only the authenticated System Developer & Owner can manage module licensing or developer delegation controls.');
+  }
+
+  // Role permissions and navigation visibility can be managed by Developer or System Admin
+  const isRolePermsUpdate = req.body.rolePermissions !== undefined || req.body.navVisibility !== undefined;
+  if (isRolePermsUpdate && req.user?.role !== 'developer' && req.user?.role !== 'admin') {
+    res.status(403);
+    throw new Error('Access denied: Only system administrators or the developer can configure role privileges.');
   }
 
   const stringFields = [
