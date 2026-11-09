@@ -775,6 +775,38 @@ export const ThemeSidebarProvider = ({ children }) => {
     }
   }, [user, fetchSettings]);
 
+  // Real-time synchronization for Theme, Sidebar and Module Licensing
+  useEffect(() => {
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        bc = new BroadcastChannel('sharp_plus_sync');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'SETTINGS_CHANGED' || event.data?.type === 'PERMISSIONS_CHANGED') {
+            fetchSettings();
+          }
+        };
+      }
+    } catch (e) {}
+
+    const handleCustomSync = () => {
+      fetchSettings();
+    };
+    window.addEventListener('settings:updated', handleCustomSync);
+    window.addEventListener('focus', handleCustomSync);
+
+    const timer = setInterval(() => {
+      if (user) fetchSettings();
+    }, 10000);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('settings:updated', handleCustomSync);
+      window.removeEventListener('focus', handleCustomSync);
+      clearInterval(timer);
+    };
+  }, [user, fetchSettings]);
+
   // Toggle a system module (salesMarketing, accounting, etc.)
   const toggleModule = async (moduleKey, enabled) => {
     try {
@@ -784,6 +816,16 @@ export const ThemeSidebarProvider = ({ children }) => {
       const updatedModules = res.data?.modulesEnabled || { ...modulesEnabled, [moduleKey]: enabled };
       setModulesEnabled(updatedModules);
       localStorage.setItem('sharp_plus_modules_enabled', JSON.stringify(updatedModules));
+
+      try {
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('sharp_plus_sync');
+          bc.postMessage({ type: 'SETTINGS_CHANGED', timestamp: Date.now() });
+          bc.close();
+        }
+      } catch (e) {}
+      window.dispatchEvent(new CustomEvent('settings:updated', { detail: res.data }));
+
       return { success: true, data: res.data };
     } catch (err) {
       console.error('[ThemeSidebar] Failed to toggle module:', err);

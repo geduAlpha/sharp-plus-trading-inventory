@@ -16,12 +16,12 @@ const { protect, authorizePermission } = require('../middleware/authMiddleware')
 
 router.use(protect);
 
-router.get('/summary', getStockRequestSummary);
-router.get('/',        getStockRequests);
-router.get('/:id',     getStockRequestById);
+router.get('/summary', authorizePermission('stockRequests', 'view'), getStockRequestSummary);
+router.get('/',        authorizePermission('stockRequests', 'view'), getStockRequests);
+router.get('/:id',     authorizePermission('stockRequests', 'view'), getStockRequestById);
 
-router.post('/',   createStockRequest);
-router.put('/:id', updateStockRequest);
+router.post('/',   authorizePermission('stockRequests', 'create'), createStockRequest);
+router.put('/:id', authorizePermission('stockRequests', 'edit'), updateStockRequest);
 
 router.post('/:id/approve', authorizePermission('approveGoods'),     approveStockRequest);
 router.post('/:id/issue',   authorizePermission('recordGoods'),       issueStock);

@@ -20,16 +20,16 @@ const { checkModuleEnabled } = require('../middleware/moduleGateMiddleware');
 
 router.use(protect);
 
-router.get('/next-voucher-no', getNextVoucherNo);
-router.get('/reconciliation', getReconciliationSummary);
-router.get('/summary', getVoucherSummary);
-router.get('/', getTransactions);
-router.post('/', authorizePermission('recordGoods'), createTransaction);
-router.post('/import-sales', checkModuleEnabled('salesMarketing'), authorizePermission('recordGoods'), importSales);
-router.post('/parse-image-sales', checkModuleEnabled('salesMarketing'), authorizePermission('recordGoods'), require('../controllers/transactionController').parseImageSales);
+router.get('/next-voucher-no', authorizePermission('stockMovements', 'view'), getNextVoucherNo);
+router.get('/reconciliation', authorizePermission('stockMovements', 'view'), getReconciliationSummary);
+router.get('/summary', authorizePermission('stockMovements', 'view'), getVoucherSummary);
+router.get('/', authorizePermission('stockMovements', 'view'), getTransactions);
+router.post('/', authorizePermission('stockMovements', 'create'), createTransaction);
+router.post('/import-sales', checkModuleEnabled('salesMarketing'), authorizePermission('stockMovements', 'create'), importSales);
+router.post('/parse-image-sales', checkModuleEnabled('salesMarketing'), authorizePermission('stockMovements', 'create'), require('../controllers/transactionController').parseImageSales);
 router.delete('/bulk', authorizePermission('voidTransactions'), bulkDeleteTransactions);
-router.put('/:id/payment', checkModuleEnabled('salesMarketing'), authorizePermission('recordGoods'), recordSalePayment);
-router.put('/:id', authorizePermission('recordGoods'), updateTransaction);
+router.put('/:id/payment', checkModuleEnabled('salesMarketing'), authorizePermission('stockMovements', 'edit'), recordSalePayment);
+router.put('/:id', authorizePermission('stockMovements', 'edit'), updateTransaction);
 router.post('/:id/advance', advanceTransaction);
 router.post('/:id/restore', authorize('developer'), restoreTransaction);
 router.delete('/:id/permanent', authorizePermission('voidTransactions'), permanentDeleteTransaction);

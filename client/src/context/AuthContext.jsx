@@ -327,6 +327,65 @@ export const AuthProvider = ({ children }) => {
     });
   }, [companyInfo]);
 
+  // Real-time synchronization across browser tabs and background polling:
+  // Ensures changes made by System Developer / Owner apply everywhere immediately!
+  useEffect(() => {
+    // 1. BroadcastChannel across all browser tabs for instant 0ms sync
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        bc = new BroadcastChannel('sharp_plus_sync');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'SETTINGS_CHANGED' || event.data?.type === 'PERMISSIONS_CHANGED') {
+            fetchPermissions();
+          }
+        };
+      }
+    } catch (e) {
+      // BroadcastChannel not available or restricted
+    }
+
+    // 2. Storage event for cross-tab synchronization fallback
+    const handleStorageChange = (e) => {
+      if (
+        e.key === 'companyStockPermissions' ||
+        e.key === 'companyStockNavVisibility' ||
+        e.key === 'companyModulesEnabled' ||
+        e.key === 'companyProfileInfo' ||
+        e.key === 'sharp_plus_modules_enabled'
+      ) {
+        fetchPermissions();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // 3. Custom event dispatched within the same window
+    const handleCustomSettingsUpdated = () => {
+      fetchPermissions();
+    };
+    window.addEventListener('settings:updated', handleCustomSettingsUpdated);
+
+    // 4. Window focus listener: immediately sync fresh permissions when switching to the tab
+    const handleFocus = () => {
+      fetchPermissions();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 5. Periodic background polling every 10 seconds so all users (cashier, storekeeper, manager, etc.)
+    // receive Developer/Owner changes in near real-time without requiring a page reload.
+    const pollTimer = setInterval(() => {
+      fetchPermissions();
+    }, 10000);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('settings:updated', handleCustomSettingsUpdated);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(pollTimer);
+    };
+  }, [fetchPermissions]);
+
   /**
    * Login can be called two ways:
    *   1. login(email, password, otpToken)  — from Login.jsx, makes API call
@@ -643,6 +702,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const refreshPermissions = async (newSettings) => {
+    let result = null;
     if (newSettings) {
       const rp = newSettings.rolePermissions ?? newSettings;
       const nv = newSettings.navVisibility ?? null;
@@ -662,9 +722,22 @@ export const AuthProvider = ({ children }) => {
       if (newSettings.allowAdminThemeCustomization !== undefined) {
         setAllowAdminThemeCustomization(Boolean(newSettings.allowAdminThemeCustomization));
       }
-      return newSettings;
+      result = newSettings;
+    } else {
+      result = await fetchPermissions();
     }
-    return await fetchPermissions();
+
+    // Broadcast across tabs and local windows immediately
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const bc = new BroadcastChannel('sharp_plus_sync');
+        bc.postMessage({ type: 'PERMISSIONS_CHANGED', timestamp: Date.now() });
+        bc.close();
+      }
+    } catch { }
+
+    window.dispatchEvent(new CustomEvent('settings:updated', { detail: result }));
+    return result;
   };
 
   const registerCompany = async (formData) => {

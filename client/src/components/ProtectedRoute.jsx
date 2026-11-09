@@ -1,6 +1,7 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 const ProtectedRoute = ({ children, roles, capability, navKey }) => {
   const { user, loading, can, canSeeNav } = useAuth();
@@ -19,17 +20,33 @@ const ProtectedRoute = ({ children, roles, capability, navKey }) => {
   // Developer role has universal master access over all routes
   if (user.role === 'developer') return children;
 
-  // Enforce Sidebar Navigation Visibility access control on routes
-  if (navKey && !canSeeNav(navKey)) {
-    return <Navigate to="/" replace />;
-  }
+  const isNavDenied = navKey && !canSeeNav(navKey);
+  const isCapDenied = capability && !can(capability);
+  const isRoleDenied = roles && !capability && !roles.includes(user.role);
 
-  if (capability && !can(capability)) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (roles && !capability && !roles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+  if (isNavDenied || isCapDenied || isRoleDenied) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-600 shadow-sm mb-4">
+          <ShieldAlert size={38} />
+        </div>
+        <h2 className="text-2xl font-black text-ink-900 tracking-tight">Access Restricted</h2>
+        <p className="mt-2 max-w-md text-sm text-ink-500 leading-relaxed">
+          Your assigned role (<strong className="capitalize text-ink-800">{user.role}</strong>) does not have access permissions for this section.
+          Access privileges are configured and enforced by the <strong className="text-blue-700">System Developer &amp; Owner</strong>.
+        </p>
+        <div className="mt-6 flex items-center gap-3">
+          {canSeeNav('dashboard') && (
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-xs transition"
+            >
+              <ArrowLeft size={14} /> Back to Dashboard
+            </Link>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return children;

@@ -336,6 +336,10 @@ const updateSettings = asyncHandler(async (req, res) => {
 
   const updated = await settings.save();
   clearSettingsCache();
+  try {
+    const { clearModulesCache } = require('../middleware/moduleGateMiddleware');
+    clearModulesCache();
+  } catch { }
 
   try {
     if (tg && typeof tg.notifySettingsChanged === 'function') {
