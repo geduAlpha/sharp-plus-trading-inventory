@@ -182,14 +182,29 @@ const hasPermission = async (userOrRole, capability, action) => {
   const aliasMap = {
     raw_materials: 'items',
     items: 'raw_materials',
+    rawMaterials: 'items',
+    materials: 'items',
+    products: 'Products',
+    Products: 'products',
+    cashSales: 'subsystem_cash_sales',
+    subsystem_cash_sales: 'cashSales',
+    sales_cash: 'cashSales',
+    creditSales: 'subsystem_pos_ordering',
+    subsystem_pos_ordering: 'creditSales',
+    sales_credit: 'creditSales',
     overhead_expenses: 'expenses',
     expenses: 'overhead_expenses',
     stock_movements: 'stockMovements',
     stockMovements: 'stock_movements',
+    transactions: 'stockMovements',
     purchases_grv: 'purchases',
     purchases: 'purchases_grv',
     staffAccounts: 'employees',
     employees: 'staffAccounts',
+    staff_accounts: 'employees',
+    staff: 'employees',
+    stockRequests: 'consumption',
+    consumption: 'stockRequests',
   };
   if (aliasMap[capability] && !capAliases.includes(aliasMap[capability])) {
     capAliases.push(aliasMap[capability]);
@@ -207,17 +222,6 @@ const hasPermission = async (userOrRole, capability, action) => {
       }
       if (typeof customPermissions[cap] === 'boolean') {
         return customPermissions[cap];
-      }
-    }
-  }
-
-  // 1.5 Enforce Sidebar Navigation Visibility Access Control on backend APIs
-  if (cachedSettings?.navVisibility && role !== 'developer') {
-    const nav = cachedSettings.navVisibility;
-    for (const cap of capAliases) {
-      const navEntry = nav[cap] || nav[cap.toLowerCase()];
-      if (navEntry && navEntry[role] === false) {
-        return false;
       }
     }
   }

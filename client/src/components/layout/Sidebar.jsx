@@ -18,7 +18,6 @@ const DEFAULT_HELD_SIDEBAR_IDS = [
   'report_inventory_count',
   'movements_all',
   'stock_requests',
-  'products',
 ];
 
 const isAvoidedNavItem = (it) => {
@@ -30,6 +29,8 @@ const isAvoidedNavItem = (it) => {
 
 const isItemOnHold = (it) => {
   if (!it) return false;
+  // Products is a core active catalogue module
+  if (it.id === 'products' || it.navKey === 'products' || it.to === '/products') return false;
   if (it.onHold === true || it.disabled === true || it.status === 'on_hold' || it.status === 'inactive') return true;
   if (DEFAULT_HELD_SIDEBAR_IDS.includes(it.id)) return true;
   return false;
@@ -39,12 +40,21 @@ const isItemOnHold = (it) => {
 const resolveItemNavKey = (item) => {
   if (!item) return null;
   if (item.navKey) return item.navKey;
-  if (item.id === 'sales_cash' || item.to === '/sales/cash') return 'cashSales';
-  if (item.id === 'sales_credit' || item.to === '/sales/credit') return 'creditSales';
+  if (item.id === 'sales_cash' || item.to === '/sales/cash' || item.id === 'subsystem_cash_sales') return 'cashSales';
+  if (item.id === 'sales_credit' || item.to === '/sales/credit' || item.id === 'subsystem_credit_sales') return 'creditSales';
+  if (
+    item.id === 'subsystem_zeroing_voucher' ||
+    item.id === 'subsystem_security_report' ||
+    item.id === 'subsystem_sales_closing' ||
+    item.id === 'subsystem_sales_route_mapping'
+  ) return 'salesMarketing';
+  if (item.id === 'stockManagementVoucherReport' || item.id === 'stockManagementVoucherReportUnderStoreOps') return 'stockMovements';
+  if (item.id === 'movements_neg_adj' || item.id === 'movements_pos_adj' || item.id === 'movements_sales_import') return 'stockMovements';
   if (item.id === 'stock_requests' || item.to === '/stock-requests') return 'stockRequests';
   if (item.to === '/reports/inventory-count') return 'inventoryCount';
   if (item.id === 'movements_cash_grv' || item.id === 'movements_credit_grv') return 'purchases';
   if (item.id === 'materials' || item.to === '/materials') return 'items';
+  if (item.id === 'products' || item.to === '/products') return 'products';
   if (item.id === 'employees' || item.to === '/employees') return 'staffAccounts';
   if (item.to === '/analytics') return 'analytics';
   if (item.id === 'reports' || item.to?.startsWith('/reports')) return 'reports';
@@ -293,11 +303,21 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     return [...(activeSidebar || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [activeSidebar]);
 
-  // Helper to test if a leaf nav item is allowed for current user based on Role Privileges and Company Module Activation
+  // Helper to test if a leaf nav item or group is allowed for current user based on Role Privileges and Company Module Activation
   const canDisplayItem = useCallback((item) => {
     if (!item) return false;
     if (isAvoidedNavItem(item)) return false;
     if (item.visible === false) return false;
+
+    // For groups, verify if at least one leaf child is displayable
+    if (item.isGroup) {
+      return (item.children || []).some((kid) => {
+        if (kid.isGroup) {
+          return (kid.children || []).some(sub => canDisplayItem(sub));
+        }
+        return canDisplayItem(kid);
+      });
+    }
 
     // STRICT REQUIREMENT: Hide all on-hold sidebar buttons from other users rather than System Developer side only!
     if (!isDev && isItemOnHold(item)) {
@@ -329,6 +349,9 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     }
 
     const resolvedKey = resolveItemNavKey(item);
+    if (resolvedKey && canSeeNav(resolvedKey)) return true;
+    if (item.navKey && canSeeNav(item.navKey)) return true;
+    if (item.id && canSeeNav(item.id)) return true;
     if (resolvedKey && !canSeeNav(resolvedKey)) return false;
     if (item.id && !canSeeNav(item.id)) return false;
     if (item.navKey && !canSeeNav(item.navKey)) return false;
@@ -344,9 +367,15 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     sortedSidebar.forEach((item) => {
       // If group, verify it has at least one accessible child and render ONLY permitted submenus
       if (item.isGroup) {
-        if (!canDisplayItem(item)) return;
-        const visibleKids = (item.children || []).filter(canDisplayItem);
-        // Requirement 3: Parent menu should automatically become OFF when all its children are disabled
+        const visibleKids = (item.children || []).map((kid) => {
+          if (kid.isGroup) {
+            const subKids = (kid.children || []).filter(canDisplayItem);
+            return subKids.length > 0 ? { ...kid, children: subKids } : null;
+          }
+          return canDisplayItem(kid) ? kid : null;
+        }).filter(Boolean);
+
+        // Parent menu should automatically become OFF when all its children are disabled
         if (visibleKids.length === 0) return;
         const cloned = { ...item, children: visibleKids };
 

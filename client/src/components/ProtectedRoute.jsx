@@ -20,9 +20,14 @@ const ProtectedRoute = ({ children, roles, capability, navKey }) => {
   // Developer role has universal master access over all routes
   if (user.role === 'developer') return children;
 
-  const isNavDenied = navKey && !canSeeNav(navKey);
-  const isCapDenied = capability && !can(capability);
-  const isRoleDenied = roles && !capability && !roles.includes(user.role);
+  // Flexible permission evaluation: check both dynamic nav visibility and capability
+  const hasNavAccess = navKey ? (canSeeNav(navKey) || can(navKey, 'view') || can(navKey)) : false;
+  const hasCapAccess = capability ? can(capability) : false;
+
+  const isNavDenied = navKey && !hasNavAccess;
+  const isCapDenied = capability && !hasCapAccess;
+  // If access was explicitly granted via navKey or capability matrix by Admin/Developer, do NOT block by hardcoded role!
+  const isRoleDenied = roles && !hasNavAccess && !hasCapAccess && !roles.includes(user.role);
 
   if (isNavDenied || isCapDenied || isRoleDenied) {
     return (

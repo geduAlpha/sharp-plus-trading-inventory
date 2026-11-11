@@ -479,14 +479,26 @@ export const AuthProvider = ({ children }) => {
     const aliasMap = {
       raw_materials: 'items',
       items: 'raw_materials',
+      rawMaterials: 'items',
+      materials: 'items',
+      products: 'Products',
+      Products: 'products',
+      cashSales: 'subsystem_cash_sales',
+      subsystem_cash_sales: 'cashSales',
+      sales_cash: 'cashSales',
+      creditSales: 'subsystem_pos_ordering',
+      subsystem_pos_ordering: 'creditSales',
+      sales_credit: 'creditSales',
       overhead_expenses: 'expenses',
       expenses: 'overhead_expenses',
       stock_movements: 'stockMovements',
       stockMovements: 'stock_movements',
+      transactions: 'stockMovements',
       purchases_grv: 'purchases',
       purchases: 'purchases_grv',
       staffAccounts: 'employees',
       employees: 'staffAccounts',
+      staff_accounts: 'employees',
     };
     if (aliasMap[capability] && !capAliases.includes(aliasMap[capability])) {
       capAliases.push(aliasMap[capability]);
@@ -627,9 +639,24 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Special composite group checks
-    if (navKey === 'salesMarketing' || navKey === 'subsystem') {
+    if (navKey === 'salesMarketing' || navKey === 'subsystem' || navKey === 'subSystem' || navKey === 'subsystem_sales_marketing') {
       if (modulesEnabled?.salesMarketing === false && user.role !== 'developer') return false;
-      return canSeeNav('cashSales') || canSeeNav('creditSales') || canSeeNav('subsystem_cash_sales') || canSeeNav('subsystem_pos_ordering');
+      return (
+        canSeeNav('cashSales') ||
+        canSeeNav('creditSales') ||
+        canSeeNav('subsystem_cash_sales') ||
+        canSeeNav('subsystem_pos_ordering') ||
+        canSeeNav('subsystem_captain_order') ||
+        can('cashSales', 'view') ||
+        can('creditSales', 'view')
+      );
+    }
+    if (navKey === 'subsystem_stock_management') {
+      return canSeeNav('stockMovements') || canSeeNav('purchases') || can('stockMovements', 'view') || can('purchases', 'view');
+    }
+    if (navKey === 'finance' || navKey === 'accounting') {
+      if (modulesEnabled?.accounting === false && user.role !== 'developer') return false;
+      return canSeeNav('expenses') || canSeeNav('overhead_expenses') || canSeeNav('analytics') || can('expenses', 'view');
     }
     if (navKey === 'storeOps' || navKey === 'stock_operations') {
       return (
@@ -638,19 +665,22 @@ export const AuthProvider = ({ children }) => {
         canSeeNav('stockRequests') ||
         canSeeNav('inventoryCount') ||
         canSeeNav('cash_grv') ||
-        canSeeNav('credit_grv')
+        canSeeNav('credit_grv') ||
+        can('stockMovements', 'view') ||
+        can('purchases', 'view')
       );
     }
     if (navKey === 'allIds' || navKey === 'inventory_items') {
       if (modulesEnabled?.items === false && user.role !== 'developer') return false;
-      return canSeeNav('items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('employees') || canSeeNav('raw_materials');
+      return canSeeNav('items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('employees') || canSeeNav('raw_materials') || can('items', 'view') || can('products', 'view');
     }
     if (navKey === 'reports' || navKey === 'reports_analytics') {
       const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
       const reportsEntry = nav['reports'] || nav['reports_analytics'];
       if (reportsEntry && reportsEntry[user.role] !== undefined) {
-        return Boolean(reportsEntry[user.role]);
+        if (Boolean(reportsEntry[user.role])) return true;
       }
+      if (can('reports', 'view') || can('viewReports')) return true;
     }
 
     // 1. Direct Employee Custom Permissions Override (Managed via Role Privileges)
@@ -686,10 +716,10 @@ export const AuthProvider = ({ children }) => {
       (navKey === 'staffAccounts' ? (nav['staffAccounts'] || nav['staff_accounts']) : undefined);
 
     if (entry && entry[user.role] !== undefined) {
-      return Boolean(entry[user.role]);
+      if (Boolean(entry[user.role])) return true;
     }
 
-    // 3. Fallback to Role Permissions Matrix Check
+    // 3. Fallback to Role Permissions Matrix Check (Admin/Developer configured permissions)
     if (rolePermissions) {
       const capKey = rolePermissions[navKey] ? navKey : rolePermissions[navKey.toLowerCase()] ? navKey.toLowerCase() : null;
       if (capKey) {
@@ -697,7 +727,7 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // 4. Default: Admin is allowed by default; employees check general capability
+    // 4. Default: Admin is allowed by default; check general view capability
     if (user.role === 'admin') return true;
     return can(navKey, 'view') || can(navKey);
   };

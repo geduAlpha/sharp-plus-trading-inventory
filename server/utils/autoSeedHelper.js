@@ -47,29 +47,60 @@ const runAutoSeed = async () => {
       }
     }
 
-    // 2. Ensure Settings include Items visibility for Cashier & Storekeeper
+    // 2. Ensure Settings include Cashier & Storekeeper standard operational permissions
     let setting = await Setting.findOne();
     if (!setting) {
       setting = new Setting();
     }
     const nav = setting.navVisibility || {};
     let navChanged = false;
-    ['Items', 'items', 'products', 'dashboard', 'salesMarketing'].forEach(key => {
+    const operationalKeys = [
+      'Items', 'items', 'rawMaterials', 'raw_materials', 'products',
+      'dashboard', 'salesMarketing', 'cashSales', 'creditSales',
+      'subsystem_cash_sales', 'subsystem_pos_ordering', 'subsystem_captain_order'
+    ];
+    operationalKeys.forEach(key => {
       if (!nav[key]) nav[key] = {};
       if (nav[key].cashier !== true) {
         nav[key].cashier = true;
         navChanged = true;
       }
-      if (nav[key].storekeeper !== true) {
-        nav[key].storekeeper = true;
-        navChanged = true;
+      if (['Items', 'items', 'rawMaterials', 'raw_materials', 'products', 'dashboard', 'salesMarketing'].includes(key)) {
+        if (nav[key].storekeeper !== true) {
+          nav[key].storekeeper = true;
+          navChanged = true;
+        }
       }
     });
-    if (navChanged) {
-      setting.navVisibility = nav;
-      setting.markModified('navVisibility');
+
+    const perms = setting.rolePermissions || {};
+    let permsChanged = false;
+    if (perms.products && perms.products.view && perms.products.view.cashier !== true) {
+      perms.products.view.cashier = true;
+      permsChanged = true;
+    }
+    if (perms.cashSales && perms.cashSales.create && perms.cashSales.create.cashier !== true) {
+      perms.cashSales.create.cashier = true;
+      permsChanged = true;
+    }
+    if (perms.cashSales && perms.cashSales.view && perms.cashSales.view.cashier !== true) {
+      perms.cashSales.view.cashier = true;
+      permsChanged = true;
+    }
+
+    if (navChanged || permsChanged) {
+      if (navChanged) {
+        setting.navVisibility = nav;
+        setting.markModified('navVisibility');
+      }
+      if (permsChanged) {
+        setting.rolePermissions = perms;
+        setting.markModified('rolePermissions');
+      }
       await setting.save();
-      console.log('[SEED] Ensured navigation permissions for cashier & storekeeper in Settings.');
+      const { clearSettingsCache } = require('../middleware/authMiddleware');
+      if (clearSettingsCache) clearSettingsCache();
+      console.log('[SEED] Ensured navigation permissions and role privileges for cashier & storekeeper in Settings.');
     }
 
     // 3. Ensure Default Company exists
