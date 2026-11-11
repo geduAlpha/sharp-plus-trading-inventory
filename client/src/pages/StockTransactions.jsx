@@ -160,7 +160,7 @@ const quickEmployeeEmptyForm = {
 };
 
 export default function StockTransactions({ defaultVoucher } = {}) {
-  const { user, can, hasRole, canApprove, companyInfo } = useAuth();
+  const { user, can, hasRole, canApprove, canCheck, canPost, companyInfo } = useAuth();
   const navigate = useNavigate();
   const canEdit   = can('recordGoods');
   const canDelete = can('voidTransactions');
@@ -1417,7 +1417,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <WorkflowBadge status={editingTxn.status} />
 
-                {editingTxn.status === 'pending' && can('checkReview') && (
+                {editingTxn.status === 'pending' && canCheck(editingTxn, 'stockMovements') && (
                   <button
                     type="button"
                     onClick={() => openApproveModal(editingTxn, 'check')}
@@ -1428,7 +1428,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                   </button>
                 )}
 
-                {['pending', 'checked'].includes(editingTxn.status) && canApprove && (
+                {['pending', 'checked'].includes(editingTxn.status) && canApprove(editingTxn, 'stockMovements') && (
                   <button
                     type="button"
                     onClick={() => openApproveModal(editingTxn, 'approve')}
@@ -1439,7 +1439,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                   </button>
                 )}
 
-                {['pending', 'checked', 'approved'].includes(editingTxn.status) && can('postLedger') && (
+                {['pending', 'checked', 'approved'].includes(editingTxn.status) && canPost(editingTxn, 'stockMovements') && (
                   <button
                     type="button"
                     onClick={() => openApproveModal(editingTxn, 'post')}

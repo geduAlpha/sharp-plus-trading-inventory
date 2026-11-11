@@ -956,7 +956,7 @@ export default function SalesMarketingSubsystem() {
                             >
                               <Printer size={13} />
                             </button>
-                            {canApprove && row.status === 'pending' && (
+                            {row.status === 'pending' && canApprove(row, 'cashSales') && (
                               <button
                                 type="button"
                                 onClick={() => openApprove(row, 'approve')}

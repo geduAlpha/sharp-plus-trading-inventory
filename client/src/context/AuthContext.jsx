@@ -580,22 +580,85 @@ export const AuthProvider = ({ children }) => {
     return false;
   };
 
-  /** Anti-self-approval helper */
-  const canApprove = (item) => {
-    if (!user) return false;
-    if (user.role === 'developer') return true;
-    if (!item) return false;
-    const creatorId =
+  /** Helper to detect if current user was the creator / actor of an item (action taken by user) */
+  const isActorOfItem = (item) => {
+    if (!item || !user) return false;
+    const actorId =
       item.performedBy?._id ||
       item.performedBy ||
       item.recordedBy?._id ||
       item.recordedBy ||
       item.requestedBy?._id ||
-      item.requestedBy;
-    if (creatorId && String(creatorId) === String(user._id)) {
-      return false; // Segregation of duties: cannot approve own record
+      item.requestedBy ||
+      item.createdBy?._id ||
+      item.createdBy ||
+      item.userId?._id ||
+      item.userId;
+    if (actorId && String(actorId) === String(user._id)) return true;
+
+    const actorName =
+      (typeof item.performedBy === 'object' && item.performedBy?.name) ||
+      (typeof item.recordedBy === 'object' && item.recordedBy?.name) ||
+      (typeof item.requestedBy === 'object' && item.requestedBy?.name) ||
+      item.performedByName ||
+      item.recordedByName;
+    if (actorName && user.name && actorName.trim().toLowerCase() === user.name.trim().toLowerCase()) return true;
+
+    return false;
+  };
+
+  /** Anti-self-approval helper: user must have approve privilege AND must not have taken the action */
+  const canApprove = (item, moduleKey) => {
+    if (!user) return false;
+    if (user.role === 'developer') return true;
+
+    // Check privilege
+    const hasPrivilege =
+      user.role === 'admin' ||
+      can('approveGoods') ||
+      (moduleKey ? (can(moduleKey, 'approve') || can(moduleKey, 'edit')) : false) ||
+      can('purchases', 'approve') ||
+      can('stockMovements', 'approve');
+    if (!hasPrivilege) return false;
+
+    // Strict Segregation of Duties: cannot approve own record / action taken
+    if (item && isActorOfItem(item)) {
+      return false;
     }
-    return user.role === 'admin' || can('approveGoods');
+    return true;
+  };
+
+  /** Anti-self-check helper: user must have checkReview privilege AND must not have taken the action */
+  const canCheck = (item, moduleKey) => {
+    if (!user) return false;
+    if (user.role === 'developer') return true;
+
+    const hasPrivilege =
+      user.role === 'admin' ||
+      can('checkReview') ||
+      (moduleKey ? can(moduleKey, 'edit') : false);
+    if (!hasPrivilege) return false;
+
+    if (item && isActorOfItem(item)) {
+      return false;
+    }
+    return true;
+  };
+
+  /** Anti-self-post helper: user must have postLedger privilege AND must not have taken the action */
+  const canPost = (item, moduleKey) => {
+    if (!user) return false;
+    if (user.role === 'developer') return true;
+
+    const hasPrivilege =
+      user.role === 'admin' ||
+      can('postLedger');
+    if (!hasPrivilege) return false;
+
+    if (item && isActorOfItem(item)) {
+      return false;
+    }
+    return true;
   };
 
   /** Check whether a sidebar nav section is visible for this user's role and custom permissions */
@@ -809,6 +872,9 @@ export const AuthProvider = ({ children }) => {
         isAdmin: user?.role === 'admin' || user?.role === 'developer',
         isEmployee: user?.role === 'employee' || ['storekeeper', 'cashier', 'manager'].includes(user?.role),
         canApprove,
+        canCheck,
+        canPost,
+        isActorOfItem,
         user,
         loading,
         login,

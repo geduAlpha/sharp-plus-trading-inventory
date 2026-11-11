@@ -32,7 +32,7 @@ const ACTION_COLORS = {
 };
 
 export default function Purchases() {
-  const { user, can, canApprove } = useAuth();
+  const { user, can, canApprove, canCheck, canPost } = useAuth();
   const [purchases,  setPurchases]  = useState([]);
   const [suppliers,  setSuppliers]  = useState([]);
   const [materials,  setMaterials]  = useState([]);
@@ -208,19 +208,20 @@ export default function Purchases() {
               <Eye size={14} />
             </button>
             {acts.map(a => {
-              const isApprovalAct = a.action === 'approve' || a.action === 'check';
-              const allowed = !isApprovalAct || canApprove(r);
+              if (a.action === 'approve') {
+                if (!canApprove(r, 'purchases')) return null;
+              } else if (a.action === 'check') {
+                if (!canCheck(r, 'purchases')) return null;
+              } else if (a.action === 'post') {
+                if (!canPost(r, 'purchases')) return null;
+              } else if (a.cap && !can(a.cap)) {
+                return null;
+              }
               return (
                 <button
                   key={a.action}
-                  disabled={!allowed}
-                  title={!allowed ? 'Segregation of duties: You created this purchase and cannot self-approve it.' : a.label}
-                  onClick={() => allowed && openApprove(r, a.action)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold text-white transition-all ${
-                    !allowed
-                      ? 'bg-ink-300 text-ink-500 cursor-not-allowed opacity-60'
-                      : ACTION_COLORS[a.action]
-                  }`}
+                  onClick={() => openApprove(r, a.action)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold text-white transition-all ${ACTION_COLORS[a.action]}`}
                 >
                   {a.label}
                 </button>
@@ -383,13 +384,19 @@ export default function Purchases() {
             {/* Next actions from detail view too */}
             {actionsFor(detailPurchase).length > 0 && (
               <div className="flex flex-wrap gap-2 pt-1 border-t border-ink-100">
-                {actionsFor(detailPurchase).map(a => (
-                  <button key={a.action}
-                    onClick={() => { setDetailOpen(false); openApprove(detailPurchase, a.action); }}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${ACTION_COLORS[a.action]}`}>
-                    {a.label}
-                  </button>
-                ))}
+                {actionsFor(detailPurchase).map(a => {
+                  if (a.action === 'approve' && !canApprove(detailPurchase, 'purchases')) return null;
+                  if (a.action === 'check' && !canCheck(detailPurchase, 'purchases')) return null;
+                  if (a.action === 'post' && !canPost(detailPurchase, 'purchases')) return null;
+                  if (a.cap && !can(a.cap)) return null;
+                  return (
+                    <button key={a.action}
+                      onClick={() => { setDetailOpen(false); openApprove(detailPurchase, a.action); }}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${ACTION_COLORS[a.action]}`}>
+                      {a.label}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

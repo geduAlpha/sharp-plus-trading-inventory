@@ -36,7 +36,7 @@ const emptyForm = {
 const etb = (n) => `ETB ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Consumption() {
-  const { can, hasRole, user, isDeveloper } = useAuth();
+  const { can, hasRole, user, isDeveloper, canApprove: canApproveRecord } = useAuth();
   const canCreate = can('recordGoods');
   const canApprove = can('approveGoods');
   const canVoid = can('voidTransactions');
@@ -386,7 +386,7 @@ export default function Consumption() {
                           </button>
                         )}
                         {/* Approve */}
-                        {canApprove && r.status === 'pending' && (
+                        {r.status === 'pending' && canApproveRecord(r, 'consumption') && (
                           <button onClick={() => openAction(r, 'approve')}
                             className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2 py-1 text-xs font-semibold text-white transition">
                             <CheckCircle size={11} /> Approve
@@ -635,7 +635,7 @@ export default function Consumption() {
 
               {/* Approve / Void from detail */}
               <div className="flex flex-wrap gap-2 pt-2 border-t border-ink-100">
-                {canApprove && detailRecord.status === 'pending' && (
+                {detailRecord.status === 'pending' && canApproveRecord(detailRecord, 'consumption') && (
                   <button onClick={() => { setDetailOpen(false); openAction(detailRecord, 'approve'); }}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition">
                     <CheckCircle size={13} /> Approve

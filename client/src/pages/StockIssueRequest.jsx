@@ -588,16 +588,10 @@ export default function StockIssueRequest() {
                         )}
 
                         {/* Approve */}
-                        {req.status === 'pending' && canApprove && (
+                        {req.status === 'pending' && canApprove && canApproveRecord(req, 'stockRequests') && (
                           <button
                             onClick={() => openAction('approve', req)}
-                            disabled={!canApproveRecord(req)}
-                            title={!canApproveRecord(req) ? 'Segregation of duties: You created this request and cannot self-approve it.' : 'Approve'}
-                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white transition shadow-sm ${
-                              !canApproveRecord(req)
-                                ? 'bg-ink-300 text-ink-500 cursor-not-allowed opacity-60'
-                                : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white transition shadow-sm bg-blue-600 hover:bg-blue-700"
                           >
                             <CheckCircle2 size={11} /> Approve
                           </button>
@@ -614,7 +608,7 @@ export default function StockIssueRequest() {
                         )}
 
                         {/* Reject */}
-                        {['pending', 'approved'].includes(req.status) && canApprove && (
+                        {['pending', 'approved'].includes(req.status) && canApprove && canApproveRecord(req, 'stockRequests') && (
                           <button
                             onClick={() => openAction('reject', req)}
                             className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 transition shadow-sm"
@@ -1136,21 +1130,13 @@ export default function StockIssueRequest() {
 
             {/* Footer actions */}
             <div className="flex items-center gap-2 border-t border-ink-100 px-6 py-4 bg-ink-50/40 flex-wrap">
-              {detailRequest.status === 'pending' && canApprove && (
+              {detailRequest.status === 'pending' && canApprove && canApproveRecord(detailRequest, 'stockRequests') && (
                 <button
-                  disabled={!canApproveRecord(detailRequest)}
-                  title={!canApproveRecord(detailRequest) ? 'Segregation of duties: You created this request and cannot self-approve it.' : 'Approve'}
                   onClick={() => {
-                    if (canApproveRecord(detailRequest)) {
-                      setDetailOpen(false);
-                      openAction('approve', detailRequest);
-                    }
+                    setDetailOpen(false);
+                    openAction('approve', detailRequest);
                   }}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition ${
-                    !canApproveRecord(detailRequest)
-                      ? 'bg-ink-300 text-ink-500 cursor-not-allowed opacity-60'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
+                  className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition bg-blue-600 hover:bg-blue-700"
                 >
                   <CheckCircle2 size={13} /> Approve
                 </button>
@@ -1163,7 +1149,7 @@ export default function StockIssueRequest() {
                   <PackageCheck size={13} /> Issue Stock
                 </button>
               )}
-              {['pending', 'approved'].includes(detailRequest.status) && canApprove && (
+              {['pending', 'approved'].includes(detailRequest.status) && canApprove && canApproveRecord(detailRequest, 'stockRequests') && (
                 <button
                   onClick={() => { setDetailOpen(false); openAction('reject', detailRequest); }}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 transition"
