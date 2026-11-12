@@ -259,6 +259,8 @@ export default function RolePrivilegesManager() {
 
   // Authority check for managing individual employee permissions
   const canManageStaff = isDeveloper || (isAdmin && allowAdminManage);
+  const canManageRoles = isDeveloper || isAdmin;
+  const canEditRoleMatrix = isDeveloper || isAdmin;
 
   // Helper: check if a module belongs to Sales and Marketing MS (Developer/Owner exclusive)
   const isSalesModule = (modKey) => {
@@ -624,7 +626,7 @@ export default function RolePrivilegesManager() {
 
   // Toggle all modules for a specific column in the active role
   const handleToggleColumnForRole = (actionKey) => {
-    if (!isDeveloper) return;
+    if (!canEditRoleMatrix) return;
     // Check if majority are enabled
     let enabledCount = 0;
     let totalCount = 0;
@@ -701,7 +703,7 @@ export default function RolePrivilegesManager() {
     } catch (err) {
       setFeedback({
         type: 'error',
-        message: err.response?.data?.message || 'Failed to save role privileges. Make sure you are authenticated as System Developer & Owner.',
+        message: err.response?.data?.message || 'Failed to save role privileges. Make sure you are authenticated as System Developer or Administrator.',
       });
     } finally {
       setSaving(false);
@@ -807,13 +809,27 @@ export default function RolePrivilegesManager() {
     return { grants, denials, inherited };
   }, [workingStaffPermissions, workingRolePermissions, selectedStaff]);
 
+  if (!canManageRoles) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-8 text-center space-y-3">
+        <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+          <ShieldAlert size={24} />
+        </div>
+        <h3 className="text-base font-bold text-slate-800">Access Restricted</h3>
+        <p className="text-xs text-slate-600 max-w-md mx-auto">
+          The Role Privileges &amp; Access Control Matrix is reserved exclusively for the System Developer &amp; Owner and System Administrators.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 w-full">
       {/* ── Security & Authority Header ── */}
       <div className={`rounded-2xl p-4.5 border transition shadow-sm ${
         isDeveloper
           ? 'bg-slate-900 border-indigo-900/60 text-white'
-          : canManageStaff
+          : isAdmin
             ? 'bg-emerald-950/90 border-emerald-800 text-white'
             : 'bg-amber-50 border-amber-200 text-amber-900'
       }`}>
@@ -822,11 +838,11 @@ export default function RolePrivilegesManager() {
             <div className={`rounded-xl p-2.5 ${
               isDeveloper
                 ? 'bg-indigo-600 text-white'
-                : canManageStaff
+                : isAdmin
                   ? 'bg-emerald-600 text-white'
                   : 'bg-amber-200 text-amber-800'
             }`}>
-              {isDeveloper || canManageStaff ? <ShieldCheck size={24} /> : <ShieldAlert size={24} />}
+              <ShieldCheck size={24} />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -836,26 +852,26 @@ export default function RolePrivilegesManager() {
                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                   isDeveloper
                     ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                    : canManageStaff
+                    : isAdmin
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                       : 'bg-amber-100 text-amber-800 border-amber-300'
                 }`}>
                   <Sparkles size={11} />
                   {isDeveloper
                     ? 'System Developer & Owner Mode'
-                    : canManageStaff
-                      ? 'Admin Mode (Authorized by Developer)'
+                    : isAdmin
+                      ? 'System Administrator Mode (Role Controls Active)'
                       : 'Read-Only Mode'}
                 </span>
               </div>
               <p className={`text-xs mt-0.5 ${
-                isDeveloper || canManageStaff ? 'text-slate-300' : 'text-amber-700'
+                isDeveloper || isAdmin ? 'text-slate-300' : 'text-amber-700'
               }`}>
                 {isDeveloper
                   ? 'You have unrestricted authority over all user roles, module access, employee permissions, and administrative privileges.'
-                  : canManageStaff
-                    ? 'You are authorized by the System Developer & Owner to assign or revoke module access and permissions for individual employees (Sales & Marketing MS is reserved exclusively for the Owner).'
-                    : 'Role Privileges and Employee Permissions are managed exclusively by the System Developer & Owner. Modifications are locked.'}
+                  : isAdmin
+                    ? 'You have administrative authority to configure and toggle role privileges across operational roles.'
+                    : 'Role Privileges and Employee Permissions are managed exclusively by the System Developer & Owner and System Administrators.'}
               </p>
             </div>
           </div>
@@ -1053,7 +1069,7 @@ export default function RolePrivilegesManager() {
             type="button"
             variant="ghost"
             onClick={handleReset}
-            disabled={saving || (activeTab === 'role' ? !isDeveloper : !canManageStaff)}
+            disabled={saving || (activeTab === 'role' ? !canEditRoleMatrix : !canManageStaff)}
             className="text-xs text-slate-600 hover:bg-slate-100"
           >
             <RotateCcw size={14} /> Reset
@@ -1063,7 +1079,7 @@ export default function RolePrivilegesManager() {
             type="button"
             variant="brass"
             onClick={activeTab === 'role' ? handleSaveRolePermissions : handleSaveStaffPermissions}
-            disabled={saving || (activeTab === 'role' ? !isDeveloper : !canManageStaff)}
+            disabled={saving || (activeTab === 'role' ? !canEditRoleMatrix : !canManageStaff)}
             className="shadow-sm font-semibold"
           >
             <Save size={15} />
@@ -1126,16 +1142,16 @@ export default function RolePrivilegesManager() {
               <span className="text-xs text-slate-500 font-semibold mr-1">Bulk Role Controls:</span>
               <button
                 type="button"
-                onClick={() => isDeveloper && handleBulkRoleAction('enable')}
-                disabled={!isDeveloper}
+                onClick={() => canEditRoleMatrix && handleBulkRoleAction('enable')}
+                disabled={!canEditRoleMatrix}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition disabled:opacity-50"
               >
                 <CheckCircle2 size={13} /> Enable All
               </button>
               <button
                 type="button"
-                onClick={() => isDeveloper && handleBulkRoleAction('disable')}
-                disabled={!isDeveloper}
+                onClick={() => canEditRoleMatrix && handleBulkRoleAction('disable')}
+                disabled={!canEditRoleMatrix}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-100 transition disabled:opacity-50"
               >
                 <XCircle size={13} /> Disable All
@@ -1303,7 +1319,7 @@ export default function RolePrivilegesManager() {
                           <Icon size={14} className="opacity-80" />
                           <span>{action.label}</span>
                         </div>
-                        {activeTab === 'role' && isDeveloper && (
+                        {activeTab === 'role' && canEditRoleMatrix && (
                           <button
                             type="button"
                             onClick={() => handleToggleColumnForRole(action.key)}
@@ -1410,11 +1426,11 @@ export default function RolePrivilegesManager() {
                                       return (
                                         <button
                                           type="button"
-                                          disabled={!isDeveloper}
-                                          onClick={() => isDeveloper && setRolePermission(mod.key, null, selectedRole, !isEnabled)}
+                                          disabled={!canEditRoleMatrix}
+                                          onClick={() => canEditRoleMatrix && setRolePermission(mod.key, null, selectedRole, !isEnabled)}
                                           className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                                             isEnabled ? 'bg-purple-600' : 'bg-slate-300'
-                                          } ${!isDeveloper ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                          } ${!canEditRoleMatrix ? 'opacity-60 cursor-not-allowed' : ''}`}
                                         >
                                           <span
                                             className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
@@ -1475,12 +1491,12 @@ export default function RolePrivilegesManager() {
                                           <label className="inline-flex items-center justify-center cursor-pointer p-1">
                                             <input
                                               type="checkbox"
-                                              disabled={!isDeveloper}
+                                              disabled={!canEditRoleMatrix}
                                               checked={isEnabled}
-                                              onChange={(e) => isDeveloper && setRolePermission(mod.key, action.key, selectedRole, e.target.checked)}
+                                              onChange={(e) => canEditRoleMatrix && setRolePermission(mod.key, action.key, selectedRole, e.target.checked)}
                                               className={`h-5 w-5 rounded-md cursor-pointer transition focus:ring-0 ${
                                                 isEnabled ? 'accent-blue-600 text-blue-600' : 'text-slate-300'
-                                              } ${!isDeveloper ? 'cursor-not-allowed opacity-50' : ''}`}
+                                              } ${!canEditRoleMatrix ? 'cursor-not-allowed opacity-50' : ''}`}
                                               title={`${action.label} for ${mod.label} (${selectedRole}: ${isEnabled ? 'Allowed' : 'Denied'})`}
                                             />
                                           </label>

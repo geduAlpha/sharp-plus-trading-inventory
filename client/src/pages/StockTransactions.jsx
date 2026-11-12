@@ -3171,7 +3171,46 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                 <Printer size={14} className="mr-1.5" />
                 Print Voucher
               </Button>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {detailTxn.status === 'pending' && canCheck(detailTxn, 'stockMovements') && (
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setDetailOpen(false);
+                      openApproveModal(detailTxn, 'check');
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <CheckCircle2 size={14} className="mr-1" />
+                    Check
+                  </Button>
+                )}
+                {['pending', 'checked'].includes(detailTxn.status) && canApprove(detailTxn, 'stockMovements') && (
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setDetailOpen(false);
+                      openApproveModal(detailTxn, 'approve');
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <ShieldCheck size={14} className="mr-1" />
+                    Approve
+                  </Button>
+                )}
+                {['pending', 'checked', 'approved'].includes(detailTxn.status) && canPost(detailTxn, 'stockMovements') && (
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setDetailOpen(false);
+                      openApproveModal(detailTxn, 'post');
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Package size={14} className="mr-1" />
+                    Post to Stock
+                  </Button>
+                )}
                 {detailTxn.status !== 'voided' && (canDelete || user?.role === 'developer' || isAdmin) && (
                   <Button
                     variant="danger"

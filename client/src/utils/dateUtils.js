@@ -108,3 +108,4 @@ export const isToday = (dateVal) => {
   if (!dateVal) return false;
   return getLocalDateString(dateVal) === getLocalDateString(new Date());
 };
+

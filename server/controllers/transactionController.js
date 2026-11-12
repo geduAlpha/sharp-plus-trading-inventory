@@ -869,7 +869,7 @@ const updateTransaction = asyncHandler(async (req, res) => {
     if (isApprovedOrPosted) {
       await applyStockMovement(resolvedItems, newDirection, session, {
         defaultStore: assignedStore,
-        updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment'].includes(voucherType),
+        updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'psav'].includes(voucherType),
       });
       transaction.stockApplied = true;
     } else {
@@ -1288,7 +1288,7 @@ const advanceTransaction = asyncHandler(async (req, res) => {
       }
       await applyStockMovement(stockItems, direction, null, {
         defaultStore: txn.storeLocation,
-        updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment'].includes(txn.voucherType),
+        updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'psav'].includes(txn.voucherType),
       });
       txn.stockApplied = true;
     }

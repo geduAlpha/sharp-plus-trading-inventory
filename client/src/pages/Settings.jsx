@@ -241,7 +241,7 @@ export default function Settings() {
     if ((currentTab === 'appearance' || currentTab === 'sidebar' || currentTab === 'modules' || currentTab === 'dev') && user?.role !== 'developer') {
       setTab('profile');
     }
-    if (currentTab === 'permissions' && !hasRole('admin') && !hasRole('manager') && user?.role !== 'developer') {
+    if (currentTab === 'permissions' && !hasRole('admin') && user?.role !== 'developer') {
       setTab('profile');
     }
     if (['system', 'telegram', 'printers'].includes(currentTab) && !hasRole('admin') && user?.role !== 'developer') {
@@ -1467,7 +1467,7 @@ export default function Settings() {
       <div className="flex border-b border-ink-200 space-x-1 sm:space-x-3 overflow-x-auto no-scrollbar scroll-smooth bg-white px-1">
         {SETTINGS_TABS.map((tab) => {
           if (tab.devOnly && user?.role !== 'developer') return null;
-          if (tab.adminOnly && !hasRole('admin') && !hasRole('manager') && user?.role !== 'developer') return null;
+          if (tab.adminOnly && !hasRole('admin') && user?.role !== 'developer') return null;
           const isActive = currentTab === tab.id || (tab.id === 'dev' && (currentTab === 'modules' || currentTab === 'appearance' || currentTab === 'sidebar'));
           const Icon = tab.icon;
           const isDevTab = tab.id === 'dev';
@@ -2499,7 +2499,7 @@ export default function Settings() {
       )}
 
       {/* ── Tab: Role Privileges (Exact Match to Screenshot) ── */}
-      {currentTab === 'permissions' && (hasRole('admin') || hasRole('manager') || user?.role === 'developer') && (
+      {currentTab === 'permissions' && (hasRole('admin') || user?.role === 'developer') && (
         <div className="space-y-6 w-full max-w-6xl">
           {/* Prominent Real-Time Feedback Banners */}
           {hasUnsavedPerms && (
