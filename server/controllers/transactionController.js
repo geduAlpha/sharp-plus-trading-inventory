@@ -16,6 +16,10 @@ const {
   applyStockMovement,
   reverseStockMovement,
 } = require('../utils/stockBalanceHelper');
+const {
+  buildRangeFilter,
+  resolveTransactionDate,
+} = require('../utils/dateRangeHelper');
 
 // ── helpers ───────────────────────────────────────────────────────────
 const verifyUserPassword = async (userId, password) => {
@@ -238,9 +242,10 @@ const getTransactions = asyncHandler(async (req, res) => {
   }
 
   if (from || to) {
-    filter.date = {};
-    if (from) filter.date.$gte = new Date(from);
-    if (to)   filter.date.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    const dateRangeFilter = buildRangeFilter(from, to, req);
+    if (dateRangeFilter) {
+      filter.date = dateRangeFilter;
+    }
   }
 
   const transactions = await StockTransaction.find(filter)
@@ -571,15 +576,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     creditTerms: req.body.creditTerms || '',
     discount:  req.body.discount !== undefined ? Number(req.body.discount) : resolvedItems.reduce((s, i) => s + (i.discount || 0), 0),
     additionalCharge: req.body.additionalCharge !== undefined ? Number(req.body.additionalCharge) : resolvedItems.reduce((s, i) => s + (i.additionalCharge || 0), 0),
-    date: (() => {
-      if (!date) return new Date();
-      if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
-        const now = new Date();
-        const [y, m, d] = date.trim().split('-').map(Number);
-        return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-      }
-      return new Date(date);
-    })(),
+    date: resolveTransactionDate(date, req),
     attachment: attachment || (formattedAttachments[0]?.url || ''),
     attachments: formattedAttachments,
     performedBy: req.user._id,
@@ -927,7 +924,7 @@ const updateTransaction = asyncHandler(async (req, res) => {
     transaction.reason      = reason || '';
     transaction.reference   = reference || '';
     transaction.notes       = notes || '';
-    if (date) transaction.date = new Date(date);
+    if (date !== undefined) transaction.date = resolveTransactionDate(date, req);
     transaction.attachments = formattedAttachments;
     transaction.attachment  = formattedAttachments.length > 0 ? formattedAttachments[0].url : '';
     transaction.totalAmount = req.body.totalAmount !== undefined ? Number(req.body.totalAmount) : rawTotalAmount;

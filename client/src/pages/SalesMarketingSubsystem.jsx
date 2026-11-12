@@ -10,6 +10,12 @@ import ThermalBillModal from '../components/sales/ThermalBillModal';
 import ApproveModal from '../components/ui/ApproveModal';
 import SalesForm from '../components/sales/SalesForm';
 import {
+  getLocalDateString,
+  getStartOfMonthString,
+  isDateInRange,
+  formatDateTime,
+} from '../utils/dateUtils';
+import {
   ShoppingBag,
   CreditCard,
   RotateCcw,
@@ -148,13 +154,10 @@ export default function SalesMarketingSubsystem() {
   // Customer Credit Ledger State
   const [creditLedger, setCreditLedger] = useState([]);
 
-  // Initialize date range defaults (today)
+  // Initialize date range defaults (current month to today)
   useEffect(() => {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    setDateFrom(startOfMonth);
-    setDateTo(today);
+    setDateFrom(getStartOfMonthString());
+    setDateTo(getLocalDateString());
   }, []);
 
   // Fetch Sales Transactions based on active module context
@@ -314,14 +317,9 @@ export default function SalesMarketingSubsystem() {
       });
     }
 
-    // Filter by Date Range
-    if (dateFrom) {
-      const fromTime = new Date(`${dateFrom}T00:00:00`).getTime();
-      list = list.filter((t) => new Date(t.date || t.createdAt).getTime() >= fromTime);
-    }
-    if (dateTo) {
-      const toTime = new Date(`${dateTo}T23:59:59.999`).getTime();
-      list = list.filter((t) => new Date(t.date || t.createdAt).getTime() <= toTime);
+    // Filter by Date Range (exact timezone-aligned day boundaries)
+    if (dateFrom || dateTo) {
+      list = list.filter((t) => isDateInRange(t.date || t.createdAt, dateFrom, dateTo));
     }
 
     return list;
@@ -536,7 +534,7 @@ export default function SalesMarketingSubsystem() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${activeTab}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `${activeTab}_${getLocalDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

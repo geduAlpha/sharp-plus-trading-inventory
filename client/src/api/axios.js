@@ -51,8 +51,12 @@ const api = axios.create({
 export let loginInProgress = false;
 export const setLoginInProgress = (val) => { loginInProgress = val; };
 
-// ── Request interceptor: attach auth token ─────────────────────────────────
+// ── Request interceptor: attach auth token & client timezone offset ─────────
 api.interceptors.request.use((config) => {
+  try {
+    config.headers['X-Timezone-Offset'] = new Date().getTimezoneOffset();
+  } catch { }
+
   const stored =
     localStorage.getItem('companyStockAuth') ||
     localStorage.getItem('hotelStockAuth');

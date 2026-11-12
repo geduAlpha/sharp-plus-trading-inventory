@@ -9,6 +9,7 @@ import WorkflowBadge from '../components/ui/WorkflowBadge';
 import ApproveModal, { TrailTimeline } from '../components/ui/ApproveModal';
 import ExportDropdown from '../components/ui/ExportDropdown';
 import { useAuth } from '../context/AuthContext';
+import { formatDateTime } from '../utils/dateUtils';
 
 const emptyItem = { material: '', quantity: 1, unitCost: 0 };
 
@@ -70,7 +71,7 @@ export default function Purchases() {
   // ── Export data ──
   const exportData = useMemo(() => {
     return purchases.map(p => ({
-      'Date':          new Date(p.purchaseDate).toLocaleDateString(),
+      'Date':          formatDateTime(p.purchaseDate || p.createdAt),
       'Invoice No':    p.invoiceNumber || '—',
       'Supplier':      p.supplier?.name || '—',
       'Items Count':   p.items?.length ?? 0,
@@ -182,8 +183,8 @@ export default function Purchases() {
 
   const columns = [
     {
-      key: 'purchaseDate', header: 'Date',
-      render: r => new Date(r.purchaseDate).toLocaleDateString(),
+      key: 'purchaseDate', header: 'Date & Time',
+      render: r => <span className="font-mono text-xs">{formatDateTime(r.purchaseDate || r.createdAt)}</span>,
     },
     { key: 'invoiceNumber', header: 'Invoice', render: r => r.invoiceNumber || '—' },
     { key: 'supplier',      header: 'Supplier', render: r => r.supplier?.name || '—' },
@@ -357,7 +358,7 @@ export default function Purchases() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-xs text-ink-400">Supplier</p><p className="font-medium">{detailPurchase.supplier?.name}</p></div>
               <div><p className="text-xs text-ink-400">Status</p><WorkflowBadge status={detailPurchase.status} /></div>
-              <div><p className="text-xs text-ink-400">Date</p><p className="font-medium">{new Date(detailPurchase.purchaseDate).toLocaleDateString()}</p></div>
+              <div><p className="text-xs text-ink-400">Date & Time</p><p className="font-mono text-xs">{formatDateTime(detailPurchase.purchaseDate || detailPurchase.createdAt)}</p></div>
               <div><p className="text-xs text-ink-400">Total</p><p className="font-semibold">ETB {detailPurchase.totalAmount?.toFixed(2)}</p></div>
             </div>
 

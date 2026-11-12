@@ -13,6 +13,7 @@ import {
   openThermalPrintWindow,
   openA4PrintWindow,
 } from '../../utils/thermalBillUtils';
+import { getLocalDateString } from '../../utils/dateUtils';
 import {
   ShoppingBag,
   CreditCard,
@@ -133,12 +134,12 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
   // ── Invoice Information ──────────────────────────────────────────────────
   const [selectedStore, setSelectedStore] = useState('main');
   const [voucherNo, setVoucherNo] = useState('');
-  const [saleDate, setSaleDate] = useState(new Date().toISOString().slice(0, 10));
+  const [saleDate, setSaleDate] = useState(getLocalDateString(new Date()));
   const [creditTermsDays, setCreditTermsDays] = useState(30);
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
-    return d.toISOString().slice(0, 10);
+    return getLocalDateString(d);
   });
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
@@ -406,7 +407,7 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
     setCreditTermsDays(days);
     const d = new Date(saleDate || new Date());
     d.setDate(d.getDate() + Number(days));
-    setDueDate(d.toISOString().slice(0, 10));
+    setDueDate(getLocalDateString(d));
   };
 
   // Close dropdowns on outside click

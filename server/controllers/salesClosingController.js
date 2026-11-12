@@ -2,10 +2,14 @@ const asyncHandler = require('express-async-handler');
 const SalesClosing = require('../models/SalesClosing');
 const StockTransaction = require('../models/StockTransaction');
 const AuditLog = require('../models/AuditLog');
+const {
+  buildRangeFilter,
+  formatLocalDate,
+} = require('../utils/dateRangeHelper');
 
 // Generate Next Closing Code (e.g. SCL-20261103-001)
 const generateClosingCode = async () => {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const today = formatLocalDate(new Date()).replace(/-/g, '');
   const prefix = `SCL-${today}-`;
   const latest = await SalesClosing.findOne({ closingCode: { $regex: `^${prefix}` } })
     .sort({ closingCode: -1 })
@@ -33,9 +37,8 @@ const getSalesClosings = asyncHandler(async (req, res) => {
     filter.status = status;
   }
   if (from || to) {
-    filter.date = {};
-    if (from) filter.date.$gte = new Date(from);
-    if (to) filter.date.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    const df = buildRangeFilter(from, to, req);
+    if (df) filter.date = df;
   }
 
   const closings = await SalesClosing.find(filter)

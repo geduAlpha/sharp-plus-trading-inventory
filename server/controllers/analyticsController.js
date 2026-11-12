@@ -3,23 +3,17 @@ const SalesRecord  = require('../models/SalesRecord');
 const RawMaterial  = require('../models/RawMaterial');
 const Product      = require('../models/Product');
 const StockTransaction = require('../models/StockTransaction');
+const {
+  buildRangeFilter,
+  formatLocalDate,
+  getClientTimezoneOffset,
+} = require('../utils/dateRangeHelper');
 
 // ── Date match helper ──────────────────────────────────────────────────
-const buildDateMatch = (from, to) => {
+const buildDateMatch = (from, to, req) => {
   const match = { deletedAt: null };
-  if (from || to) {
-    match.saleDate = {};
-    if (from) {
-      const dFrom = new Date(from);
-      dFrom.setHours(0, 0, 0, 0);
-      match.saleDate.$gte = dFrom;
-    }
-    if (to) {
-      const dTo = new Date(to);
-      dTo.setHours(23, 59, 59, 999);
-      match.saleDate.$lte = dTo;
-    }
-  }
+  const df = buildRangeFilter(from, to, req);
+  if (df) match.saleDate = df;
   return match;
 };
 
@@ -27,7 +21,7 @@ const buildDateMatch = (from, to) => {
 // Profit & Loss summary for a date range (International F&B Standard)
 const getProfitLoss = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
-  const match = buildDateMatch(from, to);
+  const match = buildDateMatch(from, to, req);
 
   const records = await SalesRecord.find(match).sort({ saleDate: -1 });
 
@@ -138,7 +132,7 @@ const getProfitLoss = asyncHandler(async (req, res) => {
 // Ingredient consumption breakdown: "One product how much ingredients consumed"
 const getConsumption = asyncHandler(async (req, res) => {
   const { from, to, productName } = req.query;
-  const match = buildDateMatch(from, to);
+  const match = buildDateMatch(from, to, req);
 
   const records = await SalesRecord.find(match);
 
@@ -387,7 +381,7 @@ const getPrediction = asyncHandler(async (req, res) => {
 // ── GET /api/analytics/records ────────────────────────────────────────
 const getSalesRecords = asyncHandler(async (req, res) => {
   const { from, to, limit = 50 } = req.query;
-  const match = buildDateMatch(from, to);
+  const match = buildDateMatch(from, to, req);
   const records = await SalesRecord.find(match)
     .sort({ saleDate: -1 })
     .limit(Number(limit))

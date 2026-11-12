@@ -19,6 +19,7 @@ import AttachmentUploader, { AttachmentViewer } from '../components/ui/Attachmen
 import Pagination from '../components/ui/Pagination';
 import { useAuth } from '../context/AuthContext';
 import { useThemeSidebar } from '../context/ThemeSidebarContext';
+import { getLocalDateString, formatDateTime } from '../utils/dateUtils';
 
 // ── Voucher configurations ────────────────────────────────────────────
 const VOUCHERS = [
@@ -125,7 +126,7 @@ const emptyForm = key => ({
   activity: '',
   creditTerms: 'Net 30',
   dueDate: '',
-  date: new Date().toISOString().slice(0, 10),
+  date: getLocalDateString(new Date()),
   isVatInclusive: true,
   taxRate: 15,
   items: [],
@@ -391,7 +392,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
         'Code': t.voucherNo || '—',
         'Customer / Supplier / Employee': party,
         'TIN / Emp Code': t.tin || t.employeeCode || t.supplier?.tin || '—',
-        'Issued Date': t.date ? new Date(t.date).toISOString().replace('T', ' ').slice(0, 19) : '—',
+        'Issued Date': t.date ? formatDateTime(t.date) : '—',
         'Grand Total': Number(t.totalAmount || 0).toFixed(2),
         'User Name': t.performedBy?.name || '—',
         'Device Name': t.deviceName || 'Web Client',
@@ -506,8 +507,8 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       remark: txn.remark || '',
       activity: txn.activity || '',
       creditTerms: txn.creditTerms || 'Net 30',
-      dueDate: txn.dueDate ? new Date(txn.dueDate).toISOString().slice(0, 10) : '',
-      date: txn.date ? new Date(txn.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      dueDate: txn.dueDate ? getLocalDateString(new Date(txn.dueDate)) : '',
+      date: txn.date ? getLocalDateString(new Date(txn.date)) : getLocalDateString(new Date()),
       isVatInclusive: txn.isVatInclusive !== false,
       taxRate: txn.taxRate ?? 15,
       items: itemsList,
@@ -1280,7 +1281,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
   // Filter Presets
   const handlePresetFilter = (val) => {
     setPresetFilter(val);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString(new Date());
     if (val === 'today') {
       setDateRange({ from: today, to: today });
       setFilterState('all');
@@ -1300,7 +1301,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
     }
   };
 
-  const formattedToday = new Date().toLocaleDateString('en-US');
+  const formattedToday = getLocalDateString(new Date());
 
   return (
     <div className="space-y-4 pb-12 font-sans text-slate-800">

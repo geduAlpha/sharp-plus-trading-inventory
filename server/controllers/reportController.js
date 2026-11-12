@@ -4,22 +4,18 @@ const Purchase = require('../models/Purchase');
 const RawMaterial = require('../models/RawMaterial');
 const Supplier = require('../models/Supplier');
 const User = require('../models/User');
+const {
+  buildDayRange,
+  buildRangeFilter,
+  getClientTimezoneOffset,
+  parseDateBoundary,
+  formatLocalDate,
+} = require('../utils/dateRangeHelper');
 
 // ── helpers ──────────────────────────────────────────────────────────
-const dayRange = (dateParam) => {
-  const start = new Date(dateParam || Date.now());
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 1);
-  return { start, end };
-};
+const dayRange = (dateParam, req) => buildDayRange(dateParam, req);
 
-const rangeFilter = (from, to) => {
-  const f = {};
-  if (from) f.$gte = new Date(from);
-  if (to)   f.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
-  return Object.keys(f).length ? f : null;
-};
+const rangeFilter = (from, to, req) => buildRangeFilter(from, to, req);
 
 const populateTxn = (q) =>
   q.populate('items.material', 'name unit unitCost')
@@ -40,13 +36,13 @@ const canonicalVt = (t) => {
 
 // ── GET /api/reports/daily ────────────────────────────────────────────
 const getDailyReport = asyncHandler(async (req, res) => {
-  const { start, end } = dayRange(req.query.date);
+  const { start, end, dateStr } = dayRange(req.query.date, req);
 
   const transactions = await populateTxn(
-    StockTransaction.find({ date: { $gte: start, $lt: end }, deletedAt: null, status: { $ne: 'voided' } })
+    StockTransaction.find({ date: { $gte: start, $lte: end }, deletedAt: null, status: { $ne: 'voided' } })
   );
 
-  const purchases = await Purchase.find({ purchaseDate: { $gte: start, $lt: end }, deletedAt: null, status: { $ne: 'cancelled' } })
+  const purchases = await Purchase.find({ purchaseDate: { $gte: start, $lte: end }, deletedAt: null, status: { $ne: 'cancelled' } })
     .populate('supplier', 'name')
     .populate('items.material', 'name unit');
 
@@ -64,7 +60,7 @@ const getDailyReport = asyncHandler(async (req, res) => {
     byVoucher[vt].transactions.push(t);
   }
 
-  res.json({ date: start.toISOString().slice(0, 10), stockIn, stockOut, purchaseTotal, transactions, purchases, byVoucher });
+  res.json({ date: dateStr, stockIn, stockOut, purchaseTotal, transactions, purchases, byVoucher });
 });
 
 // ── GET /api/reports/voucher ──────────────────────────────────────────
@@ -75,7 +71,7 @@ const getVoucherReport = asyncHandler(async (req, res) => {
 
   const filter = { deletedAt: null, status: { $ne: 'voided' } };
   if (voucherType) filter.voucherType = voucherType;
-  const df = rangeFilter(from, to);
+  const df = rangeFilter(from, to, req);
   if (df) filter.date = df;
 
   const transactions = await populateTxn(StockTransaction.find(filter));
@@ -155,7 +151,7 @@ const getStockLevelReport = asyncHandler(async (req, res) => {
 const getPurchaseReport = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
   const filter = {};
-  const df = rangeFilter(from, to);
+  const df = rangeFilter(from, to, req);
   if (df) filter.purchaseDate = df;
 
   const purchases = await Purchase.find(filter)
@@ -172,7 +168,7 @@ const getPurchaseReport = asyncHandler(async (req, res) => {
 const getSummaryReport = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
   const match = {};
-  const df = rangeFilter(from, to);
+  const df = rangeFilter(from, to, req);
   if (df) match.date = df;
 
   const agg = await StockTransaction.aggregate([
@@ -326,12 +322,9 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     };
   });
 
-  const now = new Date();
-  let startDate = from ? new Date(from) : null;
-  if (startDate) startDate.setHours(0, 0, 0, 0);
-
-  let endDate = to ? new Date(to) : null;
-  if (endDate) endDate.setHours(23, 59, 59, 999);
+  const tzOffset = getClientTimezoneOffset(req);
+  let startDate = from ? parseDateBoundary(from, 'start', tzOffset) : null;
+  let endDate = to ? parseDateBoundary(to, 'end', tzOffset) : null;
 
   const txnQuery = {
     $or: [{ status: { $in: ['approved', 'posted'] } }, { stockApplied: true }],
@@ -560,7 +553,7 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
       { 'items.material': materialId },
     ],
   };
-  const df = rangeFilter(from, to);
+  const df = rangeFilter(from, to, req);
   if (df) filter.date = df;
 
   const transactions = await StockTransaction.find(filter)
@@ -644,7 +637,7 @@ const getStockBalanceTransactions = asyncHandler(async (req, res) => {
     filter.status = { $ne: 'voided' };
   }
 
-  const df = rangeFilter(from, to);
+  const df = rangeFilter(from, to, req);
   if (df) filter.date = df;
 
   if (voucherType && voucherType !== 'all') {

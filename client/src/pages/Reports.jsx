@@ -16,6 +16,13 @@ import Button from '../components/ui/Button';
 import ExportDropdown from '../components/ui/ExportDropdown';
 import WorkflowBadge from '../components/ui/WorkflowBadge';
 import { exportToExcel, exportToCSV, exportToPDF } from '../utils/exportUtils';
+import {
+  getLocalDateString,
+  getStartOfMonthString,
+  getStartOfWeekString,
+  getYesterdayString,
+  formatDateTime,
+} from '../utils/dateUtils';
 
 // ── Binoculars SVG Icon matching reference image ──────────────────────
 const BinocularsIcon = ({ className = "h-5 w-5", ...props }) => (
@@ -76,20 +83,11 @@ const VOUCHER_LABELS = {
   sales_import: 'Sales Import',
 };
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => getLocalDateString(new Date());
 
-const startOfMonthStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-};
+const startOfMonthStr = () => getStartOfMonthString(new Date());
 
-const startOfWeekStr = () => {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
-  return monday.toISOString().slice(0, 10);
-};
+const startOfWeekStr = () => getStartOfWeekString(new Date());
 
 // ── Reusable stat card ────────────────────────────────────────────────
 const Stat = ({ label, value, sub, color = 'text-ink-900', badge = null }) => (
@@ -102,20 +100,6 @@ const Stat = ({ label, value, sub, color = 'text-ink-900', badge = null }) => (
     {sub && <p className="mt-0.5 text-xs text-ink-400">{sub}</p>}
   </Card>
 );
-
-// ── Date-time formatter with exact hours, minutes, and seconds (h:m:s) ─
-const formatDateTime = (dateVal) => {
-  if (!dateVal) return '—';
-  const d = new Date(dateVal);
-  if (isNaN(d.getTime())) return '—';
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
-};
 
 // ── Voucher transactions table (shared by all voucher tabs) ───────────
 const VoucherTable = ({ data, showSupplier = false, showReason = false }) => {

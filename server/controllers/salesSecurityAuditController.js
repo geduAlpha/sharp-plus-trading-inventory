@@ -4,6 +4,10 @@ const StockTransaction = require('../models/StockTransaction');
 const Customer = require('../models/Customer');
 const RawMaterial = require('../models/RawMaterial');
 const { updateStockBalance } = require('../utils/stockBalanceHelper');
+const {
+  buildRangeFilter,
+  formatLocalDate,
+} = require('../utils/dateRangeHelper');
 
 // @desc    Get Security Audit Report & User Activity Monitoring
 // @route   GET /api/sales-security/report
@@ -19,9 +23,8 @@ const getSecurityAuditReport = asyncHandler(async (req, res) => {
     filter.userName = { $regex: filterUser, $options: 'i' };
   }
   if (from || to) {
-    filter.createdAt = {};
-    if (from) filter.createdAt.$gte = new Date(from);
-    if (to) filter.createdAt.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    const df = buildRangeFilter(from, to, req);
+    if (df) filter.createdAt = df;
   }
 
   // Fetch security logs
@@ -81,7 +84,7 @@ const createZeroingVoucher = asyncHandler(async (req, res) => {
     throw new Error(`Voucher ${originalTxn.voucherNo} has already been zeroed.`);
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const todayStr = formatLocalDate(new Date()).replace(/-/g, '');
   const zeroingVoucherNo = `ZV-${todayStr}-${originalTxn.voucherNo}`;
 
   // 1. Create the Zeroing Voucher record (reversing the financial effect)

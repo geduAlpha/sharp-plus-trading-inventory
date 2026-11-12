@@ -3,6 +3,11 @@ const RawMaterial = require('../models/RawMaterial');
 const Purchase = require('../models/Purchase');
 const StockTransaction = require('../models/StockTransaction');
 const Supplier = require('../models/Supplier');
+const {
+  getClientTimezoneOffset,
+  buildDayRange,
+  formatLocalDate,
+} = require('../utils/dateRangeHelper');
 
 // In-memory cache for ultra-fast instantaneous responses (TTL 25s)
 let summaryCache = {
@@ -23,8 +28,8 @@ const getSummary = asyncHandler(async (req, res) => {
     return res.json(summaryCache.data);
   }
 
+  const { start: startOfToday, tzOffset } = buildDayRange(null, req);
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const sevenDaysAgo = new Date(startOfToday);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
@@ -117,9 +122,9 @@ const getSummary = asyncHandler(async (req, res) => {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(startOfToday);
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = formatLocalDate(d, tzOffset);
     const dayTx = weekTransactions.filter((t) => {
-      const txDate = t.date ? new Date(t.date).toISOString().slice(0, 10) : '';
+      const txDate = t.date ? formatLocalDate(t.date, tzOffset) : '';
       return txDate === dateStr;
     });
 
@@ -136,9 +141,9 @@ const getSummary = asyncHandler(async (req, res) => {
     days.push({ date: dateStr, stockIn, stockOut });
   }
 
-  const todayStr = startOfToday.toISOString().slice(0, 10);
+  const todayStr = formatLocalDate(startOfToday, tzOffset);
   const todayTx = weekTransactions.filter((t) => {
-    return t.date && new Date(t.date).toISOString().slice(0, 10) === todayStr;
+    return t.date && formatLocalDate(t.date, tzOffset) === todayStr;
   });
   const todaysStockIn = todayTx.filter((t) => t.type === 'in').reduce((s, t) => {
     const itemsQty = t.items && t.items.length > 0 ? t.items.reduce((acc, it) => acc + (it.quantity || 0), 0) : 0;

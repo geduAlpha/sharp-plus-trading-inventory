@@ -7,6 +7,14 @@ import Modal from '../components/ui/Modal';
 import WorkflowBadge from '../components/ui/WorkflowBadge';
 import ThermalBillModal from '../components/sales/ThermalBillModal';
 import {
+  getLocalDateString,
+  getStartOfMonthString,
+  getStartOfWeekString,
+  getYesterdayString,
+  formatDateTime,
+  isDateInRange,
+} from '../utils/dateUtils';
+import {
   Receipt,
   FileText,
   Printer,
@@ -76,11 +84,8 @@ export default function SalesMarketingVoucherReport() {
 
   // Set default dates on initial mount
   useEffect(() => {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    setDateFrom(startOfMonth);
-    setDateTo(today);
+    setDateFrom(getStartOfMonthString());
+    setDateTo(getLocalDateString());
   }, []);
 
   // Fetch Sales Transactions (Reuses StockTransaction collection with voucherType: sales)
@@ -129,26 +134,21 @@ export default function SalesMarketingVoucherReport() {
   // Handle Preset Changes
   const handlePresetChange = (preset) => {
     setDatePreset(preset);
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = getLocalDateString();
 
     if (preset === 'today') {
       setDateFrom(today);
       setDateTo(today);
     } else if (preset === 'yesterday') {
-      const yest = new Date(now);
-      yest.setDate(yest.getDate() - 1);
-      const yDate = yest.toISOString().slice(0, 10);
+      const yDate = getYesterdayString();
       setDateFrom(yDate);
       setDateTo(yDate);
     } else if (preset === 'this_week') {
-      const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(now.setDate(diff)).toISOString().slice(0, 10);
+      const monday = getStartOfWeekString();
       setDateFrom(monday);
       setDateTo(today);
     } else if (preset === 'this_month') {
-      const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const startOfMonth = getStartOfMonthString();
       setDateFrom(startOfMonth);
       setDateTo(today);
     } else if (preset === 'all') {
@@ -229,14 +229,9 @@ export default function SalesMarketingVoucherReport() {
       list = list.filter((t) => (t.voucherNo || '').toLowerCase().includes(q));
     }
 
-    // 2. Date Range filter
-    if (dateFrom) {
-      const fromTime = new Date(`${dateFrom}T00:00:00`).getTime();
-      list = list.filter((t) => new Date(t.date || t.createdAt).getTime() >= fromTime);
-    }
-    if (dateTo) {
-      const toTime = new Date(`${dateTo}T23:59:59.999`).getTime();
-      list = list.filter((t) => new Date(t.date || t.createdAt).getTime() <= toTime);
+    // 2. Date Range filter (exact timezone-aligned day boundaries)
+    if (dateFrom || dateTo) {
+      list = list.filter((t) => isDateInRange(t.date || t.createdAt, dateFrom, dateTo));
     }
 
     // 3. Sales Type filter
@@ -469,7 +464,7 @@ export default function SalesMarketingVoucherReport() {
 
     return {
       voucherCode: t.voucherNo || '—',
-      date: t.date ? new Date(t.date).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—',
+      date: t.date ? formatDateTime(t.date) : (t.createdAt ? formatDateTime(t.createdAt) : '—'),
       rawDate: t.date || t.createdAt,
       voucherType: vMeta.label,
       voucherTypeBadge: vMeta.badge,
@@ -576,7 +571,7 @@ export default function SalesMarketingVoucherReport() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Sales_Marketing_Voucher_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Sales_Marketing_Voucher_Report_${getLocalDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

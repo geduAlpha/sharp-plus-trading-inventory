@@ -8,6 +8,10 @@ const { invalidateDashboardCache } = require('./dashboardController');
 const { hasPermission } = require('../middleware/authMiddleware');
 const tg = require('../utils/telegramNotifier');
 const notify = require('../utils/notificationHelper');
+const {
+  resolveTransactionDate,
+  buildRangeFilter,
+} = require('../utils/dateRangeHelper');
 
 // ── helpers ──────────────────────────────────────────────────────────
 const applyStock = async (purchase, performedBy) => {
@@ -45,7 +49,12 @@ const verifyUserPassword = async (userId, password) => {
 
 // ── GET /api/purchases ────────────────────────────────────────────────
 const getPurchases = asyncHandler(async (req, res) => {
-  const purchases = await Purchase.find({ deletedAt: null })
+  const { from, to } = req.query;
+  const filter = { deletedAt: null };
+  const df = buildRangeFilter(from, to, req);
+  if (df) filter.purchaseDate = df;
+
+  const purchases = await Purchase.find(filter)
     .populate('supplier', 'name')
     .populate('items.material', 'name unit')
     .populate('recordedBy', 'name role')
@@ -76,7 +85,9 @@ const createPurchase = asyncHandler(async (req, res) => {
   const totalAmount = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitCost), 0);
 
   const purchase = await Purchase.create({
-    supplier, items, invoiceNumber, purchaseDate, notes,
+    supplier, items, invoiceNumber,
+    purchaseDate: resolveTransactionDate(purchaseDate, req),
+    notes,
     totalAmount,
     status: 'draft',
     recordedBy: req.user._id,
