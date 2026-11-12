@@ -3,7 +3,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const backendTarget = env.VITE_BACKEND_URL || 'http://127.0.0.1:5000';
+  const rawTarget = env.VITE_BACKEND_URL || 'http://127.0.0.1:5000';
+  // Normalize localhost to 127.0.0.1 to avoid Windows IPv6 resolution latency or refusal
+  const backendTarget = rawTarget.replace('://localhost', '://127.0.0.1');
 
   return {
     plugins: [react()],
