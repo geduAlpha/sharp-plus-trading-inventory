@@ -551,7 +551,16 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
 // ── GET /api/reports/stock-balance/ledger/:materialId ─────────────────
 const getItemStockLedger = asyncHandler(async (req, res) => {
   const { materialId } = req.params;
-  const { from, to } = req.query;
+  let { from, to, dateCriteria, enquiryDate } = req.query;
+
+  const tzOffset = getClientTimezoneOffset(req);
+  const now = new Date();
+
+  if (dateCriteria === 'at_the_day_of' || (enquiryDate && !from && !to)) {
+    const target = enquiryDate || to || from || formatLocalDate(now, tzOffset);
+    from = target;
+    to = target;
+  }
 
   const material = await RawMaterial.findById(materialId).lean();
   if (!material) {

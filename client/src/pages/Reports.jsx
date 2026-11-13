@@ -1174,8 +1174,10 @@ export default function Reports({ defaultTab } = {}) {
     try {
       const res = await api.get(`/reports/stock-balance/ledger/${material._id}`, {
         params: {
-          from: from || undefined,
-          to: to || undefined,
+          from: dateCriteria === 'at_the_day_of' ? enquiryDate : (from || undefined),
+          to: dateCriteria === 'at_the_day_of' ? enquiryDate : (to || undefined),
+          dateCriteria,
+          enquiryDate,
         },
       });
       setLedgerData(res.data);
@@ -1311,6 +1313,31 @@ export default function Reports({ defaultTab } = {}) {
     if (!data?.items) return [];
     let list = [...data.items];
 
+    // GSL / Item Type filter
+    if (gslFilter && gslFilter !== 'all' && gslFilter !== 'Item') {
+      list = list.filter(item => (item.itemType || '').toLowerCase() === gslFilter.toLowerCase());
+    }
+
+    // Store filter
+    if (storeFilter && storeFilter !== 'all' && storeFilter.toLowerCase() !== 'all stores') {
+      list = list.filter(item => (item.storeLocation || 'Main store').toLowerCase() === storeFilter.toLowerCase());
+    }
+
+    // Category filter
+    if (selectedCategory && selectedCategory !== 'all') {
+      list = list.filter(item => (item.category || 'General').toLowerCase() === selectedCategory.toLowerCase());
+    }
+
+    // Specific Article filter
+    if (articleFilter && articleFilter !== 'all') {
+      list = list.filter(item => item._id === articleFilter || item.code === articleFilter);
+    }
+
+    // Transacted articles filter
+    if (transactedArticles) {
+      list = list.filter(item => (Number(item.totalInQty) || 0) > 0 || (Number(item.totalOutQty) || 0) > 0);
+    }
+
     // Search query filter (Article Code, Name, Category, UOM, Store)
     if (stockSearch.trim()) {
       const q = stockSearch.toLowerCase().trim();
@@ -1336,7 +1363,38 @@ export default function Reports({ defaultTab } = {}) {
     }
 
     return list;
-  }, [data?.items, stockSearch, removeZeroBalance, activeArticles]);
+  }, [
+    data?.items,
+    gslFilter,
+    storeFilter,
+    selectedCategory,
+    articleFilter,
+    transactedArticles,
+    stockSearch,
+    removeZeroBalance,
+    activeArticles,
+  ]);
+
+  // ── Executive Stock Valuation Summary KPI Calculation ────────────────
+  const stockEvaluationSummary = useMemo(() => {
+    const totalUnits = filteredStockItems.reduce((s, i) => s + (Number(i.closingStock) || 0), 0);
+    const totalValue = filteredStockItems.reduce((s, i) => s + (Number(i.closingValue) || ((Number(i.closingStock) || 0) * (Number(i.unitCost) || 0))), 0);
+    const totalOpeningVal = filteredStockItems.reduce((s, i) => s + (Number(i.openingValue) || ((Number(i.openingStock) || 0) * (Number(i.unitCost) || 0))), 0);
+    const totalInwardVal = filteredStockItems.reduce((s, i) => s + (Number(i.totalInCost) || 0), 0);
+    const totalOutwardVal = filteredStockItems.reduce((s, i) => s + (Number(i.totalOutCost) || 0), 0);
+    const totalInwardUnits = filteredStockItems.reduce((s, i) => s + (Number(i.totalInQty) || 0), 0);
+    const totalOutwardUnits = filteredStockItems.reduce((s, i) => s + (Number(i.totalOutQty) || 0), 0);
+    return {
+      totalUnits,
+      totalValue,
+      totalOpeningVal,
+      totalInwardVal,
+      totalOutwardVal,
+      totalInwardUnits,
+      totalOutwardUnits,
+      itemsCount: filteredStockItems.length,
+    };
+  }, [filteredStockItems]);
 
   // ── Category Grouped Items for BinCard Summary (matching reference image) ──
   const categoryGroupedStock = useMemo(() => {
@@ -1352,6 +1410,10 @@ export default function Reports({ defaultTab } = {}) {
       const totalInward = items.reduce((sum, i) => sum + (Number(i.totalInQty) || 0), 0);
       const totalOutward = items.reduce((sum, i) => sum + (Number(i.totalOutQty) || 0), 0);
       const totalBalance = items.reduce((sum, i) => sum + (Number(i.closingStock) || 0), 0);
+      const totalValue = items.reduce((sum, i) => sum + (Number(i.closingValue) || ((Number(i.closingStock) || 0) * (Number(i.unitCost) || 0))), 0);
+      const totalOpeningVal = items.reduce((sum, i) => sum + (Number(i.openingValue) || ((Number(i.openingStock) || 0) * (Number(i.unitCost) || 0))), 0);
+      const totalInwardVal = items.reduce((sum, i) => sum + (Number(i.totalInCost) || 0), 0);
+      const totalOutwardVal = items.reduce((sum, i) => sum + (Number(i.totalOutCost) || 0), 0);
       return {
         category: cat,
         items,
@@ -1359,6 +1421,10 @@ export default function Reports({ defaultTab } = {}) {
         totalInward,
         totalOutward,
         totalBalance,
+        totalValue,
+        totalOpeningVal,
+        totalInwardVal,
+        totalOutwardVal,
       };
     });
   }, [filteredStockItems]);
@@ -1469,6 +1535,8 @@ export default function Reports({ defaultTab } = {}) {
         'RECEIVED (IN)': Number(m.totalInQty || 0).toFixed(2),
         'ISSUED (OUT)': Number(m.totalOutQty || 0).toFixed(2),
         'CLOSING BALANCE': Number(m.closingStock || 0).toFixed(2),
+        'UNIT COST (ETB)': Number(m.unitCost || 0).toFixed(2),
+        'STOCK VALUE (ETB)': Number(m.closingValue || ((Number(m.closingStock) || 0) * (Number(m.unitCost) || 0))).toFixed(2),
         'STATUS': (m.status || 'in_stock').toUpperCase(),
       }));
     } else if (stockSubTab === 'min_stock_level') {
@@ -1959,6 +2027,59 @@ export default function Reports({ defaultTab } = {}) {
         </div>
       )}
 
+      {/* ── Executive Stock Valuation KPI Cards (Real-time Evaluation) ── */}
+      {tab === 'stock_balance' && data && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-2xs hover:shadow-xs transition">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Total Evaluated Stock</span>
+            <div className="text-base sm:text-lg font-black text-blue-700 font-mono mt-0.5">
+              ETB {stockEvaluationSummary.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium">Closing inventory value</span>
+          </div>
+
+          <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-2xs hover:shadow-xs transition">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">On-Hand Inventory</span>
+            <div className="text-base sm:text-lg font-black text-slate-900 font-mono mt-0.5">
+              {stockEvaluationSummary.totalUnits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium">Physical stock units</span>
+          </div>
+
+          <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-2xs hover:shadow-xs transition">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 block">Period Inward Value</span>
+            <div className="text-base sm:text-lg font-black text-emerald-600 font-mono mt-0.5">
+              + ETB {stockEvaluationSummary.totalInwardVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10px] text-emerald-600 font-medium">+{stockEvaluationSummary.totalInwardUnits.toFixed(2)} units received</span>
+          </div>
+
+          <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-2xs hover:shadow-xs transition">
+            <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 block">Period Outward Value</span>
+            <div className="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">
+              - ETB {stockEvaluationSummary.totalOutwardVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10px] text-rose-600 font-medium">-{stockEvaluationSummary.totalOutwardUnits.toFixed(2)} units issued</span>
+          </div>
+
+          <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-2xs hover:shadow-xs transition">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Opening Stock Value</span>
+            <div className="text-base sm:text-lg font-black text-slate-700 font-mono mt-0.5">
+              ETB {stockEvaluationSummary.totalOpeningVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium">Period baseline value</span>
+          </div>
+
+          <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-2xs hover:shadow-xs transition">
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 block">Evaluated Articles</span>
+            <div className="text-base sm:text-lg font-black text-purple-800 font-mono mt-0.5">
+              {stockEvaluationSummary.itemsCount} / {rawArticlesList.length}
+            </div>
+            <span className="text-[10px] text-purple-600 font-medium">Active catalog lines</span>
+          </div>
+        </div>
+      )}
+
       {/* ── Report Sub-Tabs Bar (matching reference image) ── */}
       {tab === 'stock_balance' && (
         <div className="rounded-xl bg-slate-100/90 p-1 border border-slate-200 flex items-center gap-1 overflow-x-auto">
@@ -2180,8 +2301,11 @@ export default function Reports({ defaultTab } = {}) {
                     − Collapse All
                   </button>
                 </div>
-                <div className="text-xs text-slate-500 font-medium">
-                  {categoryGroupedStock.length} Categories · {filteredStockItems.length} Articles
+                <div className="text-xs text-slate-500 font-medium flex items-center gap-2">
+                  <span>{categoryGroupedStock.length} Categories · {filteredStockItems.length} Articles</span>
+                  <span className="text-blue-700 font-bold font-mono">
+                    Total Valuation: ETB {stockEvaluationSummary.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                 </div>
               </div>
 
@@ -2213,9 +2337,12 @@ export default function Reports({ defaultTab } = {}) {
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-4 text-xs">
+                          <div className="flex items-center gap-4 text-xs font-mono">
                             <span className="text-slate-300">
-                              Category Qty: <strong className="text-white font-mono font-bold">{grp.totalBalance.toFixed(2)}</strong>
+                              Qty: <strong className="text-white font-bold">{grp.totalBalance.toFixed(2)}</strong>
+                            </span>
+                            <span className="text-amber-300 font-bold">
+                              Value: ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
                         </div>
@@ -2230,49 +2357,82 @@ export default function Reports({ defaultTab } = {}) {
                                   <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE NAME</th>
                                   <th className="px-3.5 py-2 text-left font-bold text-slate-800">UOM</th>
                                   <th className="px-3.5 py-2 text-left font-bold text-slate-800">CATEGORY</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">MAIN STORE</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">QTY TOTAL</th>
+                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">STORE</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">CLOSING STOCK</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">UNIT COST (ETB)</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-blue-900 bg-blue-50/40">STOCK VALUE (ETB)</th>
+                                  <th className="px-3.5 py-2 text-center font-bold text-slate-800">EVALUATE</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
-                                {grp.items.map((item, idx) => (
-                                  <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
-                                    <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
-                                      {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
-                                    </td>
-                                    <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
-                                      {item.name}
-                                    </td>
-                                    <td className="px-3.5 py-2 text-slate-600">
-                                      {item.unit || 'Pcs'}
-                                    </td>
-                                    <td className="px-3.5 py-2 text-slate-600">
-                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px]">
-                                        {item.category || 'General'}
-                                      </span>
-                                    </td>
-                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
-                                      {Number(item.closingStock || 0).toFixed(2)}
-                                    </td>
-                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
-                                      {Number(item.closingStock || 0).toFixed(2)}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {grp.items.map((item, idx) => {
+                                  const cStock = Number(item.closingStock || 0);
+                                  const uCost = Number(item.unitCost || 0);
+                                  const cVal = Number(item.closingValue || (cStock * uCost));
+                                  return (
+                                    <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                                      <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                                        {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                                      </td>
+                                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                                        {item.name}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-slate-600">
+                                        {item.unit || 'Pcs'}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-slate-600">
+                                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px]">
+                                          {item.category || grp.category}
+                                        </span>
+                                      </td>
+                                      <td className="px-3.5 py-2 text-slate-600">
+                                        {item.storeLocation || 'Main store'}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                                        <span className={cStock <= 0 ? 'text-red-600 font-black' : cStock <= (item.reorderLevel || 10) ? 'text-amber-600 font-bold' : 'text-slate-900 font-bold'}>
+                                          {cStock.toFixed(2)}
+                                        </span>
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
+                                        {uCost.toFixed(2)}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
+                                        {cVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setStockSubTab('bincard');
+                                            handleSelectBinCardItem(item);
+                                          }}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition"
+                                          title="Evaluate article BinCard ledger"
+                                        >
+                                          <Eye size={11} /> Ledger
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
 
                               {/* Category Subtotal Row */}
                               <tfoot className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
                                 <tr>
-                                  <td colSpan={4} className="px-3.5 py-2 uppercase font-extrabold text-slate-800 text-[11px]">
+                                  <td colSpan={5} className="px-3.5 py-2 uppercase font-extrabold text-slate-800 text-[11px]">
                                     Subtotal — Category: {grp.category} ({grp.items.length} articles)
-                                  </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-slate-900 tabular-nums">
-                                    {grp.totalBalance.toFixed(2)}
                                   </td>
                                   <td className="px-3.5 py-2 text-right font-mono font-black text-slate-950 tabular-nums">
                                     {grp.totalBalance.toFixed(2)}
                                   </td>
+                                  <td className="px-3.5 py-2 text-right text-slate-400 text-[10px]">
+                                    Subtotal
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
+                                    ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td></td>
                                 </tr>
                               </tfoot>
                             </table>
@@ -2296,56 +2456,91 @@ export default function Reports({ defaultTab } = {}) {
                     <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">ARTICLE NAME</th>
                     <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">UOM</th>
                     <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">CATEGORY</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">MAIN STORE</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">QTY TOTAL</th>
+                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">STORE</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CLOSING STOCK</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">UNIT COST (ETB)</th>
+                    <th className="px-3.5 py-2.5 text-right font-bold text-blue-900 bg-blue-50/40">STOCK VALUE (ETB)</th>
+                    <th className="px-3.5 py-2.5 text-center font-bold text-slate-800">EVALUATE</th>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
                   {filteredStockItems.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                         No stock records matching the selected criteria.
                       </td>
                     </tr>
                   ) : (
-                    filteredStockItems.map((item, idx) => (
-                      <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
-                          {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
-                        </td>
-                        <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
-                          {item.name}
-                        </td>
-                        <td className="px-3.5 py-2 text-slate-600">
-                          {item.unit || 'Pcs'}
-                        </td>
-                        <td className="px-3.5 py-2 text-slate-600">
-                          {item.category || 'General'}
-                        </td>
-                        <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
-                          {Number(item.closingStock || 0).toFixed(2)}
-                        </td>
-                        <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
-                          {Number(item.closingStock || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))
+                    filteredStockItems.map((item, idx) => {
+                      const cStock = Number(item.closingStock || 0);
+                      const uCost = Number(item.unitCost || 0);
+                      const cVal = Number(item.closingValue || (cStock * uCost));
+                      return (
+                        <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                          <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                            {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                          </td>
+                          <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                            {item.name}
+                          </td>
+                          <td className="px-3.5 py-2 text-slate-600">
+                            {item.unit || 'Pcs'}
+                          </td>
+                          <td className="px-3.5 py-2 text-slate-600">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px]">
+                              {item.category || 'General'}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2 text-slate-600">
+                            {item.storeLocation || 'Main store'}
+                          </td>
+                          <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                            <span className={cStock <= 0 ? 'text-red-600 font-black' : cStock <= (item.reorderLevel || 10) ? 'text-amber-600 font-bold' : 'text-slate-900 font-bold'}>
+                              {cStock.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
+                            {uCost.toFixed(2)}
+                          </td>
+                          <td className="px-3.5 py-2 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
+                            {cVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-3.5 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStockSubTab('bincard');
+                                handleSelectBinCardItem(item);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition"
+                              title="Evaluate article BinCard ledger"
+                            >
+                              <Eye size={11} /> Ledger
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
 
                 {filteredStockItems.length > 0 && (
                   <tfoot className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
                     <tr>
-                      <td colSpan={4} className="px-3.5 py-2.5 uppercase font-extrabold text-slate-800">
+                      <td colSpan={5} className="px-3.5 py-2.5 uppercase font-extrabold text-slate-800">
                         Total ({filteredStockItems.length} items)
                       </td>
-                      <td className="px-3.5 py-2.5 text-right font-mono font-extrabold text-slate-900 tabular-nums">
-                        {filteredStockItems.reduce((sum, i) => sum + (Number(i.closingStock) || 0), 0).toFixed(2)}
-                      </td>
                       <td className="px-3.5 py-2.5 text-right font-mono font-black text-slate-950 tabular-nums">
-                        {filteredStockItems.reduce((sum, i) => sum + (Number(i.closingStock) || 0), 0).toFixed(2)}
+                        {stockEvaluationSummary.totalUnits.toFixed(2)}
                       </td>
+                      <td className="px-3.5 py-2.5 text-right text-slate-400 text-[10px]">
+                        Grand Total
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
+                        ETB {stockEvaluationSummary.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 )}
@@ -2384,8 +2579,11 @@ export default function Reports({ defaultTab } = {}) {
                     − Collapse All
                   </button>
                 </div>
-                <div className="text-xs text-slate-500 font-medium">
-                  {categoryGroupedStock.length} Categories · {filteredStockItems.length} Articles
+                <div className="text-xs text-slate-500 font-medium flex items-center gap-2">
+                  <span>{categoryGroupedStock.length} Categories · {filteredStockItems.length} Articles</span>
+                  <span className="text-blue-700 font-bold font-mono">
+                    Total Valuation: ETB {stockEvaluationSummary.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                 </div>
               </div>
 
@@ -2410,8 +2608,9 @@ export default function Reports({ defaultTab } = {}) {
                             <span className="text-xs font-bold tracking-wide">Category: {grp.category}</span>
                             <span className="text-[11px] font-normal opacity-85">({grp.items.length} item{grp.items.length !== 1 ? 's' : ''})</span>
                           </div>
-                          <div className="flex items-center gap-4 text-xs font-semibold opacity-95">
-                            <span>Balance: <strong className="font-mono">{grp.totalBalance.toFixed(2)}</strong></span>
+                          <div className="flex items-center gap-4 text-xs font-semibold opacity-95 font-mono">
+                            <span>Balance: <strong>{grp.totalBalance.toFixed(2)}</strong></span>
+                            <span className="text-amber-200 font-bold">Valuation: ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </div>
                         </div>
 
@@ -2429,37 +2628,64 @@ export default function Reports({ defaultTab } = {}) {
                                   <th className="px-3.5 py-2 text-right font-bold text-emerald-800 bg-emerald-50/50">INWARD</th>
                                   <th className="px-3.5 py-2 text-right font-bold text-rose-800 bg-rose-50/50">OUTWARD</th>
                                   <th className="px-3.5 py-2 text-right font-bold text-slate-900 bg-blue-50/50">BALANCE</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">UNIT COST (ETB)</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-blue-900 bg-blue-50/40">STOCK VALUE (ETB)</th>
+                                  <th className="px-3.5 py-2 text-center font-bold text-slate-800">EVALUATE</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
-                                {grp.items.map((item, idx) => (
-                                  <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
-                                    <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
-                                      {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
-                                    </td>
-                                    <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
-                                      {item.name}
-                                    </td>
-                                    <td className="px-3 py-2 text-slate-600">
-                                      {item.unit || 'Pcs'}
-                                    </td>
-                                    <td className="px-3 py-2 text-slate-600">
-                                      {item.category || grp.category}
-                                    </td>
-                                    <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
-                                      {Number(item.openingStock || 0).toFixed(2)}
-                                    </td>
-                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
-                                      {Number(item.totalInQty || 0).toFixed(2)}
-                                    </td>
-                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
-                                      {Number(item.totalOutQty || 0).toFixed(2)}
-                                    </td>
-                                    <td className="px-3.5 py-2 text-right font-mono font-black text-slate-900 bg-blue-50/20 tabular-nums">
-                                      {Number(item.closingStock || 0).toFixed(2)}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {grp.items.map((item, idx) => {
+                                  const cStock = Number(item.closingStock || 0);
+                                  const uCost = Number(item.unitCost || 0);
+                                  const cVal = Number(item.closingValue || (cStock * uCost));
+                                  return (
+                                    <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                                      <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                                        {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                                      </td>
+                                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                                        {item.name}
+                                      </td>
+                                      <td className="px-3 py-2 text-slate-600">
+                                        {item.unit || 'Pcs'}
+                                      </td>
+                                      <td className="px-3 py-2 text-slate-600">
+                                        {item.category || grp.category}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
+                                        {Number(item.openingStock || 0).toFixed(2)}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
+                                        {Number(item.totalInQty || 0).toFixed(2)}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
+                                        {Number(item.totalOutQty || 0).toFixed(2)}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono font-black text-slate-900 bg-blue-50/20 tabular-nums">
+                                        {cStock.toFixed(2)}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
+                                        {uCost.toFixed(2)}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
+                                        {cVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="px-3.5 py-2 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setStockSubTab('bincard');
+                                            handleSelectBinCardItem(item);
+                                          }}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition"
+                                          title="Evaluate article BinCard ledger"
+                                        >
+                                          <Eye size={11} /> Ledger
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
 
                               {/* Category Group Subtotal Row */}
@@ -2480,6 +2706,13 @@ export default function Reports({ defaultTab } = {}) {
                                   <td className="px-3.5 py-2 text-right font-mono font-black text-blue-950 tabular-nums">
                                     {grp.totalBalance.toFixed(2)}
                                   </td>
+                                  <td className="px-3.5 py-2 text-right text-slate-400 text-[10px]">
+                                    Subtotal
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
+                                    ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td></td>
                                 </tr>
                               </tfoot>
                             </table>
