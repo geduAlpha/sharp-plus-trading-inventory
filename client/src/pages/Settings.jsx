@@ -51,6 +51,7 @@ import {
   UserX,
   Pencil,
   MoreVertical,
+  Loader2,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -1590,7 +1591,25 @@ export default function Settings() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start sm:self-center">
+        <div className="flex items-center gap-3 self-start sm:self-center flex-wrap">
+          {/* Real-Time Functional Save Badge (Header Location) */}
+          {hasUnsavedPerms && (
+            <button
+              type="button"
+              onClick={handleSystemSubmit}
+              disabled={systemSaving}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-md hover:shadow-amber-500/25 transition active:scale-95 disabled:opacity-60 cursor-pointer animate-in fade-in"
+              title="You have unsaved changes. Click to save now!"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+              </span>
+              <Save size={13} className={systemSaving ? 'animate-spin' : ''} />
+              <span>{systemSaving ? 'Saving…' : 'Save Changes'}</span>
+            </button>
+          )}
+
           {/* Session Timeout Pill */}
           <div className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 shadow-xs">
             <Clock size={13} className="text-ink-400" />
@@ -1634,6 +1653,12 @@ export default function Settings() {
             >
               <Icon size={16} className={isDevTab ? 'text-amber-500' : isActive ? 'text-blue-600' : 'text-ink-400'} />
               <span>{tab.label}</span>
+              {tab.id === 'permissions' && hasUnsavedPerms && (
+                <span className="relative flex h-2 w-2" title="Unsaved changes pending">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+              )}
               {tab.badge && (
                 <span className="rounded-full bg-amber-100 text-amber-900 text-[9px] font-black px-2 py-0.5 uppercase tracking-wide border border-amber-200 shadow-xs">
                   {tab.badge}
@@ -2648,30 +2673,31 @@ export default function Settings() {
       {/* ── Tab: Role Privileges (Exact Match to Screenshot) ── */}
       {currentTab === 'permissions' && (hasRole('admin') || user?.role === 'developer') && (
         <div className="space-y-6 w-full max-w-6xl">
-          {/* Prominent Real-Time Feedback Banners */}
+          {/* Floating Functional Quick-Save Widget (Specific Fixed Bottom-Right Location) */}
           {hasUnsavedPerms && (
-            <div className="sticky top-2 z-40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl bg-amber-500/15 border-2 border-amber-500/60 p-4 shadow-lg backdrop-blur-md animate-in fade-in duration-200">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-white font-black text-sm shadow-xs flex-shrink-0">
-                  !
-                </span>
-                <div>
-                  <p className="text-xs font-black text-amber-950 uppercase tracking-wide">
-                    Unsaved Privilege &amp; Visibility Changes
-                  </p>
-                  <p className="text-xs text-amber-900 mt-0.5 font-medium">
-                    You have toggled permissions. Your selections will stay active; click <strong>Save Changes</strong> to store them permanently in the database.
-                  </p>
-                </div>
-              </div>
+            <div className="fixed bottom-6 right-8 z-50 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
               <button
                 type="button"
                 onClick={handleSystemSubmit}
                 disabled={systemSaving}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-5 py-2.5 text-xs font-black text-white shadow-md transition active:scale-[0.98] disabled:opacity-50 flex-shrink-0"
+                className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white px-5 py-3 text-xs font-black shadow-2xl hover:shadow-amber-500/30 transition-all duration-200 active:scale-95 ring-4 ring-amber-400/30 cursor-pointer"
+                title="Click to save all role privileges and visibility changes permanently to database"
               >
-                <Save size={14} />
-                <span>{systemSaving ? 'Saving to Database…' : 'Save Changes Now'}</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-white shadow-xs">
+                  <Save size={17} className={systemSaving ? 'animate-spin' : 'group-hover:scale-110 transition-transform'} />
+                </div>
+                <div className="text-left leading-tight pr-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wider text-amber-100 font-bold">Unsaved Changes</span>
+                  </div>
+                  <p className="text-xs font-black text-white mt-0.5">
+                    {systemSaving ? 'Saving to Database…' : 'Save Changes Now'}
+                  </p>
+                </div>
               </button>
             </div>
           )}
