@@ -7,7 +7,7 @@ import {
   Minus, Send, ShieldCheck, Trash2, Plus, AlertTriangle, BarChart3,
   ChevronDown, ChevronUp, Eye, EyeOff, Save, ArrowUpDown, CheckCheck,
   FileSpreadsheet, Download, Home, Copy, Check, FileText, Layers,
-  Filter, ShieldAlert, Award, AlertCircle, Info, SlidersHorizontal,
+  Filter, ShieldAlert, Award, AlertCircle, Info, SlidersHorizontal, AlignJustify, List,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
@@ -861,6 +861,10 @@ export default function Reports({ defaultTab } = {}) {
 
   // Stock Balance UI states (matching reference image)
   const [stockSubTab, setStockSubTab] = useState('stock_only');
+  const [stockViewMode, setStockViewMode] = useState('hierarchy'); // 'hierarchy' | 'flat'
+  const [catalogCategories, setCatalogCategories] = useState(['Articles']);
+  const [catalogArticles, setCatalogArticles] = useState([]);
+  const [catalogStores, setCatalogStores] = useState(['Main store']);
   const [gslFilter, setGslFilter] = useState('Item');
   const [storeFilter, setStoreFilter] = useState('Main store');
   const [articleFilter, setArticleFilter] = useState('all');
@@ -909,6 +913,26 @@ export default function Reports({ defaultTab } = {}) {
     }
   }, [defaultTab]);
 
+  // Pre-load full material catalog so categories and articles are always available in hierarchy
+  useEffect(() => {
+    let isMounted = true;
+    api.get('/materials', { params: { isActive: 'all' } }).then(res => {
+      if (!isMounted || !Array.isArray(res.data)) return;
+      const cats = Array.from(new Set(res.data.map(m => m.category?.trim()).filter(Boolean))).sort();
+      const arts = res.data.map(m => ({
+        _id: m._id,
+        code: m.code || (m._id ? 'ART-' + String(m._id).slice(-5).toUpperCase() : '—'),
+        name: m.name,
+        category: m.category?.trim() || 'General',
+        unit: m.unit || 'Piece (Pcs)',
+        storeLocation: m.storeLocation || 'Main Store',
+      }));
+      if (cats.length > 0) setCatalogCategories(cats);
+      if (arts.length > 0) setCatalogArticles(arts);
+    }).catch(() => { });
+    return () => { isMounted = false; };
+  }, []);
+
   // Load company name for print header
   useEffect(() => {
     api.get('/settings').then(res => {
@@ -932,7 +956,6 @@ export default function Reports({ defaultTab } = {}) {
     }
 
     setLoading(true);
-    setData(null);
     try {
       let params = {};
       if (tab === 'daily') {
@@ -964,6 +987,15 @@ export default function Reports({ defaultTab } = {}) {
       }
       const res = await api.get(currentTab.endpoint, { params });
       setData(res.data);
+      if (res.data?.categories) {
+        setCatalogCategories(prev => Array.from(new Set([...prev, ...res.data.categories.filter(c => c && c !== 'all')])).sort());
+      }
+      if (res.data?.articles && res.data.articles.length > 0) {
+        setCatalogArticles(res.data.articles);
+      }
+      if (res.data?.stores) {
+        setCatalogStores(prev => Array.from(new Set([...prev, ...res.data.stores.filter(s => s && s !== 'all')])));
+      }
     } finally { setLoading(false); }
   }, [
     tab, date, from, to, selectedCategory, selectedStatus, stockSearch, currentTab,
@@ -1221,18 +1253,50 @@ export default function Reports({ defaultTab } = {}) {
     }));
   }, [data, tab, balanceViewMode, balanceTxnsData]);
 
-  // ── Available filter options from loaded data ─────────────────────────
+  // ── Available filter options from loaded data & persistent catalog ─────────────────────────
   const categoryOptions = useMemo(() => {
-    return (data?.categories || []).filter(c => c && c !== 'all');
-  }, [data?.categories]);
+    const fromData = (data?.categories || []).filter(c => c && c !== 'all');
+    const merged = Array.from(new Set([...(catalogCategories || []), ...fromData])).filter(Boolean).sort();
+    return merged.length > 0 ? merged : ['Articles'];
+  }, [catalogCategories, data?.categories]);
 
   const storeOptions = useMemo(() => {
-    return (data?.stores || ['Main store']).filter(Boolean);
-  }, [data?.stores]);
+    const fromData = (data?.stores || []).filter(s => s && s !== 'all');
+    const merged = Array.from(new Set([...(catalogStores || []), ...fromData])).filter(Boolean);
+    return merged.length > 0 ? merged : ['Main store'];
+  }, [catalogStores, data?.stores]);
+
+  const rawArticlesList = useMemo(() => {
+    if (data?.articles && data.articles.length > 0) return data.articles;
+    if (catalogArticles && catalogArticles.length > 0) return catalogArticles;
+    if (data?.items && data.items.length > 0) {
+      return data.items.map(i => ({ _id: i._id, code: i.code, name: i.name, category: i.category, unit: i.unit, storeLocation: i.storeLocation }));
+    }
+    return [];
+  }, [data?.articles, catalogArticles, data?.items]);
+
+  // Hierarchical Article Groups by Category (Category -> Articles hierarchy)
+  const hierarchicalArticleGroups = useMemo(() => {
+    const filteredByCat = (selectedCategory && selectedCategory !== 'all')
+      ? rawArticlesList.filter(a => (a.category || 'General').toLowerCase() === selectedCategory.toLowerCase())
+      : rawArticlesList;
+
+    const groups = {};
+    filteredByCat.forEach(art => {
+      const cat = (art.category && art.category.trim()) ? art.category.trim() : 'General';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(art);
+    });
+
+    return Object.keys(groups).sort().map(cat => ({
+      category: cat,
+      articles: groups[cat].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    }));
+  }, [rawArticlesList, selectedCategory]);
 
   const articleOptions = useMemo(() => {
-    return data?.articles || (data?.items || []).map(i => ({ _id: i._id, code: i.code, name: i.name, category: i.category, unit: i.unit }));
-  }, [data?.articles, data?.items]);
+    return rawArticlesList;
+  }, [rawArticlesList]);
 
   // ── Client-side filtered items for Stock Balance tabs ─────────────────
   const filteredStockItems = useMemo(() => {
@@ -1688,10 +1752,13 @@ export default function Reports({ defaultTab } = {}) {
                   <div className="relative">
                     <select
                       value={selectedCategory}
-                      onChange={e => setSelectedCategory(e.target.value)}
+                      onChange={e => {
+                        setSelectedCategory(e.target.value);
+                        setArticleFilter('all');
+                      }}
                       className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none"
                     >
-                      <option value="all">All Categories</option>
+                      <option value="all">All Categories ({categoryOptions.length})</option>
                       {categoryOptions.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
@@ -1699,7 +1766,7 @@ export default function Reports({ defaultTab } = {}) {
                     {selectedCategory && selectedCategory !== 'all' && (
                       <button
                         type="button"
-                        onClick={() => setSelectedCategory('all')}
+                        onClick={() => { setSelectedCategory('all'); setArticleFilter('all'); }}
                         title="Clear Category filter"
                         className="absolute right-6 top-2 text-slate-400 hover:text-slate-600"
                       >
@@ -1711,18 +1778,31 @@ export default function Reports({ defaultTab } = {}) {
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-600 block mb-0.5">Article</label>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[11px] font-semibold text-slate-600">Article (Hierarchy)</label>
+                    {selectedCategory && selectedCategory !== 'all' && (
+                      <span className="text-[10px] text-blue-600 font-bold">in {selectedCategory}</span>
+                    )}
+                  </div>
                   <div className="relative">
                     <select
                       value={articleFilter}
                       onChange={e => setArticleFilter(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 pr-8 font-medium appearance-none truncate"
                     >
-                      <option value="all">All Articles</option>
-                      {articleOptions.map(a => (
-                        <option key={a._id || a.code} value={a._id || a.code}>
-                          {a.code ? `[${a.code}] ` : ''}{a.name}
-                        </option>
+                      <option value="all">
+                        {selectedCategory && selectedCategory !== 'all'
+                          ? `All Articles in ${selectedCategory} (${hierarchicalArticleGroups.reduce((s, g) => s + g.articles.length, 0)})`
+                          : `All Articles (${rawArticlesList.length})`}
+                      </option>
+                      {hierarchicalArticleGroups.map(grp => (
+                        <optgroup key={grp.category} label={`📁 Category: ${grp.category} (${grp.articles.length})`}>
+                          {grp.articles.map(a => (
+                            <option key={a._id || a.code} value={a._id || a.code}>
+                              {a.code ? `[${a.code}] ` : ''}{a.name} {a.unit ? `(${a.unit})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                     {articleFilter && articleFilter !== 'all' && (
@@ -1985,6 +2065,38 @@ export default function Reports({ defaultTab } = {}) {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Hierarchy View Mode Toggle for Stock Only */}
+              {stockSubTab === 'stock_only' && (
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setStockViewMode('hierarchy')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition ${
+                      stockViewMode === 'hierarchy'
+                        ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="View Stock Balance grouped by Category Hierarchy"
+                  >
+                    <Layers size={13} />
+                    <span>Hierarchy</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockViewMode('flat')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition ${
+                      stockViewMode === 'flat'
+                        ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="View flat table of all articles"
+                  >
+                    <AlignJustify size={13} />
+                    <span>Flat List</span>
+                  </button>
+                </div>
+              )}
+
               {/* Quick action buttons matching reference image icons */}
               <button
                 type="button"
@@ -2027,9 +2139,144 @@ export default function Reports({ defaultTab } = {}) {
           </div>
 
           {/* ══════════════════════════════════════════════════════════════
-              SUB-TAB 1: STOCK ONLY (EXACT REFERENCE IMAGE VIEW)
+              SUB-TAB 1: STOCK ONLY (CATEGORY HIERARCHY & FLAT VIEW)
           ══════════════════════════════════════════════════════════════ */}
-          {stockSubTab === 'stock_only' && (
+          {stockSubTab === 'stock_only' && stockViewMode === 'hierarchy' && (
+            <div className="space-y-3">
+              {/* Category Expand/Collapse All Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allOpen = {};
+                      categoryGroupedStock.forEach(g => { allOpen[g.category] = true; });
+                      setExpandedCategories(allOpen);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                  >
+                    + Expand All Categories
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allClosed = {};
+                      categoryGroupedStock.forEach(g => { allClosed[g.category] = false; });
+                      setExpandedCategories(allClosed);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                  >
+                    − Collapse All
+                  </button>
+                </div>
+                <div className="text-xs text-slate-500 font-medium">
+                  {categoryGroupedStock.length} Categories · {filteredStockItems.length} Articles
+                </div>
+              </div>
+
+              {/* Category Grouped Sections with Category -> Article Hierarchy */}
+              <div className="space-y-3">
+                {categoryGroupedStock.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-400 text-xs">
+                    No stock records matching the selected criteria.
+                  </div>
+                ) : (
+                  categoryGroupedStock.map((grp) => {
+                    const isExpanded = expandedCategories[grp.category] !== false;
+                    return (
+                      <div key={grp.category} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                        {/* Category Header Bar */}
+                        <div
+                          onClick={() => setExpandedCategories(prev => ({ ...prev, [grp.category]: !isExpanded }))}
+                          className="w-full bg-[#1e293b] hover:bg-[#0f172a] text-white px-3.5 py-2.5 flex items-center justify-between cursor-pointer transition select-none"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-700 text-slate-200 text-xs font-bold">
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                            <span className="font-bold text-xs uppercase tracking-wider text-amber-300">
+                              CATEGORY: {grp.category}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-200 border border-white/10">
+                              {grp.items.length} {grp.items.length === 1 ? 'Article' : 'Articles'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-4 text-xs">
+                            <span className="text-slate-300">
+                              Category Qty: <strong className="text-white font-mono font-bold">{grp.totalBalance.toFixed(2)}</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Articles Table within Category */}
+                        {isExpanded && (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-xs divide-y divide-slate-200">
+                              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                                <tr>
+                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE CODE</th>
+                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE NAME</th>
+                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">UOM</th>
+                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">CATEGORY</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">MAIN STORE</th>
+                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">QTY TOTAL</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {grp.items.map((item, idx) => (
+                                  <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                                    <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                                      {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                                    </td>
+                                    <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                                      {item.name}
+                                    </td>
+                                    <td className="px-3.5 py-2 text-slate-600">
+                                      {item.unit || 'Pcs'}
+                                    </td>
+                                    <td className="px-3.5 py-2 text-slate-600">
+                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px]">
+                                        {item.category || 'General'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
+                                      {Number(item.closingStock || 0).toFixed(2)}
+                                    </td>
+                                    <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                                      {Number(item.closingStock || 0).toFixed(2)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+
+                              {/* Category Subtotal Row */}
+                              <tfoot className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                                <tr>
+                                  <td colSpan={4} className="px-3.5 py-2 uppercase font-extrabold text-slate-800 text-[11px]">
+                                    Subtotal — Category: {grp.category} ({grp.items.length} articles)
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-slate-900 tabular-nums">
+                                    {grp.totalBalance.toFixed(2)}
+                                  </td>
+                                  <td className="px-3.5 py-2 text-right font-mono font-black text-slate-950 tabular-nums">
+                                    {grp.totalBalance.toFixed(2)}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Flat List View */}
+          {stockSubTab === 'stock_only' && stockViewMode === 'flat' && (
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
               <table className="min-w-full text-xs divide-y divide-slate-200">
                 <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">

@@ -496,13 +496,13 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
   }
 
   const [categories, stores, itemTypes, allArticles] = await Promise.all([
-    RawMaterial.distinct('category', { isActive: true }),
-    RawMaterial.distinct('storeLocation'),
-    RawMaterial.distinct('itemType'),
-    RawMaterial.find({ isActive: true }).select('code name category unit storeLocation').sort({ name: 1 }).lean(),
+    RawMaterial.distinct('category', { deletedAt: null }),
+    RawMaterial.distinct('storeLocation', { deletedAt: null }),
+    RawMaterial.distinct('itemType', { deletedAt: null }),
+    RawMaterial.find({ deletedAt: null }).select('code name category unit storeLocation itemType isActive').sort({ name: 1 }).lean(),
   ]);
 
-  const uniqueStores = ['Main store', ...stores.filter(s => s && s.toLowerCase() !== 'main store' && s.toLowerCase() !== 'main store')];
+  const uniqueStores = ['Main store', ...stores.filter(s => s && s.toLowerCase() !== 'main store')];
 
   res.json({
     from: from || null,
@@ -526,9 +526,11 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
       _id: a._id,
       code: a.code || 'ART-' + a._id.toString().slice(-5).toUpperCase(),
       name: a.name,
-      category: a.category,
-      unit: a.unit,
-      storeLocation: a.storeLocation,
+      category: a.category || 'General',
+      itemType: a.itemType || 'Raw Material',
+      unit: a.unit || 'Piece (Pcs)',
+      storeLocation: a.storeLocation || 'Main Store',
+      isActive: a.isActive !== false,
     })),
     items: rows,
   });
