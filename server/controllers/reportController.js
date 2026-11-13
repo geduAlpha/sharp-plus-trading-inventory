@@ -217,6 +217,9 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     transactedArticles,
   } = req.query;
 
+  const now = new Date();
+  const tzOffset = getClientTimezoneOffset(req);
+
   let selectedMonthLabel = null;
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split('-').map(Number);
@@ -225,11 +228,21 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     from = `${y}-${String(m).padStart(2, '0')}-01`;
     to = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
     selectedMonthLabel = firstDay.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  } else if (dateCriteria === 'at_the_day_of' || dateCriteria === 'as_of_date' || enquiryDate) {
+  } else if (dateCriteria === 'at_the_day_of') {
+    const targetDate = enquiryDate || to || from || formatLocalDate(now, tzOffset);
+    from = targetDate;
+    to = targetDate;
+  } else if (dateCriteria === 'as_of_date') {
     if (enquiryDate) {
       to = enquiryDate;
       from = null;
     }
+  } else if (dateCriteria === 'all') {
+    from = null;
+    to = null;
+  } else if (enquiryDate && !from && !to) {
+    from = enquiryDate;
+    to = enquiryDate;
   }
 
   const matFilter = { deletedAt: null };
@@ -322,7 +335,6 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     };
   });
 
-  const tzOffset = getClientTimezoneOffset(req);
   let startDate = from ? parseDateBoundary(from, 'start', tzOffset) : null;
   let endDate = to ? parseDateBoundary(to, 'end', tzOffset) : null;
 
@@ -620,7 +632,10 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
 // Returns all transactions that move stock during the stock balance period,
 // strictly sorted in time sequence with h:m:s, voucher details, and workflow status.
 const getStockBalanceTransactions = asyncHandler(async (req, res) => {
-  let { from, to, month, voucherType, status, sort = 'desc', search } = req.query;
+  let { from, to, month, voucherType, status, sort = 'desc', search, dateCriteria, enquiryDate } = req.query;
+
+  const tzOffset = getClientTimezoneOffset(req);
+  const now = new Date();
 
   let selectedMonthLabel = null;
   if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -630,6 +645,10 @@ const getStockBalanceTransactions = asyncHandler(async (req, res) => {
     from = `${y}-${String(m).padStart(2, '0')}-01`;
     to = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
     selectedMonthLabel = firstDay.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  } else if (dateCriteria === 'at_the_day_of' || (enquiryDate && !from && !to)) {
+    const target = enquiryDate || to || from || formatLocalDate(now, tzOffset);
+    from = target;
+    to = target;
   }
 
   const filter = { deletedAt: null };
@@ -929,28 +948,27 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
     transactedArticles,
   } = req.query;
 
-  const effectiveEnquiryDate = enquiryDate || new Date().toISOString().split('T')[0];
+  const tzOffset = getClientTimezoneOffset(req);
+  const now = new Date();
+  const effectiveEnquiryDate = enquiryDate || formatLocalDate(now, tzOffset);
 
   let endDate = null;
   let startDate = null;
 
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split('-').map(Number);
-    startDate = new Date(y, m - 1, 1, 0, 0, 0, 0);
-    endDate = new Date(y, m, 0, 23, 59, 59, 999);
+    startDate = parseDateBoundary(`${y}-${String(m).padStart(2, '0')}-01`, 'start', tzOffset);
+    const lastDay = new Date(y, m, 0).getDate();
+    endDate = parseDateBoundary(`${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`, 'end', tzOffset);
   } else if (dateCriteria === 'range' && (from || to)) {
-    if (from) {
-      startDate = new Date(from);
-      startDate.setHours(0, 0, 0, 0);
-    }
-    if (to) {
-      endDate = new Date(to);
-      endDate.setHours(23, 59, 59, 999);
-    }
+    if (from) startDate = parseDateBoundary(from, 'start', tzOffset);
+    if (to) endDate = parseDateBoundary(to, 'end', tzOffset);
+  } else if (dateCriteria === 'as_of_date') {
+    endDate = parseDateBoundary(effectiveEnquiryDate, 'end', tzOffset);
   } else {
-    // at_the_day_of / default
-    endDate = new Date(effectiveEnquiryDate);
-    endDate.setHours(23, 59, 59, 999);
+    // at_the_day_of / default: single day full boundary
+    startDate = parseDateBoundary(effectiveEnquiryDate, 'start', tzOffset);
+    endDate = parseDateBoundary(effectiveEnquiryDate, 'end', tzOffset);
   }
 
   // Build article filter

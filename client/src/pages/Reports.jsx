@@ -979,7 +979,10 @@ export default function Reports({ defaultTab } = {}) {
           if (to) params.to = to;
         } else if (dateCriteria === 'month') {
           params.month = selectedMonth;
-        } else if (dateCriteria === 'at_the_day_of' || dateCriteria === 'as_of_date') {
+        } else if (dateCriteria === 'at_the_day_of') {
+          params.from = enquiryDate;
+          params.to = enquiryDate;
+        } else if (dateCriteria === 'as_of_date') {
           params.to = enquiryDate;
         }
       } else {
@@ -1027,6 +1030,11 @@ export default function Reports({ defaultTab } = {}) {
         if (to) params.to = to;
       } else if (dateCriteria === 'month') {
         params.month = selectedMonth;
+      } else if (dateCriteria === 'at_the_day_of') {
+        params.from = enquiryDate;
+        params.to = enquiryDate;
+      } else if (dateCriteria === 'as_of_date') {
+        params.to = enquiryDate;
       }
       const res = await api.get('/reports/stock-balance/serial-bincard', { params });
       setSerialBinCardData(res.data);
@@ -1135,9 +1143,9 @@ export default function Reports({ defaultTab } = {}) {
       const q = customSearch !== undefined ? customSearch : txnSearchQuery;
 
       const params = {
-        from: from || undefined,
-        to: to || undefined,
-        month: selectedMonth || undefined,
+        from: dateCriteria === 'at_the_day_of' ? enquiryDate : (from || undefined),
+        to: dateCriteria === 'at_the_day_of' ? enquiryDate : (to || undefined),
+        month: dateCriteria === 'month' ? (selectedMonth || undefined) : undefined,
         voucherType: type !== 'all' ? type : undefined,
         status: stat !== 'all' ? stat : undefined,
         sort: srt,
@@ -1150,7 +1158,7 @@ export default function Reports({ defaultTab } = {}) {
     } finally {
       setBalanceTxnsLoading(false);
     }
-  }, [from, to, selectedMonth, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery]);
+  }, [from, to, selectedMonth, dateCriteria, enquiryDate, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery]);
 
   useEffect(() => {
     if (tab === 'stock_balance' && balanceViewMode === 'transactions') {
@@ -1659,12 +1667,15 @@ export default function Reports({ defaultTab } = {}) {
                   if (stockSubTab === 'serial_bincard') {
                     loadSerialBinCard();
                   }
+                  if (balanceViewMode === 'transactions') {
+                    loadBalanceTransactions();
+                  }
                 }}
-                disabled={loading || serialBinCardLoading}
+                disabled={loading || serialBinCardLoading || balanceTxnsLoading}
                 className="w-18 h-18 sm:w-20 sm:h-20 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white flex flex-col items-center justify-center gap-1 shadow-md hover:shadow-lg transition-all font-bold text-xs cursor-pointer disabled:opacity-70"
                 title="Show Report Data"
               >
-                <BinocularsIcon className={`h-6 w-6 text-white ${loading ? 'animate-pulse' : ''}`} />
+                <BinocularsIcon className={`h-6 w-6 text-white ${loading || balanceTxnsLoading ? 'animate-pulse' : ''}`} />
                 <span className="tracking-wide">Show</span>
               </button>
 
