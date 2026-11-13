@@ -131,18 +131,104 @@ export const DEFAULT_PERMISSIONS = {
   },
 };
 
+export const SUBMENU_TO_PARENT_MAIN_MENU = {
+  // allIds children
+  items: 'allIds',
+  materials: 'allIds',
+  raw_materials: 'allIds',
+  rawMaterials: 'allIds',
+  products: 'allIds',
+  Products: 'allIds',
+  employees: 'allIds',
+  suppliers: 'allIds',
+
+  // storeOps children
+  purchases: 'storeOps',
+  purchases_grv: 'storeOps',
+  movements_cash_grv: 'storeOps',
+  movements_credit_grv: 'storeOps',
+  movements_neg_adj: 'storeOps',
+  movements_pos_adj: 'storeOps',
+  stockMovements: 'storeOps',
+  stock_movements: 'storeOps',
+  transactions: 'storeOps',
+  inventoryCount: 'storeOps',
+  report_inventory_count: 'storeOps',
+  movements_all: 'storeOps',
+  movements_sales_import: 'storeOps',
+  stockRequests: 'storeOps',
+  stock_requests: 'storeOps',
+  consumption: 'storeOps',
+  stockManagementVoucherReportUnderStoreOps: 'storeOps',
+  stockManagementVoucherReport: 'storeOps',
+
+  // salesMarketing children
+  cashSales: 'salesMarketing',
+  sales_cash: 'salesMarketing',
+  creditSales: 'salesMarketing',
+  sales_credit: 'salesMarketing',
+
+  // subSystem children
+  subsystem: 'subSystem',
+  subsystem_stock_management: 'subSystem',
+  subsystem_sales_marketing: 'subSystem',
+  subsystem_captain_order: 'subSystem',
+  subsystem_cash_sales: 'subSystem',
+  subsystem_credit_sales: 'subSystem',
+  subsystem_pos_ordering: 'subSystem',
+  subsystem_zeroing_voucher: 'subSystem',
+  subsystem_security_report: 'subSystem',
+  subsystem_sales_closing: 'subSystem',
+  subsystem_sales_route_mapping: 'subSystem',
+
+  // reports children
+  report_summary: 'reports',
+  report_balance: 'reports',
+  report_daily: 'reports',
+  report_cash_grv: 'reports',
+  report_credit_grv: 'reports',
+  report_pos_adj: 'reports',
+  report_neg_adj: 'reports',
+  report_levels: 'reports',
+  report_purchases: 'reports',
+  report_disposal: 'reports',
+  reports_analytics: 'reports',
+
+  // analytics children
+  finance: 'analytics',
+  expenses: 'analytics',
+  overhead_expenses: 'analytics',
+  analytics_pnl: 'analytics',
+
+  // staffAccounts children
+  staff: 'staffAccounts',
+  staff_accounts: 'staffAccounts',
+  users: 'staffAccounts',
+
+  // recycleBin children
+  recycle_bin: 'recycleBin',
+
+  // settings children
+  system_settings: 'settings',
+};
+
 export const DEFAULT_NAV_VISIBILITY = {
   dashboard: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-  Items: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+  allIds: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+  analytics: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+  storeOps: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+  salesMarketing: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+  subSystem: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
+  reports: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
+  staffAccounts: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+  recycleBin: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+  settings: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
+  // aliases & submenus
   items: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   products: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   stockMovements: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
-  salesMarketing: { employee: true, storekeeper: true, manager: true, admin: true, cashier: true },
   suppliers: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
   consumption: { employee: false, storekeeper: false, manager: false, admin: false, cashier: false },
-  reports: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
-  analytics: { employee: false, storekeeper: false, manager: true, admin: true, cashier: false },
-  staffAccounts: { employee: false, storekeeper: false, manager: false, admin: true, cashier: false },
 };
 
 export const DEFAULT_COMPANY_INFO = {
@@ -701,7 +787,53 @@ export const AuthProvider = ({ children }) => {
       if ((modulesEnabled?.digitalMenu === false || companyInfo?.digitalMenuEnabled === false) && navKey === 'digitalMenu') return false;
     }
 
-    // Special composite group checks
+    const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
+
+    // 1. Parent main sidebar menu cascade check:
+    // If navKey is a submenu whose parent main sidebar menu is explicitly disabled for the user's role in navVisibility, deny access immediately
+    const parentMenuKey = SUBMENU_TO_PARENT_MAIN_MENU[navKey];
+    if (parentMenuKey && nav[parentMenuKey] && nav[parentMenuKey][user.role] !== undefined) {
+      if (Boolean(nav[parentMenuKey][user.role]) === false) {
+        return false;
+      }
+    }
+
+    // 2. Direct navVisibility matrix check for this exact navKey or its aliases
+    const entry =
+      nav[navKey] ||
+      nav[navKey.toLowerCase()] ||
+      (navKey.toLowerCase() === 'items' ? (nav['Items'] || nav['items'] || nav['raw_materials'] || nav['rawMaterials']) : undefined) ||
+      (navKey === 'cashSales' ? (nav['cashSales'] || nav['subsystem_cash_sales']) : undefined) ||
+      (navKey === 'creditSales' ? (nav['creditSales'] || nav['subsystem_pos_ordering']) : undefined) ||
+      (navKey === 'stockRequests' ? (nav['stockRequests'] || nav['consumption']) : undefined) ||
+      (navKey === 'expenses' ? (nav['expenses'] || nav['overhead_expenses']) : undefined) ||
+      (navKey === 'staffAccounts' ? (nav['staffAccounts'] || nav['staff_accounts']) : undefined);
+
+    if (entry && entry[user.role] !== undefined) {
+      return Boolean(entry[user.role]);
+    }
+
+    // 3. Direct Employee Custom Permissions Override (Managed via Staff Accounts / User Permissions)
+    if (user.customPermissions && typeof user.customPermissions === 'object') {
+      const custom = user.customPermissions;
+      const lower = navKey.toLowerCase();
+
+      // Check exact key
+      if (typeof custom[navKey] === 'boolean') return custom[navKey];
+      if (custom[navKey] && typeof custom[navKey] === 'object') {
+        if (typeof custom[navKey].view === 'boolean') return custom[navKey].view;
+        if (typeof custom[navKey].read === 'boolean') return custom[navKey].read;
+      }
+
+      // Check lowercase alias
+      if (typeof custom[lower] === 'boolean') return custom[lower];
+      if (custom[lower] && typeof custom[lower] === 'object') {
+        if (typeof custom[lower].view === 'boolean') return custom[lower].view;
+        if (typeof custom[lower].read === 'boolean') return custom[lower].read;
+      }
+    }
+
+    // 4. Special composite group checks (when not explicitly configured in navVisibility)
     if (navKey === 'salesMarketing' || navKey === 'subsystem' || navKey === 'subSystem' || navKey === 'subsystem_sales_marketing') {
       if (modulesEnabled?.salesMarketing === false && user.role !== 'developer') return false;
       return (
@@ -738,45 +870,12 @@ export const AuthProvider = ({ children }) => {
       return canSeeNav('items') || canSeeNav('products') || canSeeNav('suppliers') || canSeeNav('employees') || canSeeNav('raw_materials') || can('items', 'view') || can('products', 'view');
     }
     if (navKey === 'reports' || navKey === 'reports_analytics') {
-      const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
       const reportsEntry = nav['reports'] || nav['reports_analytics'];
       if (reportsEntry && reportsEntry[user.role] !== undefined) {
         if (Boolean(reportsEntry[user.role])) return true;
       }
       if (can('reports', 'view') || can('viewReports')) return true;
     }
-
-    // 1. Direct Employee Custom Permissions Override (Managed via Role Privileges)
-    if (user.customPermissions && typeof user.customPermissions === 'object') {
-      const custom = user.customPermissions;
-      const lower = navKey.toLowerCase();
-
-      // Check exact key
-      if (typeof custom[navKey] === 'boolean') return custom[navKey];
-      if (custom[navKey] && typeof custom[navKey] === 'object') {
-        if (typeof custom[navKey].view === 'boolean') return custom[navKey].view;
-        if (typeof custom[navKey].read === 'boolean') return custom[navKey].read;
-      }
-
-      // Check lowercase alias
-      if (typeof custom[lower] === 'boolean') return custom[lower];
-      if (custom[lower] && typeof custom[lower] === 'object') {
-        if (typeof custom[lower].view === 'boolean') return custom[lower].view;
-        if (typeof custom[lower].read === 'boolean') return custom[lower].read;
-      }
-    }
-
-    // 2. Direct navVisibility matrix check
-    const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
-    const entry =
-      nav[navKey] ||
-      nav[navKey.toLowerCase()] ||
-      (navKey.toLowerCase() === 'items' ? (nav['Items'] || nav['items'] || nav['raw_materials'] || nav['rawMaterials']) : undefined) ||
-      (navKey === 'cashSales' ? (nav['cashSales'] || nav['subsystem_cash_sales']) : undefined) ||
-      (navKey === 'creditSales' ? (nav['creditSales'] || nav['subsystem_pos_ordering']) : undefined) ||
-      (navKey === 'stockRequests' ? (nav['stockRequests'] || nav['consumption']) : undefined) ||
-      (navKey === 'expenses' ? (nav['expenses'] || nav['overhead_expenses']) : undefined) ||
-      (navKey === 'staffAccounts' ? (nav['staffAccounts'] || nav['staff_accounts']) : undefined);
 
     if (entry && entry[user.role] !== undefined) {
       if (Boolean(entry[user.role])) return true;

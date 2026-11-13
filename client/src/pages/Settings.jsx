@@ -90,35 +90,185 @@ const DEFAULT_CAPABILITY_DEFAULTS = {
 };
 
 export const SIDEBAR_NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', isParent: false, navKey: 'dashboard', route: '/' },
-  { key: 'subsystem_captain_order', label: 'Subsystem — Captain Order', isParent: false, parentKey: 'salesMarketing', navKey: 'salesMarketing', route: '/sub-system/sales-marketing' },
-  { key: 'subsystem_cash_sales', label: 'Subsystem — Cash Sales', isParent: false, parentKey: 'salesMarketing', navKey: 'cashSales', route: '/sales/cash' },
-  { key: 'subsystem_pos_ordering', label: 'Subsystem — POS Ordering', isParent: false, parentKey: 'salesMarketing', navKey: 'creditSales', route: '/sales/credit' },
-  { key: 'raw_materials', label: 'Raw Materials', isParent: false, parentKey: 'allIds', navKey: 'items', route: '/materials' },
-  { key: 'products', label: 'Products', isParent: false, parentKey: 'allIds', navKey: 'products', route: '/products' },
-  { key: 'stock_movements', label: 'Stock Movements', isParent: false, parentKey: 'storeOps', navKey: 'stockMovements', route: '/transactions' },
-  { key: 'suppliers', label: 'Suppliers', isParent: false, parentKey: 'storeOps', navKey: 'suppliers', route: '/suppliers' },
-  { key: 'consumption', label: 'Consumption', isParent: false, parentKey: 'storeOps', navKey: 'stockRequests', route: '/stock-requests' },
-  { key: 'reports', label: 'Reports', isParent: false, parentKey: 'reports_analytics', navKey: 'reports', route: '/reports' },
-  { key: 'overhead_expenses', label: 'Overhead Expenses', isParent: false, parentKey: 'finance', navKey: 'finance', route: '/expenses' },
-  { key: 'analytics_pnl', label: 'Analytics & P&L', isParent: false, parentKey: 'finance', navKey: 'analytics', route: '/analytics' },
-  { key: 'staff_accounts', label: 'Staff Accounts', isParent: false, parentKey: 'staff', navKey: 'staffAccounts', route: '/staff-accounts' },
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    route: '/',
+    navKey: 'dashboard',
+    desc: 'Main executive inventory, financial metrics & activity dashboard',
+    submenus: ['Overview KPI Cards', 'Quick Action Buttons', 'Recent Activity Stream'],
+    childrenKeys: ['dashboard'],
+  },
+  {
+    key: 'allIds',
+    label: "All ID's (Master Registry)",
+    route: 'Dropdown Group',
+    navKey: 'allIds',
+    desc: 'Master directory of stock items, finished products, staff employees, and suppliers',
+    submenus: ['Items (Raw Materials)', 'Products (Finished Goods)', 'Employees Directory', 'Suppliers Directory'],
+    childrenKeys: ['allIds', 'items', 'materials', 'products', 'employees', 'suppliers', 'raw_materials'],
+  },
+  {
+    key: 'analytics',
+    label: 'Analytics & P&L',
+    route: '/analytics',
+    navKey: 'analytics',
+    desc: 'Business intelligence, profit & loss statements, revenue and operational financial analysis',
+    submenus: ['Revenue vs Expense', 'P&L Statement', 'Financial Indicators'],
+    childrenKeys: ['analytics', 'finance', 'overhead_expenses', 'expenses'],
+  },
+  {
+    key: 'storeOps',
+    label: 'Stock Management System',
+    route: 'Dropdown Group',
+    navKey: 'storeOps',
+    desc: 'Core warehouse receiving, issuing, adjustment vouchers, and physical stock operations',
+    submenus: [
+      'Cash Goods Receiving Voucher (GRV)',
+      'Credit Goods Receiving Voucher (GRV)',
+      'Negative Stock Adjustment Voucher',
+      'Positive Stock Adjustment Voucher',
+      'Inventory Count',
+      'All Documents / Transactions',
+      'Import Sales Report',
+      'Stock Issue & Request',
+      'Stock Management Voucher Report'
+    ],
+    childrenKeys: [
+      'storeOps',
+      'stock_operations',
+      'purchases',
+      'purchases_grv',
+      'movements_cash_grv',
+      'movements_credit_grv',
+      'movements_neg_adj',
+      'movements_pos_adj',
+      'stockMovements',
+      'stock_movements',
+      'inventoryCount',
+      'report_inventory_count',
+      'movements_all',
+      'movements_sales_import',
+      'stockRequests',
+      'stock_requests',
+      'consumption',
+      'stockManagementVoucherReportUnderStoreOps',
+      'stockManagementVoucherReport'
+    ],
+  },
+  {
+    key: 'salesMarketing',
+    label: 'Sales and Marketing MS',
+    route: 'Dropdown Group',
+    navKey: 'salesMarketing',
+    desc: 'Point-of-sale customer checkout and direct sales transaction vouchers',
+    submenus: ['Cash Sales Voucher', 'Credit Sales Voucher'],
+    childrenKeys: ['salesMarketing', 'cashSales', 'creditSales', 'sales_cash', 'sales_credit'],
+  },
+  {
+    key: 'subSystem',
+    label: 'Sub System',
+    route: 'Dropdown Group',
+    navKey: 'subSystem',
+    desc: 'Subsystem stock management reports and multi-channel sales execution modules',
+    submenus: [
+      'Subsystem Stock Management (Voucher Report)',
+      'Cash Sales Voucher',
+      'Credit Sales Voucher',
+      'Zeroing Voucher',
+      'Security Report',
+      'Sales Closing',
+      'Sales Route Mapping'
+    ],
+    childrenKeys: [
+      'subSystem',
+      'subsystem',
+      'subsystem_stock_management',
+      'subsystem_sales_marketing',
+      'subsystem_captain_order',
+      'subsystem_cash_sales',
+      'subsystem_credit_sales',
+      'subsystem_pos_ordering',
+      'subsystem_zeroing_voucher',
+      'subsystem_security_report',
+      'subsystem_sales_closing',
+      'subsystem_sales_route_mapping',
+    ],
+  },
+  {
+    key: 'reports',
+    label: 'Reports & Audits',
+    route: 'Dropdown Group',
+    navKey: 'reports',
+    desc: 'Comprehensive stock balances, GRV audit trails, daily activity logs, and stock levels',
+    submenus: [
+      'Overview Summary',
+      'Stock Balance Report (Evaluations & Bincard)',
+      'Inventory Count',
+      'Daily Transaction Report',
+      'Cash GRV Audit Report',
+      'Credit GRV Audit Report',
+      '+ve Stock Adjustment Report',
+      '−ve Stock Adjustment Report',
+      'Stock Levels & Reorder Thresholds',
+      'Purchase History Audit'
+    ],
+    childrenKeys: [
+      'reports',
+      'reports_analytics',
+      'report_summary',
+      'report_balance',
+      'report_inventory_count',
+      'report_daily',
+      'report_cash_grv',
+      'report_credit_grv',
+      'report_pos_adj',
+      'report_neg_adj',
+      'report_levels',
+      'report_purchases',
+      'report_disposal'
+    ],
+  },
+  {
+    key: 'staffAccounts',
+    label: 'Staff Accounts',
+    route: '/users',
+    navKey: 'staffAccounts',
+    desc: 'Staff roster directory, system user logins, and credential account administration',
+    submenus: ['User Accounts Directory', 'Staff Access Profiles'],
+    childrenKeys: ['staffAccounts', 'staff', 'staff_accounts', 'users'],
+  },
+  {
+    key: 'recycleBin',
+    label: 'Recycle Bin',
+    route: '/recycle-bin',
+    navKey: 'recycleBin',
+    desc: 'Soft-deleted master items and historical records safety vault with restore controls',
+    submenus: ['Deleted Items Restoration', 'Audit Tombstones'],
+    childrenKeys: ['recycleBin', 'recycle_bin'],
+  },
+  {
+    key: 'settings',
+    label: 'Settings & Administration',
+    route: '/settings',
+    navKey: 'settings',
+    desc: 'Role privileges matrix, theme customizer, company profile, and hardware configurations',
+    submenus: ['Role Privileges', 'System Configuration', 'Theme & Sidebar Styles', 'Printers & Backups'],
+    childrenKeys: ['settings', 'system_settings'],
+  },
 ];
 
 export const SCREENSHOT_NAV_DEFAULTS = {
   dashboard: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-  subsystem_captain_order: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
-  subsystem_cash_sales: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-  subsystem_pos_ordering: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
-  raw_materials: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-  products: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-  stock_movements: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-  suppliers: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-  consumption: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  allIds: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  analytics: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
+  storeOps: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
+  salesMarketing: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
+  subSystem: { storekeeper: true, cashier: true, waiter: true, supervisor: true, manager: true, admin: true },
   reports: { storekeeper: false, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
-  overhead_expenses: { storekeeper: true, cashier: false, waiter: false, supervisor: true, manager: true, admin: true },
-  analytics_pnl: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: true, admin: true },
-  staff_accounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  staffAccounts: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  recycleBin: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
+  settings: { storekeeper: false, cashier: false, waiter: false, supervisor: false, manager: false, admin: true },
 };
 
 export const CRUD_ACTIONS = [
@@ -797,7 +947,7 @@ export default function Settings() {
     if (nav[itemKey]?.[roleKey] !== undefined) {
       return Boolean(nav[itemKey][roleKey]);
     }
-    if (item?.navKey && nav[item.navKey]?.[roleKey] !== undefined && item.navKey !== item?.parentKey) {
+    if (item?.navKey && nav[item.navKey]?.[roleKey] !== undefined) {
       return Boolean(nav[item.navKey][roleKey]);
     }
     const defaultVal = SCREENSHOT_NAV_DEFAULTS[itemKey]?.[roleKey];
@@ -805,48 +955,34 @@ export default function Settings() {
     return true;
   };
 
-  // Handle Hierarchical Sidebar Navigation Visibility Toggle
+  // Handle Hierarchical Sidebar Navigation Visibility Toggle:
+  // Toggling any main sidebar menu directly cascades to all of its controlled submenus
   const handleNavVisibilityToggle = (itemKey, roleKey, checked) => {
     setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === itemKey);
 
-      // 1. Set current item permission
+      // 1. Set main sidebar menu visibility for this role
       nav[itemKey] = { ...(nav[itemKey] || {}), [roleKey]: checked };
 
-      // Sync specific leaf alias if not the parent group key
-      if (item?.navKey && item.navKey !== itemKey && item.navKey !== item?.parentKey) {
+      // Sync primary navKey alias if different
+      if (item?.navKey && item.navKey !== itemKey) {
         nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: checked };
       }
 
-      // 2. Parent & Child hierarchical logic
-      if (item?.parentKey) {
-        if (checked) {
-          // Child ON -> Parent must be ON
-          nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: true };
-        } else {
-          // Child OFF -> Check if any other sibling is still active
-          const siblings = SIDEBAR_NAV_ITEMS.filter((i) => i.parentKey === item.parentKey && i.key !== itemKey);
-          const anySiblingActive = siblings.some((s) => {
-            if (nav[s.key]?.[roleKey] !== undefined) return Boolean(nav[s.key][roleKey]);
-            if (s.navKey && nav[s.navKey]?.[roleKey] !== undefined && s.navKey !== s.parentKey) {
-              return Boolean(nav[s.navKey][roleKey]);
-            }
-            return Boolean(SCREENSHOT_NAV_DEFAULTS[s.key]?.[roleKey] ?? true);
-          });
-          if (!anySiblingActive) {
-            // All children OFF -> Parent becomes OFF automatically
-            nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: false };
-          }
-        }
+      // 2. Cascade control: Set all submenus controlled by this main menu to the same value
+      if (item?.childrenKeys && Array.isArray(item.childrenKeys)) {
+        item.childrenKeys.forEach((ck) => {
+          nav[ck] = { ...(nav[ck] || {}), [roleKey]: checked };
+        });
       }
 
       return { ...prev, navVisibility: nav };
     });
   };
 
-  // Bulk Navigation Visibility actions
+  // Bulk Navigation Visibility actions across all displayed roles
   const handleSelectAllNav = (forceValue = true) => {
     setHasUnsavedPerms(true);
     setSystemForm((prev) => {
@@ -857,19 +993,23 @@ export default function Settings() {
           itemObj[r.key] = forceValue;
         });
         nav[item.key] = itemObj;
-        if (item.navKey && item.navKey !== item.key && item.navKey !== item.parentKey) {
+
+        if (item.navKey && item.navKey !== item.key) {
           const altObj = { ...(nav[item.navKey] || {}) };
           displayedRoles.forEach((r) => {
             altObj[r.key] = forceValue;
           });
           nav[item.navKey] = altObj;
         }
-        if (item.parentKey) {
-          const parentObj = { ...(nav[item.parentKey] || {}) };
-          displayedRoles.forEach((r) => {
-            parentObj[r.key] = forceValue;
+
+        if (item.childrenKeys && Array.isArray(item.childrenKeys)) {
+          item.childrenKeys.forEach((ck) => {
+            const childObj = { ...(nav[ck] || {}) };
+            displayedRoles.forEach((r) => {
+              childObj[r.key] = forceValue;
+            });
+            nav[ck] = childObj;
           });
-          nav[item.parentKey] = parentObj;
         }
       });
       return { ...prev, navVisibility: nav };
@@ -882,8 +1022,14 @@ export default function Settings() {
       const nav = { ...(prev.navVisibility || {}) };
       SIDEBAR_NAV_ITEMS.forEach((item) => {
         nav[item.key] = { ...(nav[item.key] || {}), [roleKey]: true };
-        if (item.navKey && item.navKey !== item.parentKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: true };
-        if (item.parentKey) nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: true };
+        if (item.navKey && item.navKey !== item.key) {
+          nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: true };
+        }
+        if (item.childrenKeys && Array.isArray(item.childrenKeys)) {
+          item.childrenKeys.forEach((ck) => {
+            nav[ck] = { ...(nav[ck] || {}), [roleKey]: true };
+          });
+        }
       });
       return { ...prev, navVisibility: nav };
     });
@@ -895,8 +1041,14 @@ export default function Settings() {
       const nav = { ...(prev.navVisibility || {}) };
       SIDEBAR_NAV_ITEMS.forEach((item) => {
         nav[item.key] = { ...(nav[item.key] || {}), [roleKey]: false };
-        if (item.navKey && item.navKey !== item.parentKey) nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: false };
-        if (item.parentKey) nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [roleKey]: false };
+        if (item.navKey && item.navKey !== item.key) {
+          nav[item.navKey] = { ...(nav[item.navKey] || {}), [roleKey]: false };
+        }
+        if (item.childrenKeys && Array.isArray(item.childrenKeys)) {
+          item.childrenKeys.forEach((ck) => {
+            nav[ck] = { ...(nav[ck] || {}), [roleKey]: false };
+          });
+        }
       });
       return { ...prev, navVisibility: nav };
     });
@@ -915,25 +1067,13 @@ export default function Settings() {
 
       displayedRoles.forEach((r) => {
         nav[itemKey] = { ...(nav[itemKey] || {}), [r.key]: targetVal };
-        if (item?.navKey && item.navKey !== itemKey && item.navKey !== item.parentKey) {
+        if (item?.navKey && item.navKey !== itemKey) {
           nav[item.navKey] = { ...(nav[item.navKey] || {}), [r.key]: targetVal };
         }
-        if (item?.parentKey) {
-          if (targetVal) {
-            nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [r.key]: true };
-          } else {
-            const siblings = SIDEBAR_NAV_ITEMS.filter((i) => i.parentKey === item.parentKey && i.key !== itemKey);
-            const anySiblingActive = siblings.some((s) => {
-              if (nav[s.key]?.[r.key] !== undefined) return Boolean(nav[s.key][r.key]);
-              if (s.navKey && nav[s.navKey]?.[r.key] !== undefined && s.navKey !== s.parentKey) {
-                return Boolean(nav[s.navKey][r.key]);
-              }
-              return Boolean(SCREENSHOT_NAV_DEFAULTS[s.key]?.[r.key] ?? true);
-            });
-            if (!anySiblingActive) {
-              nav[item.parentKey] = { ...(nav[item.parentKey] || {}), [r.key]: false };
-            }
-          }
+        if (item?.childrenKeys && Array.isArray(item.childrenKeys)) {
+          item.childrenKeys.forEach((ck) => {
+            nav[ck] = { ...(nav[ck] || {}), [r.key]: targetVal };
+          });
         }
       });
 
@@ -942,20 +1082,25 @@ export default function Settings() {
   };
 
   const handleResetNavDefaults = () => {
-    if (!window.confirm('Reset all sidebar navigation visibility settings to standard screenshot defaults?')) return;
+    if (!window.confirm('Reset all sidebar navigation visibility settings to standard system defaults?')) return;
     setHasUnsavedPerms(true);
     setSystemForm((prev) => {
       const nav = { ...(prev.navVisibility || {}) };
       Object.entries(SCREENSHOT_NAV_DEFAULTS).forEach(([key, roleMap]) => {
         nav[key] = { ...(nav[key] || {}), ...roleMap };
         const item = SIDEBAR_NAV_ITEMS.find((i) => i.key === key);
-        if (item?.navKey && item.navKey !== item.parentKey) {
+        if (item?.navKey && item.navKey !== key) {
           nav[item.navKey] = { ...(nav[item.navKey] || {}), ...roleMap };
+        }
+        if (item?.childrenKeys && Array.isArray(item.childrenKeys)) {
+          item.childrenKeys.forEach((ck) => {
+            nav[ck] = { ...(nav[ck] || {}), ...roleMap };
+          });
         }
       });
       return { ...prev, navVisibility: nav };
     });
-    setSystemSuccess('Sidebar navigation visibility reset to screenshot defaults. Click Save Changes to apply permanently.');
+    setSystemSuccess('Sidebar navigation visibility reset to standard defaults. Click Save Changes to apply permanently.');
     setTimeout(() => setSystemSuccess(''), 6000);
   };
 
@@ -1414,7 +1559,9 @@ export default function Settings() {
       return (
         item.label.toLowerCase().includes(query) ||
         item.key.toLowerCase().includes(query) ||
-        (item.route && item.route.toLowerCase().includes(query))
+        (item.desc && item.desc.toLowerCase().includes(query)) ||
+        (item.route && item.route.toLowerCase().includes(query)) ||
+        (item.submenus && item.submenus.some((s) => s.toLowerCase().includes(query)))
       );
     });
   }, [navSearch]);
@@ -2902,49 +3049,65 @@ export default function Settings() {
                     </tr>
                   ) : (
                     filteredNavItems.map((nav) => {
-                      const isSubmenu = Boolean(nav.parentKey);
                       return (
-                        <tr key={nav.key} className={`hover:bg-slate-50/70 transition-colors ${isSubmenu ? 'bg-slate-50/30' : 'bg-white'}`}>
-                          <td className="py-3 px-4 font-semibold text-ink-900">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                {isSubmenu && (
-                                  <span className="text-ink-300 font-mono text-[10px]">↳</span>
-                                )}
-                                <span className={`text-[13px] ${isSubmenu ? 'text-ink-700 font-medium' : 'text-ink-900 font-bold'}`}>
-                                  {nav.label}
-                                </span>
-                                {nav.route && (
-                                  <code className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-ink-400">
-                                    {nav.route}
-                                  </code>
-                                )}
+                        <tr key={nav.key} className="hover:bg-slate-50/70 transition-colors bg-white">
+                          <td className="py-3.5 px-4 font-semibold text-ink-900">
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[13px] text-ink-900 font-bold">
+                                    {nav.label}
+                                  </span>
+                                  {nav.route && (
+                                    <code className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-ink-500">
+                                      {nav.route}
+                                    </code>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] font-bold opacity-75 hover:opacity-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleNavRow(nav.key, true)}
+                                    className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
+                                    title={`Make ${nav.label} visible for all roles`}
+                                  >
+                                    All
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleNavRow(nav.key, false)}
+                                    className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
+                                    title={`Hide ${nav.label} for all roles`}
+                                  >
+                                    None
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-1 text-[10px] font-bold opacity-75 hover:opacity-100">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleNavRow(nav.key, true)}
-                                  className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
-                                  title={`Make ${nav.label} visible for all roles`}
-                                >
-                                  All
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleNavRow(nav.key, false)}
-                                  className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
-                                  title={`Hide ${nav.label} for all roles`}
-                                >
-                                  None
-                                </button>
-                              </div>
+                              {nav.desc && (
+                                <p className="text-[11px] text-ink-400 font-normal leading-tight">
+                                  {nav.desc}
+                                </p>
+                              )}
+                              {nav.submenus && nav.submenus.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                  <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wider mr-0.5">Controls:</span>
+                                  {nav.submenus.map((sub, sIdx) => (
+                                    <span
+                                      key={sIdx}
+                                      className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 text-[10px] text-ink-600 font-medium"
+                                    >
+                                      {sub}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </td>
                           {displayedRoles.map((r) => {
                             const isChecked = getNavVisibility(nav.key, r.key);
 
                             return (
-                              <td key={r.key} className="py-3 px-3 text-center">
+                              <td key={r.key} className="py-3 px-3 text-center align-middle">
                                 <input
                                   type="checkbox"
                                   checked={isChecked}

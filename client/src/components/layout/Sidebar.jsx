@@ -309,8 +309,12 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     if (isAvoidedNavItem(item)) return false;
     if (item.visible === false) return false;
 
-    // For groups, verify if at least one leaf child is displayable
+    // For groups, verify if the parent group itself is permitted AND at least one leaf child is displayable
     if (item.isGroup) {
+      const groupKey = item.id || item.navKey;
+      if (groupKey && !canSeeNav(groupKey)) {
+        return false;
+      }
       return (item.children || []).some((kid) => {
         if (kid.isGroup) {
           return (kid.children || []).some(sub => canDisplayItem(sub));
@@ -365,10 +369,15 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     const admin = [];
 
     sortedSidebar.forEach((item) => {
-      // If group, verify it has at least one accessible child and render ONLY permitted submenus
+      // If group, verify parent menu is enabled, has at least one accessible child, and render ONLY permitted submenus
       if (item.isGroup) {
+        const groupKey = item.id || item.navKey;
+        if (groupKey && !canSeeNav(groupKey)) return;
+
         const visibleKids = (item.children || []).map((kid) => {
           if (kid.isGroup) {
+            const subKey = kid.id || kid.navKey;
+            if (subKey && !canSeeNav(subKey)) return null;
             const subKids = (kid.children || []).filter(canDisplayItem);
             return subKids.length > 0 ? { ...kid, children: subKids } : null;
           }
