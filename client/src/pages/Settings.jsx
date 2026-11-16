@@ -259,6 +259,13 @@ export const SIDEBAR_NAV_ITEMS = [
   },
 ];
 
+export const MAIN_SIDEBAR_NAV_ITEMS = SIDEBAR_NAV_ITEMS;
+
+export const MAIN_MENU_CONTROLLED_SUBMENUS = SIDEBAR_NAV_ITEMS.reduce((acc, item) => {
+  acc[item.key] = item.childrenKeys || [];
+  return acc;
+}, {});
+
 export const SCREENSHOT_NAV_DEFAULTS = {
   dashboard: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
   allIds: { storekeeper: true, cashier: true, waiter: false, supervisor: true, manager: true, admin: true },
@@ -495,6 +502,18 @@ export default function Settings() {
   const [systemError, setSystemError] = useState('');
   const [hasUnsavedPerms, setHasUnsavedPerms] = useState(false);
   const settingsLoadedRef = useRef(false);
+
+  // Selected User Access Control state
+  const [privilegeScope, setPrivilegeScope] = useState('role'); // 'role' | 'user'
+  const [usersList, setUsersList] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUserObj, setSelectedUserObj] = useState(null);
+  const [userPermissionsForm, setUserPermissionsForm] = useState({});
+  const [hasUnsavedUserPerms, setHasUnsavedUserPerms] = useState(false);
+  const [savingUserPerms, setSavingUserPerms] = useState(false);
+  const [userPermSearch, setUserPermSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('all');
 
   // Bulk product price adjustment state
   const [bulkPricePercent, setBulkPricePercent] = useState('');
@@ -1433,6 +1452,286 @@ export default function Settings() {
     setTimeout(() => setSystemSuccess(''), 6000);
   };
 
+  // ── Selected User Access Control Logic ──
+  const loadUsersList = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const res = await api.get('/users');
+      const list = Array.isArray(res.data) ? res.data : [];
+      setUsersList(list);
+      if (list.length > 0 && !selectedUserId) {
+        const defaultUser = list.find((u) => u.role !== 'developer' && u._id !== user?._id) || list[0];
+        if (defaultUser) {
+          setSelectedUserId(defaultUser._id);
+          setSelectedUserObj(defaultUser);
+          setUserPermissionsForm(defaultUser.customPermissions ? JSON.parse(JSON.stringify(defaultUser.customPermissions)) : {});
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load users for privilege configuration:', err);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [selectedUserId, user?._id]);
+
+  useEffect(() => {
+    if (user && (hasRole('admin') || user?.role === 'developer')) {
+      loadUsersList();
+    }
+  }, [user, loadUsersList]);
+
+  const handleSelectUser = (userId) => {
+    const target = usersList.find((u) => u._id === userId);
+    if (!target) return;
+    setSelectedUserId(userId);
+    setSelectedUserObj(target);
+    setUserPermissionsForm(target.customPermissions ? JSON.parse(JSON.stringify(target.customPermissions)) : {});
+    setHasUnsavedUserPerms(false);
+  };
+
+  const getUserCapability = (capKey) => {
+    if (userPermissionsForm[capKey] !== undefined) {
+      return Boolean(userPermissionsForm[capKey]);
+    }
+    const roleKey = selectedUserObj?.role || 'employee';
+    const roleVal = systemForm.rolePermissions?.[capKey]?.[roleKey];
+    if (roleVal !== undefined) return Boolean(roleVal);
+    return Boolean(DEFAULT_CAPABILITY_DEFAULTS[capKey]?.[roleKey] ?? false);
+  };
+
+  const isUserCapabilityOverridden = (capKey) => {
+    return userPermissionsForm[capKey] !== undefined;
+  };
+
+  const handleUserCapabilityToggle = (capKey, checked) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => ({
+      ...prev,
+      [capKey]: checked,
+    }));
+  };
+
+  const handleBulkToggleUserCapabilities = (forceValue) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const next = { ...prev };
+      CAPABILITIES.forEach((c) => {
+        next[c.key] = forceValue;
+      });
+      return next;
+    });
+  };
+
+  const handleRevertUserCapability = (capKey) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const next = { ...prev };
+      delete next[capKey];
+      return next;
+    });
+  };
+
+  const getUserNavVisibility = (navKey) => {
+    const customNav = userPermissionsForm.navVisibility || {};
+    if (customNav[navKey] !== undefined) return Boolean(customNav[navKey]);
+    if (userPermissionsForm[navKey] !== undefined && typeof userPermissionsForm[navKey] === 'boolean') {
+      return Boolean(userPermissionsForm[navKey]);
+    }
+    const roleKey = selectedUserObj?.role || 'employee';
+    return getNavVisibility(navKey, roleKey);
+  };
+
+  const isUserNavOverridden = (navKey) => {
+    const customNav = userPermissionsForm.navVisibility || {};
+    return customNav[navKey] !== undefined || typeof userPermissionsForm[navKey] === 'boolean';
+  };
+
+  const handleUserNavVisibilityToggle = (navKey, checked) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const prevNav = { ...(prev.navVisibility || {}) };
+      prevNav[navKey] = checked;
+      const controlled = MAIN_MENU_CONTROLLED_SUBMENUS[navKey] || [];
+      controlled.forEach((sub) => {
+        prevNav[sub] = checked;
+      });
+      return {
+        ...prev,
+        [navKey]: checked,
+        navVisibility: prevNav,
+      };
+    });
+  };
+
+  const handleBulkToggleUserNav = (forceValue) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const newNav = { ...(prev.navVisibility || {}) };
+      MAIN_SIDEBAR_NAV_ITEMS.forEach((m) => {
+        newNav[m.key] = forceValue;
+        (MAIN_MENU_CONTROLLED_SUBMENUS[m.key] || []).forEach((sub) => {
+          newNav[sub] = forceValue;
+        });
+      });
+      return {
+        ...prev,
+        navVisibility: newNav,
+      };
+    });
+  };
+
+  const handleRevertUserNav = (navKey) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const next = { ...prev };
+      if (next.navVisibility) {
+        const nextNav = { ...next.navVisibility };
+        delete nextNav[navKey];
+        (MAIN_MENU_CONTROLLED_SUBMENUS[navKey] || []).forEach((sub) => {
+          delete nextNav[sub];
+        });
+        next.navVisibility = nextNav;
+      }
+      delete next[navKey];
+      return next;
+    });
+  };
+
+  const getUserCrudPermission = (modKey, actKey) => {
+    const modObj = userPermissionsForm[modKey];
+    if (modObj && typeof modObj === 'object' && modObj[actKey] !== undefined) {
+      return Boolean(modObj[actKey]);
+    }
+    const roleKey = selectedUserObj?.role || 'employee';
+    return getCrudPermission(modKey, actKey, roleKey);
+  };
+
+  const isUserCrudOverridden = (modKey, actKey) => {
+    const modObj = userPermissionsForm[modKey];
+    return modObj && typeof modObj === 'object' && modObj[actKey] !== undefined;
+  };
+
+  const handleUserCrudToggle = (modKey, actKey, checked) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const currentMod = { ...(prev[modKey] || {}) };
+      currentMod[actKey] = checked;
+      return {
+        ...prev,
+        [modKey]: currentMod,
+      };
+    });
+  };
+
+  const handleBulkToggleUserCrudRow = (modKey, forceValue) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const currentMod = { ...(prev[modKey] || {}) };
+      CRUD_ACTIONS.forEach((a) => {
+        currentMod[a.key] = forceValue;
+      });
+      return {
+        ...prev,
+        [modKey]: currentMod,
+      };
+    });
+  };
+
+  const handleSelectAllUserCrud = (forceValue) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const next = { ...prev };
+      CRUD_MODULE_ROWS.forEach((mod) => {
+        const currentMod = { ...(next[mod.key] || {}) };
+        CRUD_ACTIONS.forEach((a) => {
+          currentMod[a.key] = forceValue;
+        });
+        next[mod.key] = currentMod;
+      });
+      return next;
+    });
+  };
+
+  const handleRevertUserCrud = (modKey) => {
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm((prev) => {
+      const next = { ...prev };
+      delete next[modKey];
+      return next;
+    });
+  };
+
+  const handleResetUserToBaseRole = () => {
+    if (!selectedUserObj) return;
+    if (!window.confirm(`Reset all custom privileges for ${selectedUserObj.name} back to their base role (${selectedUserObj.role}) defaults?`)) return;
+    setHasUnsavedUserPerms(true);
+    setUserPermissionsForm({});
+  };
+
+  const handleGrantAllUserAccess = () => {
+    setHasUnsavedUserPerms(true);
+    const newPerms = {};
+    CAPABILITIES.forEach((c) => { newPerms[c.key] = true; });
+    const newNav = {};
+    MAIN_SIDEBAR_NAV_ITEMS.forEach((m) => {
+      newNav[m.key] = true;
+      (MAIN_MENU_CONTROLLED_SUBMENUS[m.key] || []).forEach((sub) => { newNav[sub] = true; });
+    });
+    newPerms.navVisibility = newNav;
+    CRUD_MODULE_ROWS.forEach((m) => {
+      newPerms[m.key] = { view: true, create: true, edit: true, delete: true, approve: true, reject: true, export: true };
+    });
+    setUserPermissionsForm(newPerms);
+  };
+
+  const handleRestrictAllUserAccess = () => {
+    setHasUnsavedUserPerms(true);
+    const newPerms = {};
+    CAPABILITIES.forEach((c) => { newPerms[c.key] = false; });
+    const newNav = {};
+    MAIN_SIDEBAR_NAV_ITEMS.forEach((m) => {
+      newNav[m.key] = false;
+      (MAIN_MENU_CONTROLLED_SUBMENUS[m.key] || []).forEach((sub) => { newNav[sub] = false; });
+    });
+    newPerms.navVisibility = newNav;
+    CRUD_MODULE_ROWS.forEach((m) => {
+      newPerms[m.key] = { view: false, create: false, edit: false, delete: false, approve: false, reject: false, export: false };
+    });
+    setUserPermissionsForm(newPerms);
+  };
+
+  const handleSaveUserPermissions = async () => {
+    if (!selectedUserId) return;
+    setSavingUserPerms(true);
+    setSystemSuccess('');
+    setSystemError('');
+    try {
+      await api.put(`/users/${selectedUserId}`, {
+        customPermissions: userPermissionsForm,
+      });
+      setUsersList((prev) =>
+        prev.map((u) => (u._id === selectedUserId ? { ...u, customPermissions: userPermissionsForm } : u))
+      );
+      if (selectedUserObj) {
+        setSelectedUserObj((prev) => ({ ...prev, customPermissions: userPermissionsForm }));
+      }
+      setHasUnsavedUserPerms(false);
+      if (selectedUserId === user?._id) {
+        await refreshPermissions();
+      }
+      setSystemSuccess(
+        `✓ Selected user privileges saved successfully! Permissions and visibility for ${selectedUserObj?.name || 'user'} are permanently stored and active immediately.`
+      );
+      setTimeout(() => setSystemSuccess(''), 7000);
+    } catch (err) {
+      console.error('Failed to save selected user permissions:', err);
+      setSystemError(err.response?.data?.message || 'Failed to update selected user access.');
+      setTimeout(() => setSystemError(''), 7000);
+    } finally {
+      setSavingUserPerms(false);
+    }
+  };
+
   // ── Developer / Owner Controls Handlers (Matching Screenshots) ──
   const handleDevModuleToggle = async (moduleKey, newValue) => {
     if (toggleModule) {
@@ -1571,6 +1870,35 @@ export default function Settings() {
     if (navRoleFilter === 'all') return MATRIX_ROLES;
     return MATRIX_ROLES.filter((r) => r.key === navRoleFilter);
   }, [navRoleFilter]);
+
+  const filteredUsersList = React.useMemo(() => {
+    return usersList.filter((u) => {
+      if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
+      if (!userPermSearch.trim()) return true;
+      const q = userPermSearch.toLowerCase().trim();
+      return (
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.username && u.username.toLowerCase().includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.role && u.role.toLowerCase().includes(q))
+      );
+    });
+  }, [usersList, userRoleFilter, userPermSearch]);
+
+  const userOverrideCount = React.useMemo(() => {
+    if (!userPermissionsForm || typeof userPermissionsForm !== 'object') return 0;
+    let count = 0;
+    Object.keys(userPermissionsForm).forEach((k) => {
+      if (k === 'navVisibility') {
+        count += Object.keys(userPermissionsForm.navVisibility || {}).length;
+      } else if (typeof userPermissionsForm[k] === 'object' && userPermissionsForm[k] !== null) {
+        count += Object.keys(userPermissionsForm[k]).length;
+      } else {
+        count += 1;
+      }
+    });
+    return count;
+  }, [userPermissionsForm]);
 
   const roleBadgeColor = {
     admin: 'bg-brass-100 text-brass-800 border-brass-300',
@@ -2674,17 +3002,17 @@ export default function Settings() {
       {currentTab === 'permissions' && (hasRole('admin') || user?.role === 'developer') && (
         <div className="space-y-6 w-full max-w-6xl">
           {/* Floating Functional Quick-Save Widget (Specific Fixed Bottom-Right Location) */}
-          {hasUnsavedPerms && (
+          {(hasUnsavedPerms || hasUnsavedUserPerms) && (
             <div className="fixed bottom-6 right-8 z-50 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
               <button
                 type="button"
-                onClick={handleSystemSubmit}
-                disabled={systemSaving}
+                onClick={privilegeScope === 'user' ? handleSaveUserPermissions : handleSystemSubmit}
+                disabled={systemSaving || savingUserPerms}
                 className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white px-5 py-3 text-xs font-black shadow-2xl hover:shadow-amber-500/30 transition-all duration-200 active:scale-95 ring-4 ring-amber-400/30 cursor-pointer"
-                title="Click to save all role privileges and visibility changes permanently to database"
+                title="Click to save privileges permanently to database"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-white shadow-xs">
-                  <Save size={17} className={systemSaving ? 'animate-spin' : 'group-hover:scale-110 transition-transform'} />
+                  <Save size={17} className={(systemSaving || savingUserPerms) ? 'animate-spin' : 'group-hover:scale-110 transition-transform'} />
                 </div>
                 <div className="text-left leading-tight pr-1">
                   <div className="flex items-center gap-1.5">
@@ -2695,7 +3023,11 @@ export default function Settings() {
                     <span className="text-[10px] uppercase tracking-wider text-amber-100 font-bold">Unsaved Changes</span>
                   </div>
                   <p className="text-xs font-black text-white mt-0.5">
-                    {systemSaving ? 'Saving to Database…' : 'Save Changes Now'}
+                    {(systemSaving || savingUserPerms)
+                      ? 'Saving to Database…'
+                      : privilegeScope === 'user'
+                      ? `Save ${selectedUserObj?.name || 'User'} Access`
+                      : 'Save Changes Now'}
                   </p>
                 </div>
               </button>
@@ -2754,7 +3086,62 @@ export default function Settings() {
             </div>
           )}
 
-          {/* Main Matrix Card */}
+          {/* Scope Switcher: System Role Privileges vs Selected User Access */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-ink-100 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xs">
+                {privilegeScope === 'user' ? <User size={22} /> : <Shield size={22} />}
+              </div>
+              <div>
+                <h3 className="text-base font-black text-ink-900 tracking-tight">
+                  {privilegeScope === 'user' ? 'Selected User Access & Individual Privileges' : 'System Role Privileges & Visibility Matrix'}
+                </h3>
+                <p className="text-xs text-ink-500 mt-0.5">
+                  {privilegeScope === 'user'
+                    ? 'Configure granular access, capability permissions, and sidebar visibility for a specific selected staff user'
+                    : 'Configure global baseline permissions, visibility, and CRUD actions across all standard system roles'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setPrivilegeScope('role')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  privilegeScope === 'role'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Shield size={14} className={privilegeScope === 'role' ? 'text-blue-600' : 'text-slate-400'} />
+                <span>By System Role</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrivilegeScope('user')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  privilegeScope === 'user'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Users size={14} className={privilegeScope === 'user' ? 'text-white' : 'text-slate-400'} />
+                <span>By Selected User</span>
+                {usersList.length > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    privilegeScope === 'user' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {usersList.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {privilegeScope === 'role' && (
+            <>
+              {/* Main Matrix Card */}
           <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white">
             {/* Header with shield icon */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-ink-100">
@@ -3499,6 +3886,653 @@ export default function Settings() {
               </div>
             )}
           </div>
+            </>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* SCOPE 2: BY SELECTED USER ACCESS                              */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {privilegeScope === 'user' && (
+            <div className="space-y-6">
+              {/* 1. Selected User Picker & Profile Card */}
+              <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-5">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-ink-100">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 border border-blue-100 text-blue-600">
+                      <User size={22} className="stroke-[2.2]" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-ink-900 tracking-tight">
+                        Selected User Access &amp; Individual Privileges
+                      </h3>
+                      <p className="text-xs text-ink-400 mt-0.5">
+                        Choose any staff user below to inspect their effective permissions and configure custom overrides.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={loadUsersList}
+                      disabled={usersLoading}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3.5 py-2 text-xs font-semibold text-ink-600 hover:bg-ink-50 transition shadow-xs"
+                      title="Reload employee roster"
+                    >
+                      <RotateCcw size={13} className={usersLoading ? 'animate-spin' : ''} />
+                      <span>{usersLoading ? 'Loading…' : 'Refresh Staff'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveUserPermissions}
+                      disabled={savingUserPerms || !selectedUserId}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition disabled:opacity-50"
+                    >
+                      <Save size={14} className={savingUserPerms ? 'animate-spin' : ''} />
+                      <span>{savingUserPerms ? 'Saving User Access…' : 'Save User Access'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter and User Search Toolbar */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1">
+                  {/* Search Input */}
+                  <div className="md:col-span-5 relative">
+                    <Search size={15} className="absolute left-3.5 top-3 text-ink-400" />
+                    <input
+                      type="text"
+                      value={userPermSearch}
+                      onChange={(e) => setUserPermSearch(e.target.value)}
+                      placeholder="Search staff by name, username, or email…"
+                      className="w-full rounded-xl border border-ink-200 pl-9 pr-8 py-2 text-xs font-medium outline-none focus:border-blue-500 bg-white"
+                    />
+                    {userPermSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setUserPermSearch('')}
+                        className="absolute right-3 top-2.5 text-xs text-ink-400 hover:text-ink-600"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Role Filter */}
+                  <div className="md:col-span-3 flex items-center gap-2">
+                    <Filter size={14} className="text-ink-400 flex-shrink-0" />
+                    <select
+                      value={userRoleFilter}
+                      onChange={(e) => setUserRoleFilter(e.target.value)}
+                      className="w-full rounded-xl border border-ink-200 px-3 py-2 text-xs font-semibold text-ink-700 bg-white outline-none focus:border-blue-500"
+                    >
+                      <option value="all">All Roles ({usersList.length})</option>
+                      <option value="admin">Admin</option>
+                      <option value="manager">Manager</option>
+                      <option value="storekeeper">Storekeeper</option>
+                      <option value="cashier">Cashier</option>
+                      <option value="employee">Employee</option>
+                    </select>
+                  </div>
+
+                  {/* User Select Dropdown */}
+                  <div className="md:col-span-4">
+                    <select
+                      value={selectedUserId}
+                      onChange={(e) => handleSelectUser(e.target.value)}
+                      className="w-full rounded-xl border-2 border-blue-500 bg-blue-50/40 px-3 py-2 text-xs font-bold text-blue-900 outline-none focus:border-blue-600"
+                    >
+                      {filteredUsersList.length === 0 ? (
+                        <option value="">No users match search</option>
+                      ) : (
+                        filteredUsersList.map((u) => {
+                          const hasCustom = u.customPermissions && Object.keys(u.customPermissions).length > 0;
+                          return (
+                            <option key={u._id} value={u._id}>
+                              {u.name} (@{u.username}) — [{u.role?.toUpperCase()}]{hasCustom ? ' ★ Custom Overrides' : ''}
+                            </option>
+                          );
+                        })
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Selected User Highlight Card Banner */}
+                {selectedUserObj ? (
+                  <div className="rounded-2xl border border-ink-150 bg-gradient-to-r from-slate-50 via-blue-50/20 to-indigo-50/30 p-4 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-black text-lg shadow-md flex-shrink-0">
+                          {selectedUserObj.name ? selectedUserObj.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h4 className="text-base font-black text-ink-900 leading-tight">
+                              {selectedUserObj.name}
+                            </h4>
+                            <span className="text-xs font-mono font-bold text-ink-500">
+                              @{selectedUserObj.username}
+                            </span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider border ${
+                              selectedUserObj.role === 'admin'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : selectedUserObj.role === 'manager'
+                                ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                : selectedUserObj.role === 'storekeeper'
+                                ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                : selectedUserObj.role === 'cashier'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-slate-100 text-slate-800 border-slate-300'
+                            }`}>
+                              Base Role: {selectedUserObj.role}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-4 text-xs text-ink-500 mt-1 flex-wrap">
+                            {selectedUserObj.email && (
+                              <span className="flex items-center gap-1">
+                                <Mail size={12} className="text-ink-400" />
+                                <span>{selectedUserObj.email}</span>
+                              </span>
+                            )}
+                            {selectedUserObj.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone size={12} className="text-ink-400" />
+                                <span>{selectedUserObj.phone}</span>
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1.5 font-bold">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span className="text-emerald-700">Account Active</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Overrides indicator pill */}
+                      <div className="flex flex-col items-start sm:items-end">
+                        {userOverrideCount > 0 ? (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold shadow-xs">
+                            <Sparkles size={13} className="text-amber-600" />
+                            <span>{userOverrideCount} Custom Overrides Active</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-bold shadow-xs">
+                            <CheckCircle2 size={13} className="text-emerald-600" />
+                            <span>100% Inherited from Role ({selectedUserObj.role})</span>
+                          </div>
+                        )}
+                        <span className="text-[11px] text-ink-400 mt-1">
+                          User ID: <span className="font-mono text-ink-600">{selectedUserObj._id}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Action Toolbar for Selected User */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-ink-100/70 text-xs">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-ink-400 font-semibold text-[11px] uppercase tracking-wider">Quick Actions:</span>
+                        <button
+                          type="button"
+                          onClick={handleGrantAllUserAccess}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-3 py-1 font-bold transition shadow-xs"
+                          title="Grant full capabilities, sidebar visibility, and CRUD access to this user"
+                        >
+                          <CheckSquare size={13} className="text-emerald-600" />
+                          <span>Grant Full Access</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRestrictAllUserAccess}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 px-3 py-1 font-bold transition shadow-xs"
+                          title="Restrict all capabilities, sidebar visibility, and CRUD actions for this user"
+                        >
+                          <UserX size={13} className="text-rose-600" />
+                          <span>Restrict All Access</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetUserToBaseRole}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-slate-100 text-ink-700 px-3 py-1 font-bold transition shadow-xs"
+                          title="Clear all user custom overrides and revert 100% to role defaults"
+                        >
+                          <RotateCcw size={13} className="text-ink-500" />
+                          <span>Revert to Base Role Defaults</span>
+                        </button>
+                      </div>
+
+                      <div className="text-[11px] text-ink-400 italic">
+                        Tip: Toggled items take immediate effect on save without requiring relogin.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-ink-200">
+                    <User size={36} className="mx-auto text-ink-300 mb-2" />
+                    <p className="text-sm font-bold text-ink-700">No User Selected</p>
+                    <p className="text-xs text-ink-400 mt-1">Please select an employee above to manage their individual permissions.</p>
+                  </div>
+                )}
+              </Card>
+
+              {selectedUserObj && (
+                <>
+                  {/* 2. Selected User Capabilities Matrix */}
+                  <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-ink-100">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 border border-blue-100 text-blue-600">
+                          <SlidersHorizontal size={20} className="stroke-[2.2]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black text-ink-900 tracking-tight">
+                            System Capabilities for {selectedUserObj.name}
+                          </h3>
+                          <p className="text-xs text-ink-400 mt-0.5">
+                            Toggle individual operational capabilities. Unmodified capabilities inherit default {selectedUserObj.role} privileges.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleBulkToggleUserCapabilities(true)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-blue-50 hover:text-blue-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                        >
+                          <CheckSquare size={13} className="text-blue-600" />
+                          <span>All ON</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleBulkToggleUserCapabilities(false)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-red-50 hover:text-red-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                        >
+                          <Square size={13} className="text-red-600" />
+                          <span>All OFF</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-ink-100">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-ink-100 bg-slate-50/70 text-ink-700 font-bold">
+                            <th className="py-3 px-4 w-12 text-center text-ink-400">#</th>
+                            <th className="py-3 px-4">System Capability</th>
+                            <th className="py-3 px-4 w-36 text-center">Base Role ({selectedUserObj.role})</th>
+                            <th className="py-3 px-4 w-44 text-center">Effective Access</th>
+                            <th className="py-3 px-4 w-40 text-center">Configuration Source</th>
+                            <th className="py-3 px-4 w-28 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ink-50 text-ink-700">
+                          {CAPABILITIES.map((cap, idx) => {
+                            const effectiveVal = getUserCapability(cap.key);
+                            const overridden = isUserCapabilityOverridden(cap.key);
+                            const roleDefault = Boolean(
+                              systemForm.rolePermissions?.[cap.key]?.[selectedUserObj.role] ??
+                              DEFAULT_CAPABILITY_DEFAULTS[cap.key]?.[selectedUserObj.role] ??
+                              false
+                            );
+
+                            return (
+                              <tr key={cap.key} className={`hover:bg-slate-50/60 transition ${overridden ? 'bg-blue-50/20' : ''}`}>
+                                <td className="py-3 px-4 text-center font-mono text-[11px] text-ink-400">
+                                  {idx + 1}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="font-bold text-ink-900">{cap.label}</div>
+                                  <div className="text-[11px] text-ink-400 font-mono mt-0.5">{cap.key}</div>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                    roleDefault ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                  }`}>
+                                    {roleDefault ? 'Allowed' : 'Denied'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={effectiveVal}
+                                      onChange={(e) => handleUserCapabilityToggle(cap.key, e.target.checked)}
+                                      className="h-5 w-5 rounded border-ink-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <span className={`text-xs font-bold ${effectiveVal ? 'text-blue-700' : 'text-slate-500'}`}>
+                                      {effectiveVal ? 'GRANTEE (ON)' : 'RESTRICT (OFF)'}
+                                    </span>
+                                  </label>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  {overridden ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-300">
+                                      <Sparkles size={11} className="text-blue-600" /> Custom Override
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200">
+                                      Inherited ({selectedUserObj.role})
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  {overridden ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevertUserCapability(cap.key)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline"
+                                      title="Revert back to role default"
+                                    >
+                                      <RotateCcw size={11} /> Revert
+                                    </button>
+                                  ) : (
+                                    <span className="text-[11px] text-ink-300">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+
+                  {/* 3. Selected User Sidebar Navigation Visibility Matrix */}
+                  <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-ink-100">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600">
+                          <Layers size={20} className="stroke-[2.2]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black text-ink-900 tracking-tight">
+                            Sidebar Navigation Visibility for {selectedUserObj.name}
+                          </h3>
+                          <p className="text-xs text-ink-400 mt-0.5">
+                            Control which sidebar navigation menus are visible to this user. Note: Disabling a main menu automatically cascades to hide all subordinate submenus.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleBulkToggleUserNav(true)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-emerald-50 hover:text-emerald-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                        >
+                          <CheckSquare size={13} className="text-emerald-600" />
+                          <span>Show All</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleBulkToggleUserNav(false)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-red-50 hover:text-red-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                        >
+                          <Square size={13} className="text-red-600" />
+                          <span>Hide All</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-ink-100">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-ink-100 bg-slate-50/70 text-ink-700 font-bold">
+                            <th className="py-3 px-4">Sidebar Section &amp; Subordinate Menus</th>
+                            <th className="py-3 px-4 w-36 text-center">Base Role ({selectedUserObj.role})</th>
+                            <th className="py-3 px-4 w-44 text-center">Visibility for User</th>
+                            <th className="py-3 px-4 w-40 text-center">Source</th>
+                            <th className="py-3 px-4 w-28 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ink-50 text-ink-700">
+                          {MAIN_SIDEBAR_NAV_ITEMS.map((nav) => {
+                            const isVisible = getUserNavVisibility(nav.key);
+                            const overridden = isUserNavOverridden(nav.key);
+                            const roleDefault = Boolean(getNavVisibility(nav.key, selectedUserObj.role));
+
+                            return (
+                              <tr key={nav.key} className={`hover:bg-slate-50/60 transition ${overridden ? 'bg-emerald-50/20' : ''}`}>
+                                <td className="py-3.5 px-4">
+                                  <div className="font-bold text-ink-900 text-[13px] flex items-center gap-2">
+                                    <span>{nav.label}</span>
+                                    <span className="text-[10px] font-mono text-ink-400 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                                      {nav.route}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-ink-500 mt-0.5">{nav.desc}</p>
+                                  {nav.submenus && nav.submenus.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                      <span className="text-[10px] text-ink-400 font-semibold uppercase tracking-wider mr-1">Controls:</span>
+                                      {nav.submenus.map((sub, sIdx) => (
+                                        <span
+                                          key={sIdx}
+                                          className={`text-[10px] px-2 py-0.5 rounded-md font-medium border ${
+                                            isVisible
+                                              ? 'bg-slate-50 text-slate-700 border-slate-200'
+                                              : 'bg-red-50 text-red-500 border-red-150 line-through opacity-70'
+                                          }`}
+                                        >
+                                          {sub}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                    roleDefault ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                  }`}>
+                                    {roleDefault ? 'Visible' : 'Hidden'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={isVisible}
+                                      onChange={(e) => handleUserNavVisibilityToggle(nav.key, e.target.checked)}
+                                      className="h-5 w-5 rounded border-ink-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                    />
+                                    <span className={`text-xs font-bold ${isVisible ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                      {isVisible ? 'SHOWN' : 'HIDDEN'}
+                                    </span>
+                                  </label>
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  {overridden ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                      <Sparkles size={11} className="text-emerald-600" /> Custom Override
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200">
+                                      Inherited ({selectedUserObj.role})
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  {overridden ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevertUserNav(nav.key)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline"
+                                      title="Revert back to role default"
+                                    >
+                                      <RotateCcw size={11} /> Revert
+                                    </button>
+                                  ) : (
+                                    <span className="text-[11px] text-ink-300">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+
+                  {/* 4. Selected User 7-Action CRUD Privileges Matrix */}
+                  <Card className="p-6 border border-ink-100 shadow-sm rounded-2xl bg-white space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-ink-100">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 border border-purple-100 text-purple-600">
+                          <KeyRound size={20} className="stroke-[2.2]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black text-ink-900 tracking-tight">
+                            Module Action Privileges (7 Actions) for {selectedUserObj.name}
+                          </h3>
+                          <p className="text-xs text-ink-400 mt-0.5">
+                            Configure granular View, Create, Edit, Delete, Approve, Reject, and Print/Export rights across business modules for this user.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAllUserCrud(true)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-purple-50 hover:text-purple-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                        >
+                          <CheckSquare size={13} className="text-purple-600" />
+                          <span>All Actions ON</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAllUserCrud(false)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white hover:bg-red-50 hover:text-red-700 px-2.5 py-1 text-[11px] font-bold text-ink-700 shadow-xs transition"
+                        >
+                          <Square size={13} className="text-red-600" />
+                          <span>All Actions OFF</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-ink-100">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-ink-100 bg-slate-50/70 text-ink-700 font-bold">
+                            <th className="py-3 px-4">Business Module</th>
+                            {CRUD_ACTIONS.map((act) => (
+                              <th key={act.key} className="py-3 px-2 text-center font-bold">
+                                <span className={`text-[11px] ${act.color}`}>{act.label}</span>
+                              </th>
+                            ))}
+                            <th className="py-3 px-3 text-center">Row Quick Toggle</th>
+                            <th className="py-3 px-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ink-50 text-ink-700">
+                          {CRUD_MODULE_ROWS.map((mod) => {
+                            const modHasOverride = Boolean(
+                              userPermissionsForm[mod.key] &&
+                              typeof userPermissionsForm[mod.key] === 'object' &&
+                              Object.keys(userPermissionsForm[mod.key]).length > 0
+                            );
+
+                            return (
+                              <tr key={mod.key} className={`hover:bg-slate-50/60 transition ${modHasOverride ? 'bg-purple-50/20' : ''}`}>
+                                <td className="py-3 px-4">
+                                  <div className="font-bold text-ink-900 text-xs">{mod.label}</div>
+                                  <div className="text-[11px] text-ink-400">{mod.desc}</div>
+                                </td>
+                                {CRUD_ACTIONS.map((act) => {
+                                  const permitted = getUserCrudPermission(mod.key, act.key);
+                                  const cellOverridden = isUserCrudOverridden(mod.key, act.key);
+
+                                  return (
+                                    <td key={act.key} className="py-3 px-2 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={permitted}
+                                        onChange={(e) => handleUserCrudToggle(mod.key, act.key, e.target.checked)}
+                                        className={`h-4 w-4 rounded cursor-pointer transition ${
+                                          cellOverridden
+                                            ? 'border-purple-400 text-purple-600 ring-2 ring-purple-200'
+                                            : 'border-ink-300 text-blue-600'
+                                        }`}
+                                        title={`${act.label} permission for ${mod.label} (${permitted ? 'ON' : 'OFF'}${cellOverridden ? ' • Custom Override' : ''})`}
+                                      />
+                                    </td>
+                                  );
+                                })}
+                                <td className="py-3 px-3 text-center">
+                                  <div className="flex items-center justify-center gap-1 text-[11px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBulkToggleUserCrudRow(mod.key, true)}
+                                      className="hover:text-blue-600 hover:underline font-bold text-ink-600"
+                                      title="Turn all actions ON for this module"
+                                    >
+                                      All
+                                    </button>
+                                    <span className="text-ink-300">/</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBulkToggleUserCrudRow(mod.key, false)}
+                                      className="hover:text-red-600 hover:underline font-bold text-ink-600"
+                                      title="Turn all actions OFF for this module"
+                                    >
+                                      None
+                                    </button>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  {modHasOverride ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevertUserCrud(mod.key)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 transition"
+                                      title="Clear override and revert this module back to role defaults"
+                                    >
+                                      <RotateCcw size={10} /> Revert
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] text-ink-400">Inherited</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Bottom Save Bar for User */}
+                    <div className="pt-4 border-t border-ink-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs text-ink-500 font-semibold">
+                        <Sparkles size={14} className="text-blue-600" />
+                        <span>User custom privileges take precedence over all role-based visibility and capability defaults.</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={handleResetUserToBaseRole}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white hover:bg-slate-100 text-ink-700 px-3.5 py-2 text-xs font-bold transition shadow-xs"
+                        >
+                          <RotateCcw size={13} />
+                          <span>Reset to Base Role</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveUserPermissions}
+                          disabled={savingUserPerms}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-xs font-bold text-white shadow-md transition active:scale-[0.98] disabled:opacity-50"
+                        >
+                          <Save size={15} />
+                          <span>{savingUserPerms ? 'Saving User Access…' : `Save ${selectedUserObj?.name || 'User'} Access`}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                </>
+              )}
+            </div>
+          )}
 
           {systemSuccess && currentTab === 'permissions' && (
             <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-xs font-bold text-emerald-800 shadow-xs">

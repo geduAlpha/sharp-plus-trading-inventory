@@ -789,6 +789,35 @@ export const AuthProvider = ({ children }) => {
 
     const nav = navVisibility ?? DEFAULT_NAV_VISIBILITY;
 
+    // 0. Direct User Custom Permissions Override (Highest Priority for Individual User)
+    if (user.customPermissions && typeof user.customPermissions === 'object') {
+      const custom = user.customPermissions;
+      const customNav = custom.navVisibility || custom;
+      const parentMenuKey = SUBMENU_TO_PARENT_MAIN_MENU[navKey];
+
+      // If parent menu is explicitly overridden for this user, enforce it
+      if (parentMenuKey && customNav[parentMenuKey] !== undefined) {
+        if (Boolean(customNav[parentMenuKey]) === false) return false;
+      }
+
+      // If exact navKey is explicitly set for this user
+      if (customNav[navKey] !== undefined && typeof customNav[navKey] === 'boolean') {
+        return customNav[navKey];
+      }
+      if (customNav[navKey] && typeof customNav[navKey] === 'object') {
+        if (typeof customNav[navKey].view === 'boolean') return customNav[navKey].view;
+        if (typeof customNav[navKey].read === 'boolean') return customNav[navKey].read;
+      }
+      const lower = navKey.toLowerCase();
+      if (customNav[lower] !== undefined && typeof customNav[lower] === 'boolean') {
+        return customNav[lower];
+      }
+      if (customNav[lower] && typeof customNav[lower] === 'object') {
+        if (typeof customNav[lower].view === 'boolean') return customNav[lower].view;
+        if (typeof customNav[lower].read === 'boolean') return customNav[lower].read;
+      }
+    }
+
     // 1. Parent main sidebar menu cascade check:
     // If navKey is a submenu whose parent main sidebar menu is explicitly disabled for the user's role in navVisibility, deny access immediately
     const parentMenuKey = SUBMENU_TO_PARENT_MAIN_MENU[navKey];

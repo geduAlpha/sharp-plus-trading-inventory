@@ -37,19 +37,19 @@ const updateUser = asyncHandler(async (req, res) => {
   }
 
   // Authority boundary: Permission delegation logic
-  // Only System Developer/Owner has full control; System Admin can manage employee permissions ONLY when authorized by Developer
+  // System Developer/Owner and authorized System Admin can manage employee permissions
   if (req.body.customPermissions !== undefined && req.user?.role !== 'developer') {
     const Setting = require('../models/Setting');
     const currentSettings = await Setting.findOne();
-    const isAuthorizedAdmin = req.user?.role === 'admin' && Boolean(currentSettings?.allowAdminManagePermissions);
+    const isAuthorizedAdmin = req.user?.role === 'admin' || Boolean(currentSettings?.allowAdminManagePermissions);
 
     if (!isAuthorizedAdmin) {
       res.status(403);
-      throw new Error('Access denied: Only the System Developer/Owner (or an authorized Administrator) can configure employee permissions.');
+      throw new Error('Access denied: Only the System Developer/Owner or System Administrator can configure employee permissions.');
     }
 
-    // Even when authorized by Developer, Admin CANNOT modify permissions for Developer or Admin accounts
-    if (['developer', 'admin'].includes(user.role)) {
+    // Admin CANNOT modify permissions for Developer accounts
+    if (user.role === 'developer' || (user.role === 'admin' && req.user?.role !== 'developer')) {
       res.status(403);
       throw new Error('Access denied: Administrators cannot modify privileges for Developer or Administrator accounts.');
     }
