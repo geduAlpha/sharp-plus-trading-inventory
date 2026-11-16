@@ -24,6 +24,8 @@ const isAvoidedNavItem = (it) => {
   if (!it) return false;
   if (INACTIVE_AVOIDED_SIDEBAR_IDS.includes(it.id)) return true;
   if (it.to === '/transactions/disposal' || it.to === '/consumption' || it.to === '/reports/disposal') return true;
+  if (it.id === 'subsystem_stock_management') return true;
+  if (it.id === 'stockManagementVoucherReport' && (it.to === '/sub-system/stock-management-voucher-report' || !it.to)) return true;
   return false;
 };
 
@@ -537,7 +539,10 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     const active = isGroupActive(group);
     const isOpen = openMenu === group.id;
     const groupColor = getItemAccent(group);
-    const visibleChildren = (group.children || [])
+    const rawKids = (group.id === 'subSystem' || group.id === 'subsystem')
+      ? (group.children || []).filter((c) => c.id !== 'subsystem_stock_management' && c.label !== 'Stock Management System' && c.id !== 'stockManagementVoucherReport')
+      : (group.children || []);
+    const visibleChildren = rawKids
       .filter(canDisplayItem)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
 
