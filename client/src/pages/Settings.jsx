@@ -170,9 +170,8 @@ export const SIDEBAR_NAV_ITEMS = [
     label: 'Sub System',
     route: 'Dropdown Group',
     navKey: 'subSystem',
-    desc: 'Subsystem stock management reports and multi-channel sales execution modules',
+    desc: 'Subsystem sales execution, vouchers, sales closing, route mapping, and security audit modules',
     submenus: [
-      'Subsystem Stock Management (Voucher Report)',
       'Cash Sales Voucher',
       'Credit Sales Voucher',
       'Zeroing Voucher',
@@ -183,7 +182,6 @@ export const SIDEBAR_NAV_ITEMS = [
     childrenKeys: [
       'subSystem',
       'subsystem',
-      'subsystem_stock_management',
       'subsystem_sales_marketing',
       'subsystem_captain_order',
       'subsystem_cash_sales',

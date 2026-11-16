@@ -341,32 +341,12 @@ export const DEFAULT_SIDEBAR_CONFIG = [
     visible: true,
     children: [
       {
-        id: 'subsystem_stock_management',
-        label: 'Stock Management System',
-        icon: 'AllInboxRounded',
-        iconType: 'mui',
-        isGroup: true,
-        order: 1,
-        visible: true,
-        children: [
-          {
-            id: 'stockManagementVoucherReport',
-            label: 'Stock Management Voucher Report',
-            to: '/sub-system/stock-management-voucher-report',
-            icon: 'AssessmentRounded',
-            iconType: 'mui',
-            order: 1,
-            visible: true,
-          },
-        ],
-      },
-      {
         id: 'subsystem_sales_marketing',
         label: 'Sales and Marketing Management System',
         icon: 'PointOfSaleRounded',
         iconType: 'mui',
         isGroup: true,
-        order: 2,
+        order: 1,
         visible: true,
         children: [
           {
@@ -528,32 +508,12 @@ export const sanitizeSidebarConfig = (config) => {
       visible: true,
       children: [
         {
-          id: 'subsystem_stock_management',
-          label: 'Stock Management System',
-          icon: 'AllInboxRounded',
-          iconType: 'mui',
-          isGroup: true,
-          order: 1,
-          visible: true,
-          children: [
-            {
-              id: 'stockManagementVoucherReport',
-              label: 'Stock Management Voucher Report',
-              to: '/sub-system/stock-management-voucher-report',
-              icon: 'AssessmentRounded',
-              iconType: 'mui',
-              order: 1,
-              visible: true,
-            },
-          ],
-        },
-        {
           id: 'subsystem_sales_marketing',
           label: 'Sales and Marketing Management System',
           icon: 'PointOfSaleRounded',
           iconType: 'mui',
           isGroup: true,
-          order: 2,
+          order: 1,
           visible: true,
           children: [
             { id: 'subsystem_cash_sales', label: 'Cash Sales Voucher', to: '/sub-system/sales-marketing/cash-sales', icon: 'PaymentsRounded', iconType: 'mui', order: 1, visible: true },
@@ -595,50 +555,10 @@ export const sanitizeSidebarConfig = (config) => {
     }
 
     if (item.id === 'subSystem' || item.label === 'Sub System') {
-      const kids = Array.isArray(item.children) ? [...item.children] : [];
+      let kids = Array.isArray(item.children) ? [...item.children] : [];
 
-      // 1. Ensure subsystem_stock_management exists
-      const hasStockSubsystem = kids.some((c) => c.id === 'subsystem_stock_management' || c.label === 'Stock Management System');
-      if (!hasStockSubsystem) {
-        kids.unshift({
-          id: 'subsystem_stock_management',
-          label: 'Stock Management System',
-          icon: 'AllInboxRounded',
-          iconType: 'mui',
-          isGroup: true,
-          order: 1,
-          visible: true,
-          children: [
-            {
-              id: 'stockManagementVoucherReport',
-              label: 'Stock Management Voucher Report',
-              to: '/sub-system/stock-management-voucher-report',
-              icon: 'AssessmentRounded',
-              iconType: 'mui',
-              order: 1,
-              visible: true,
-            },
-          ],
-        });
-      } else {
-        // Ensure child report exists inside subsystem_stock_management
-        const smGroup = kids.find((c) => c.id === 'subsystem_stock_management' || c.label === 'Stock Management System');
-        if (smGroup && smGroup.isGroup) {
-          const smKids = Array.isArray(smGroup.children) ? [...smGroup.children] : [];
-          if (!smKids.some((c) => c.to === '/sub-system/stock-management-voucher-report')) {
-            smKids.push({
-              id: 'stockManagementVoucherReport',
-              label: 'Stock Management Voucher Report',
-              to: '/sub-system/stock-management-voucher-report',
-              icon: 'AssessmentRounded',
-              iconType: 'mui',
-              order: 1,
-              visible: true,
-            });
-            smGroup.children = smKids;
-          }
-        }
-      }
+      // Avoid duplicate Stock Management Voucher / System under Sub System
+      kids = kids.filter((c) => c.id !== 'subsystem_stock_management' && c.label !== 'Stock Management System' && c.id !== 'stockManagementVoucherReport');
 
       // 2. Ensure subsystem_sales_marketing exists with all 6 functional menus
       const targetSalesKids = [
