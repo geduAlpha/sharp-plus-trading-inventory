@@ -59,7 +59,6 @@ import { useThemeSidebar, THEMES } from '../context/ThemeSidebarContext';
 import { useSessionTimeout, TIMEOUT_OPTIONS } from '../context/SessionTimeoutContext';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import RolePrivilegesManager from '../components/admin/RolePrivilegesManager';
 import SidebarThemeSettings from '../components/admin/SidebarThemeSettings';
 import ModuleManagement from '../components/admin/ModuleManagement';
 
@@ -412,7 +411,6 @@ export default function Settings() {
 
   // UI state for additional feature tabs
   const [showGranularCRUD, setShowGranularCRUD] = useState(false);
-  const [showDevAccessControl, setShowDevAccessControl] = useState(false);
   const [testSlipModal, setTestSlipModal] = useState(null); // printer object or null
   const [addPrinterModal, setAddPrinterModal] = useState(false);
   const [newPrinterForm, setNewPrinterForm] = useState({ name: '', type: 'thermal_80mm', paperWidth: 80, autoPrint: true, ip: '192.168.1.205' });
@@ -5502,39 +5500,6 @@ export default function Settings() {
               </button>
             </div>
           </Card>
-
-          {/* Advanced Field-Level Privileges & Access Control Matrix (Exclusive to Developer Controls) */}
-          <div className="rounded-2xl border border-ink-200 bg-white shadow-xs overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowDevAccessControl(!showDevAccessControl)}
-              className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100/80 transition text-left cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
-                  <Shield size={16} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-ink-900">
-                    Advanced Field-Level Privileges Matrix (Approve, Post, Export)
-                  </h4>
-                  <p className="text-xs text-ink-400">
-                    Configure specialized document approval, posting stages, and authority delegation across user roles
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600">
-                <span>{showDevAccessControl ? 'Collapse' : 'Expand Advanced Matrix'}</span>
-                {showDevAccessControl ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </div>
-            </button>
-
-            {showDevAccessControl && (
-              <div className="p-4 border-t border-ink-100 bg-white">
-                <RolePrivilegesManager />
-              </div>
-            )}
-          </div>
 
           {/* Optional Collapsible Advanced Enterprise Tools */}
           <div className="rounded-2xl border border-ink-200 bg-white shadow-xs overflow-hidden">
