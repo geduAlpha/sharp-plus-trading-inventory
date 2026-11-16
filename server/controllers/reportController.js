@@ -202,6 +202,11 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
   let {
     from,
     to,
+    fromTime,
+    toTime,
+    enquiryTime,
+    asOfTime,
+    time,
     month,
     category,
     search,
@@ -216,6 +221,9 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     removeZeroBalance,
     transactedArticles,
   } = req.query;
+
+  const effectiveFromTime = fromTime || req.query.startTime || req.query.timeFrom || null;
+  const effectiveToTime = toTime || enquiryTime || asOfTime || time || req.query.endTime || req.query.timeTo || null;
 
   const now = new Date();
   const tzOffset = getClientTimezoneOffset(req);
@@ -335,8 +343,8 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     };
   });
 
-  let startDate = from ? parseDateBoundary(from, 'start', tzOffset) : null;
-  let endDate = to ? parseDateBoundary(to, 'end', tzOffset) : null;
+  let startDate = from ? parseDateBoundary(from, 'start', tzOffset, effectiveFromTime) : null;
+  let endDate = to ? parseDateBoundary(to, 'end', tzOffset, effectiveToTime) : null;
 
   const txnQuery = {
     $or: [{ status: { $in: ['approved', 'posted'] } }, { stockApplied: true }],
@@ -519,9 +527,12 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
   res.json({
     from: from || null,
     to: to || null,
+    fromTime: effectiveFromTime || null,
+    toTime: effectiveToTime || null,
     month: month || null,
     monthLabel: selectedMonthLabel || null,
     enquiryDate: enquiryDate || to || null,
+    enquiryTime: effectiveToTime || null,
     dateCriteria: dateCriteria || 'at_the_day_of',
     count: rows.length,
     totals: {
@@ -551,10 +562,12 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
 // ── GET /api/reports/stock-balance/ledger/:materialId ─────────────────
 const getItemStockLedger = asyncHandler(async (req, res) => {
   const { materialId } = req.params;
-  let { from, to, dateCriteria, enquiryDate } = req.query;
+  let { from, to, dateCriteria, enquiryDate, fromTime, toTime, enquiryTime, asOfTime, time } = req.query;
 
   const tzOffset = getClientTimezoneOffset(req);
   const now = new Date();
+  const effectiveFromTime = fromTime || req.query.startTime || null;
+  const effectiveToTime = toTime || enquiryTime || asOfTime || time || null;
 
   if (dateCriteria === 'at_the_day_of' || (enquiryDate && !from && !to)) {
     const target = enquiryDate || to || from || formatLocalDate(now, tzOffset);
@@ -576,7 +589,7 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
       { 'items.material': materialId },
     ],
   };
-  const df = rangeFilter(from, to, req);
+  const df = rangeFilter(from, to, req, effectiveFromTime, effectiveToTime);
   if (df) filter.date = df;
 
   const transactions = await StockTransaction.find(filter)
@@ -641,10 +654,12 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
 // Returns all transactions that move stock during the stock balance period,
 // strictly sorted in time sequence with h:m:s, voucher details, and workflow status.
 const getStockBalanceTransactions = asyncHandler(async (req, res) => {
-  let { from, to, month, voucherType, status, sort = 'desc', search, dateCriteria, enquiryDate } = req.query;
+  let { from, to, fromTime, toTime, enquiryTime, asOfTime, time, month, voucherType, status, sort = 'desc', search, dateCriteria, enquiryDate } = req.query;
 
   const tzOffset = getClientTimezoneOffset(req);
   const now = new Date();
+  const effectiveFromTime = fromTime || req.query.startTime || null;
+  const effectiveToTime = toTime || enquiryTime || asOfTime || time || null;
 
   let selectedMonthLabel = null;
   if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -667,7 +682,7 @@ const getStockBalanceTransactions = asyncHandler(async (req, res) => {
     filter.status = { $ne: 'voided' };
   }
 
-  const df = rangeFilter(from, to, req);
+  const df = rangeFilter(from, to, req, effectiveFromTime, effectiveToTime);
   if (df) filter.date = df;
 
   if (voucherType && voucherType !== 'all') {
@@ -955,29 +970,36 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
     dateCriteria = 'at_the_day_of',
     removeZeroBalance,
     transactedArticles,
+    fromTime,
+    toTime,
+    enquiryTime,
+    asOfTime,
+    time,
   } = req.query;
 
   const tzOffset = getClientTimezoneOffset(req);
   const now = new Date();
   const effectiveEnquiryDate = enquiryDate || formatLocalDate(now, tzOffset);
+  const effectiveFromTime = fromTime || req.query.startTime || null;
+  const effectiveToTime = toTime || enquiryTime || asOfTime || time || null;
 
   let endDate = null;
   let startDate = null;
 
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split('-').map(Number);
-    startDate = parseDateBoundary(`${y}-${String(m).padStart(2, '0')}-01`, 'start', tzOffset);
+    startDate = parseDateBoundary(`${y}-${String(m).padStart(2, '0')}-01`, 'start', tzOffset, effectiveFromTime);
     const lastDay = new Date(y, m, 0).getDate();
-    endDate = parseDateBoundary(`${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`, 'end', tzOffset);
+    endDate = parseDateBoundary(`${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`, 'end', tzOffset, effectiveToTime);
   } else if (dateCriteria === 'range' && (from || to)) {
-    if (from) startDate = parseDateBoundary(from, 'start', tzOffset);
-    if (to) endDate = parseDateBoundary(to, 'end', tzOffset);
+    if (from) startDate = parseDateBoundary(from, 'start', tzOffset, effectiveFromTime);
+    if (to) endDate = parseDateBoundary(to, 'end', tzOffset, effectiveToTime);
   } else if (dateCriteria === 'as_of_date') {
-    endDate = parseDateBoundary(effectiveEnquiryDate, 'end', tzOffset);
+    endDate = parseDateBoundary(effectiveEnquiryDate, 'end', tzOffset, effectiveToTime);
   } else {
-    // at_the_day_of / default: single day full boundary
-    startDate = parseDateBoundary(effectiveEnquiryDate, 'start', tzOffset);
-    endDate = parseDateBoundary(effectiveEnquiryDate, 'end', tzOffset);
+    // at_the_day_of / default: single day full boundary with optional time filter
+    startDate = parseDateBoundary(effectiveEnquiryDate, 'start', tzOffset, effectiveFromTime);
+    endDate = parseDateBoundary(effectiveEnquiryDate, 'end', tzOffset, effectiveToTime);
   }
 
   // Build article filter

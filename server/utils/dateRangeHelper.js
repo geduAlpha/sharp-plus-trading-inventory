@@ -36,16 +36,20 @@ const getClientTimezoneOffset = (req) => {
 };
 
 /**
- * Parses date input into a boundary Date object (start or end of day)
+ * Parses date and optional time input into a boundary Date object
  * aligned with the client's timezone offset in minutes.
  * @param {string|Date} dateInput - 'YYYY-MM-DD' or ISO string or Date
  * @param {'start'|'end'} boundary - 'start' (00:00:00.000) or 'end' (23:59:59.999)
  * @param {number} tzOffsetMinutes - client offset in minutes (e.g. -180 for UTC+3)
+ * @param {string} [timeInput] - optional 'HH:mm' or 'HH:mm:ss'
  */
-const parseDateBoundary = (dateInput, boundary = 'start', tzOffsetMinutes = DEFAULT_TZ_OFFSET) => {
+const parseDateBoundary = (dateInput, boundary = 'start', tzOffsetMinutes = DEFAULT_TZ_OFFSET, timeInput = null) => {
   if (!dateInput) return null;
 
   let y, m, d;
+  let hasEmbeddedTime = false;
+  let eh, emin, es, ems;
+
   if (typeof dateInput === 'string') {
     const trimmed = dateInput.trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -57,20 +61,47 @@ const parseDateBoundary = (dateInput, boundary = 'start', tzOffsetMinutes = DEFA
       y = targetTime.getUTCFullYear();
       m = targetTime.getUTCMonth() + 1;
       d = targetTime.getUTCDate();
+      if (trimmed.includes('T') || (trimmed.includes(':') && trimmed.length > 10)) {
+        hasEmbeddedTime = true;
+        eh = targetTime.getUTCHours();
+        emin = targetTime.getUTCMinutes();
+        es = targetTime.getUTCSeconds();
+        ems = targetTime.getUTCMilliseconds();
+      }
     }
   } else if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
     const targetTime = new Date(dateInput.getTime() - (tzOffsetMinutes * 60 * 1000));
     y = targetTime.getUTCFullYear();
     m = targetTime.getUTCMonth() + 1;
     d = targetTime.getUTCDate();
+    hasEmbeddedTime = true;
+    eh = targetTime.getUTCHours();
+    emin = targetTime.getUTCMinutes();
+    es = targetTime.getUTCSeconds();
+    ems = targetTime.getUTCMilliseconds();
   } else {
     return null;
   }
 
-  const h = boundary === 'start' ? 0 : 23;
-  const min = boundary === 'start' ? 0 : 59;
-  const s = boundary === 'start' ? 0 : 59;
-  const ms = boundary === 'start' ? 0 : 999;
+  let h, min, s, ms;
+
+  if (timeInput && typeof timeInput === 'string' && timeInput.trim()) {
+    const parts = timeInput.trim().split(':').map(Number);
+    h = !isNaN(parts[0]) ? Math.min(23, Math.max(0, parts[0])) : (boundary === 'start' ? 0 : 23);
+    min = !isNaN(parts[1]) ? Math.min(59, Math.max(0, parts[1])) : (boundary === 'start' ? 0 : 59);
+    s = !isNaN(parts[2]) ? Math.min(59, Math.max(0, parts[2])) : (boundary === 'start' ? 0 : 59);
+    ms = boundary === 'start' ? 0 : 999;
+  } else if (hasEmbeddedTime) {
+    h = eh;
+    min = emin;
+    s = es;
+    ms = ems !== undefined ? ems : (boundary === 'start' ? 0 : 999);
+  } else {
+    h = boundary === 'start' ? 0 : 23;
+    min = boundary === 'start' ? 0 : 59;
+    s = boundary === 'start' ? 0 : 59;
+    ms = boundary === 'start' ? 0 : 999;
+  }
 
   // Calculate UTC milliseconds: local time + offset
   const utcMs = Date.UTC(y, m - 1, d, h, min, s, ms) + (tzOffsetMinutes * 60 * 1000);
@@ -80,7 +111,7 @@ const parseDateBoundary = (dateInput, boundary = 'start', tzOffsetMinutes = DEFA
 /**
  * Build day range for a single day: { start, end }
  */
-const buildDayRange = (dateParam, req) => {
+const buildDayRange = (dateParam, req, fromTime, toTime) => {
   const tzOffset = getClientTimezoneOffset(req);
   let target = dateParam;
   if (!target) {
@@ -91,24 +122,29 @@ const buildDayRange = (dateParam, req) => {
     const d = String(targetNow.getUTCDate()).padStart(2, '0');
     target = `${y}-${m}-${d}`;
   }
-  const start = parseDateBoundary(target, 'start', tzOffset);
-  const end = parseDateBoundary(target, 'end', tzOffset);
+  const fTime = fromTime || req?.query?.fromTime || req?.query?.startTime || req?.query?.timeFrom;
+  const tTime = toTime || req?.query?.toTime || req?.query?.endTime || req?.query?.timeTo || req?.query?.asOfTime || req?.query?.enquiryTime || req?.query?.time;
+  const start = parseDateBoundary(target, 'start', tzOffset, fTime);
+  const end = parseDateBoundary(target, 'end', tzOffset, tTime);
   const dateStr = typeof target === 'string' ? target.slice(0, 10) : formatLocalDate(start, tzOffset);
-  return { start, end, tzOffset, dateStr };
+  return { start, end, tzOffset, dateStr, fromTime: fTime || null, toTime: tTime || null };
 };
 
 /**
  * Build range filter for MongoDB queries: { $gte, $lte }
  */
-const buildRangeFilter = (from, to, req) => {
+const buildRangeFilter = (from, to, req, fromTime, toTime) => {
   const tzOffset = getClientTimezoneOffset(req);
+  const fTime = fromTime || req?.query?.fromTime || req?.query?.startTime || req?.query?.timeFrom;
+  const tTime = toTime || req?.query?.toTime || req?.query?.endTime || req?.query?.timeTo || req?.query?.asOfTime || req?.query?.enquiryTime || req?.query?.time;
+
   const f = {};
   if (from) {
-    const s = parseDateBoundary(from, 'start', tzOffset);
+    const s = parseDateBoundary(from, 'start', tzOffset, fTime);
     if (s) f.$gte = s;
   }
   if (to) {
-    const e = parseDateBoundary(to, 'end', tzOffset);
+    const e = parseDateBoundary(to, 'end', tzOffset, tTime);
     if (e) f.$lte = e;
   }
   return Object.keys(f).length ? f : null;
@@ -122,6 +158,9 @@ const resolveTransactionDate = (dateParam, req) => {
   const now = new Date();
   if (!dateParam) return now;
 
+  const tzOffset = getClientTimezoneOffset(req);
+  const customTime = req?.body?.time || req?.body?.transactionTime || req?.query?.time;
+
   if (typeof dateParam === 'string') {
     const trimmed = dateParam.trim();
     // If it includes time (e.g. ISO string with T or space with :), parse directly
@@ -132,26 +171,22 @@ const resolveTransactionDate = (dateParam, req) => {
 
     // If dateParam is YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      const tzOffset = getClientTimezoneOffset(req);
       const [y, m, d] = trimmed.split('-').map(Number);
+      let targetH, targetMin, targetSec, targetMs;
 
-      // Check if this date represents "today" in target timezone
-      const targetNow = new Date(now.getTime() - (tzOffset * 60 * 1000));
-      const todayY = targetNow.getUTCFullYear();
-      const todayM = targetNow.getUTCMonth() + 1;
-      const todayD = targetNow.getUTCDate();
-
-      if (y === todayY && m === todayM && d === todayD) {
-        // Created or performed today -> use exact current timestamp!
-        return now;
+      if (customTime && typeof customTime === 'string') {
+        const parts = customTime.trim().split(':').map(Number);
+        targetH = !isNaN(parts[0]) ? Math.min(23, Math.max(0, parts[0])) : 0;
+        targetMin = !isNaN(parts[1]) ? Math.min(59, Math.max(0, parts[1])) : 0;
+        targetSec = !isNaN(parts[2]) ? Math.min(59, Math.max(0, parts[2])) : 0;
+        targetMs = 0;
+      } else {
+        const targetNow = new Date(now.getTime() - (tzOffset * 60 * 1000));
+        targetH = targetNow.getUTCHours();
+        targetMin = targetNow.getUTCMinutes();
+        targetSec = targetNow.getUTCSeconds();
+        targetMs = targetNow.getUTCMilliseconds();
       }
-
-      // If user selected a specific past or future business date,
-      // preserve current time of day so it isn't reset to 00:00:00 UTC
-      const targetH = targetNow.getUTCHours();
-      const targetMin = targetNow.getUTCMinutes();
-      const targetSec = targetNow.getUTCSeconds();
-      const targetMs = targetNow.getUTCMilliseconds();
 
       const utcMs = Date.UTC(y, m - 1, d, targetH, targetMin, targetSec, targetMs) + (tzOffset * 60 * 1000);
       return new Date(utcMs);

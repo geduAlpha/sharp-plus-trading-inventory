@@ -130,7 +130,7 @@ const generateFsNo = async () => {
 // ── GET /api/transactions ─────────────────────────────────────────────
 const getTransactions = asyncHandler(async (req, res) => {
   const {
-    voucherType, material, from, to, paymentStatus, paymentType, search,
+    voucherType, material, from, to, fromTime, toTime, paymentStatus, paymentType, search,
     status, objectState, consigneeUnit, storeLocation, device, deviceName,
     user: filterUser, code, voucherCode,
   } = req.query;
@@ -241,8 +241,8 @@ const getTransactions = asyncHandler(async (req, res) => {
     filter.$and = andConditions;
   }
 
-  if (from || to) {
-    const dateRangeFilter = buildRangeFilter(from, to, req);
+  if (from || to || fromTime || toTime) {
+    const dateRangeFilter = buildRangeFilter(from, to, req, fromTime, toTime);
     if (dateRangeFilter) {
       filter.date = dateRangeFilter;
     }

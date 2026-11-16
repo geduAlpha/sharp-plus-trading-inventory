@@ -201,6 +201,8 @@ export default function StockTransactions({ defaultVoucher } = {}) {
   const [filterDevice,  setFilterDevice]  = useState('all');
   const [filterUser,    setFilterUser]    = useState('all');
   const [dateRange,     setDateRange]     = useState({ from: '', to: '' });
+  const [timeRange,     setTimeRange]     = useState({ fromTime: '', toTime: '' });
+  const [timePreset,    setTimePreset]    = useState('all');
   const [presetFilter,  setPresetFilter]  = useState('all');
 
   // Preparation Form state
@@ -284,6 +286,8 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       if (filterUser !== 'all') params.user = filterUser;
       if (dateRange.from) params.from = dateRange.from;
       if (dateRange.to) params.to = dateRange.to;
+      if (timeRange.fromTime) params.fromTime = timeRange.fromTime;
+      if (timeRange.toTime) params.toTime = timeRange.toTime;
 
       const res = await api.get('/transactions', { params });
       const data = Array.isArray(res.data) ? res.data : [];
@@ -297,7 +301,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [activeVoucherKey, filterCode, filterStore, filterState, filterDevice, filterUser, dateRange, selectedRowId]);
+  }, [activeVoucherKey, filterCode, filterStore, filterState, filterDevice, filterUser, dateRange, timeRange, selectedRowId]);
 
   // Load Master Data (Materials, Suppliers, Employees, Users)
   const loadMasterData = useCallback(async () => {
@@ -1298,6 +1302,8 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       setFilterDevice('all');
       setFilterUser('all');
       setDateRange({ from: '', to: '' });
+      setTimeRange({ fromTime: '', toTime: '' });
+      setTimePreset('all');
     }
   };
 
@@ -2237,11 +2243,17 @@ export default function StockTransactions({ defaultVoucher } = {}) {
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold tracking-wide">
                 <Calendar size={13} />
                 <span>DATE: {dateRange.from || formattedToday} - {dateRange.to || formattedToday}</span>
               </div>
+              {(timeRange.fromTime || timeRange.toTime) && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold tracking-wide">
+                  <Clock size={13} />
+                  <span>TIME: {timeRange.fromTime || '00:00'} - {timeRange.toTime || '23:59'}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2402,6 +2414,108 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                       <option key={u._id} value={u._id}>{u.name} ({u.role})</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Date & Time Filtration Row */}
+                <div className="md:col-span-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  {/* Date Range Inputs */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                      <Calendar size={12} className="text-blue-600" /> Date:
+                    </span>
+                    <input
+                      type="date"
+                      value={dateRange.from}
+                      onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-medium outline-none focus:border-blue-500 bg-white"
+                      title="From Date"
+                    />
+                    <span className="text-slate-400 font-medium">to</span>
+                    <input
+                      type="date"
+                      value={dateRange.to}
+                      onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-medium outline-none focus:border-blue-500 bg-white"
+                      title="To Date"
+                    />
+                  </div>
+
+                  {/* Time Range Inputs & Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                      <Clock size={12} className="text-indigo-600" /> Time (h:m:s):
+                    </span>
+                    <input
+                      type="time"
+                      value={timeRange.fromTime}
+                      onChange={e => {
+                        setTimeRange(prev => ({ ...prev, fromTime: e.target.value }));
+                        setTimePreset('custom');
+                      }}
+                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono outline-none focus:border-blue-500 bg-white"
+                      title="From Time (HH:mm)"
+                      placeholder="00:00"
+                    />
+                    <span className="text-slate-400 font-medium">to</span>
+                    <input
+                      type="time"
+                      value={timeRange.toTime}
+                      onChange={e => {
+                        setTimeRange(prev => ({ ...prev, toTime: e.target.value }));
+                        setTimePreset('custom');
+                      }}
+                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono outline-none focus:border-blue-500 bg-white"
+                      title="To Time (HH:mm)"
+                      placeholder="23:59"
+                    />
+
+                    {/* Quick Time Presets */}
+                    <div className="flex items-center gap-1">
+                      {[
+                        { id: 'all', label: 'All Day', f: '', t: '' },
+                        { id: 'morning', label: 'Morning (08-12)', f: '08:00', t: '12:00' },
+                        { id: 'afternoon', label: 'Afternoon (12-17)', f: '12:00', t: '17:00' },
+                        { id: 'evening', label: 'Evening (17-22)', f: '17:00', t: '22:00' },
+                        { id: 'now', label: 'Up to Now', f: '00:00', t: () => {
+                          const now = new Date();
+                          return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        }},
+                      ].map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            const fVal = typeof p.f === 'function' ? p.f() : p.f;
+                            const tVal = typeof p.t === 'function' ? p.t() : p.t;
+                            setTimeRange({ fromTime: fVal, toTime: tVal });
+                            setTimePreset(p.id);
+                          }}
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer ${
+                            timePreset === p.id
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {(timeRange.fromTime || timeRange.toTime || dateRange.from || dateRange.to) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDateRange({ from: '', to: '' });
+                          setTimeRange({ fromTime: '', toTime: '' });
+                          setTimePreset('all');
+                        }}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-bold ml-1 cursor-pointer"
+                        title="Reset Date & Time filter"
+                      >
+                        ✕ Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
 
               </div>

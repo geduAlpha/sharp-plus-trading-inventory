@@ -854,6 +854,9 @@ export default function Reports({ defaultTab } = {}) {
   const [selectedMonth, setSelectedMonth] = useState(currentYearMonthStr());
   const [from, setFrom] = useState(startOfMonthStr());
   const [to, setTo] = useState(todayStr());
+  const [fromTime, setFromTime] = useState('');
+  const [toTime, setToTime] = useState('');
+  const [timeFilterPreset, setTimeFilterPreset] = useState('all');
   const [activePreset, setActivePreset] = useState('month');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -985,8 +988,19 @@ export default function Reports({ defaultTab } = {}) {
         } else if (dateCriteria === 'as_of_date') {
           params.to = enquiryDate;
         }
+        if (fromTime) params.fromTime = fromTime;
+        if (toTime) {
+          params.toTime = toTime;
+          params.enquiryTime = toTime;
+        }
+      } else if (tab === 'daily') {
+        params = { date };
+        if (fromTime) params.fromTime = fromTime;
+        if (toTime) params.toTime = toTime;
       } else {
         params = { from, to };
+        if (fromTime) params.fromTime = fromTime;
+        if (toTime) params.toTime = toTime;
       }
       const res = await api.get(currentTab.endpoint, { params });
       setData(res.data);
@@ -1001,7 +1015,7 @@ export default function Reports({ defaultTab } = {}) {
       }
     } finally { setLoading(false); }
   }, [
-    tab, date, from, to, selectedCategory, selectedStatus, stockSearch, currentTab,
+    tab, date, from, to, fromTime, toTime, selectedCategory, selectedStatus, stockSearch, currentTab,
     gslFilter, storeFilter, articleFilter, removeZeroBalance, transactedArticles, activeArticles, dateCriteria, enquiryDate, selectedMonth,
   ]);
 
@@ -1036,6 +1050,8 @@ export default function Reports({ defaultTab } = {}) {
       } else if (dateCriteria === 'as_of_date') {
         params.to = enquiryDate;
       }
+      if (fromTime) params.fromTime = fromTime;
+      if (toTime) params.toTime = toTime;
       const res = await api.get('/reports/stock-balance/serial-bincard', { params });
       setSerialBinCardData(res.data);
       // Auto-expand all articles and batches by default
@@ -1056,7 +1072,7 @@ export default function Reports({ defaultTab } = {}) {
     }
   }, [
     dateCriteria, enquiryDate, activeArticles, removeZeroBalance, transactedArticles,
-    gslFilter, storeFilter, articleFilter, selectedCategory, stockSearch, from, to, selectedMonth
+    gslFilter, storeFilter, articleFilter, selectedCategory, stockSearch, from, to, fromTime, toTime, selectedMonth
   ]);
 
   useEffect(() => {
@@ -1145,6 +1161,8 @@ export default function Reports({ defaultTab } = {}) {
       const params = {
         from: dateCriteria === 'at_the_day_of' ? enquiryDate : (from || undefined),
         to: dateCriteria === 'at_the_day_of' ? enquiryDate : (to || undefined),
+        fromTime: fromTime || undefined,
+        toTime: toTime || undefined,
         month: dateCriteria === 'month' ? (selectedMonth || undefined) : undefined,
         voucherType: type !== 'all' ? type : undefined,
         status: stat !== 'all' ? stat : undefined,
@@ -1158,13 +1176,13 @@ export default function Reports({ defaultTab } = {}) {
     } finally {
       setBalanceTxnsLoading(false);
     }
-  }, [from, to, selectedMonth, dateCriteria, enquiryDate, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery]);
+  }, [from, to, fromTime, toTime, selectedMonth, dateCriteria, enquiryDate, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery]);
 
   useEffect(() => {
     if (tab === 'stock_balance' && balanceViewMode === 'transactions') {
       loadBalanceTransactions();
     }
-  }, [tab, balanceViewMode, from, to, selectedMonth, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery, loadBalanceTransactions]);
+  }, [tab, balanceViewMode, from, to, fromTime, toTime, selectedMonth, txnTypeFilter, txnStatusFilter, txnSortOrder, txnSearchQuery, loadBalanceTransactions]);
 
   // Open Item Ledger Modal
   const openItemLedger = async (material) => {
@@ -1176,6 +1194,8 @@ export default function Reports({ defaultTab } = {}) {
         params: {
           from: dateCriteria === 'at_the_day_of' ? enquiryDate : (from || undefined),
           to: dateCriteria === 'at_the_day_of' ? enquiryDate : (to || undefined),
+          fromTime: fromTime || undefined,
+          toTime: toTime || undefined,
           dateCriteria,
           enquiryDate,
         },
@@ -2021,6 +2041,88 @@ export default function Reports({ defaultTab } = {}) {
                     />
                   </div>
                 )}
+
+                {/* Granular Time Filtration */}
+                <div className="pt-2 border-t border-slate-100 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                      <Clock size={12} className="text-blue-600" />
+                      <span>Time Filter (h:m:s)</span>
+                    </label>
+                    {(fromTime || toTime) && (
+                      <button
+                        type="button"
+                        onClick={() => { setFromTime(''); setToTime(''); setTimeFilterPreset('all'); }}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
+                        title="Clear time filter to evaluate all day"
+                      >
+                        ✕ Reset
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1/2 relative">
+                      <input
+                        type="time"
+                        value={fromTime}
+                        onChange={e => { setFromTime(e.target.value); setTimeFilterPreset('custom'); }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 outline-none focus:border-blue-500 font-mono"
+                        title="Start time boundary (HH:mm)"
+                        placeholder="00:00"
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium">to</span>
+                    <div className="w-1/2 relative">
+                      <input
+                        type="time"
+                        value={toTime}
+                        onChange={e => { setToTime(e.target.value); setTimeFilterPreset('custom'); }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 outline-none focus:border-blue-500 font-mono"
+                        title="End / Cutoff time boundary (HH:mm)"
+                        placeholder="23:59"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Time Presets */}
+                  <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+                    {[
+                      { id: 'all', label: 'All Day', f: '', t: '' },
+                      { id: 'morning', label: 'Morning (08-12)', f: '08:00', t: '12:00' },
+                      { id: 'afternoon', label: 'Afternoon (12-17)', f: '12:00', t: '17:00' },
+                      { id: 'evening', label: 'Evening (17-22)', f: '17:00', t: '22:00' },
+                      { id: 'now', label: 'Up to Now', f: '00:00', t: () => {
+                        const now = new Date();
+                        return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                      }},
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          const fVal = typeof p.f === 'function' ? p.f() : p.f;
+                          const tVal = typeof p.t === 'function' ? p.t() : p.t;
+                          setFromTime(fVal);
+                          setToTime(tVal);
+                          setTimeFilterPreset(p.id);
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer ${
+                          timeFilterPreset === p.id
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  {(fromTime || toTime) && (
+                    <p className="text-[10px] text-blue-600 font-medium">
+                      ⚡ Showing transactions from {fromTime || '00:00:00'} to {toTime || '23:59:59'}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -2158,6 +2260,38 @@ export default function Reports({ defaultTab } = {}) {
                   className="rounded-lg border border-ink-200 px-3 py-1.5 text-sm outline-none focus:border-blue-500" />
               </label>
             </>
+          )}
+          {tab !== 'stock' && (
+            <div className="flex items-center gap-2 pl-2 border-l border-ink-200">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-500">
+                <Clock size={13} className="text-blue-600" />
+                Time:
+                <input
+                  type="time"
+                  value={fromTime}
+                  onChange={e => setFromTime(e.target.value)}
+                  className="rounded-lg border border-ink-200 px-2 py-1 text-xs outline-none focus:border-blue-500 font-mono"
+                  title="From Time (HH:mm)"
+                />
+                <span className="text-ink-400">to</span>
+                <input
+                  type="time"
+                  value={toTime}
+                  onChange={e => setToTime(e.target.value)}
+                  className="rounded-lg border border-ink-200 px-2 py-1 text-xs outline-none focus:border-blue-500 font-mono"
+                  title="To Time (HH:mm)"
+                />
+              </label>
+              {(fromTime || toTime) && (
+                <button
+                  type="button"
+                  onClick={() => { setFromTime(''); setToTime(''); }}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                >
+                  ✕ Clear Time
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
