@@ -200,10 +200,10 @@ export default function StockTransactions({ defaultVoucher } = {}) {
   const [filterState,   setFilterState]   = useState('all');
   const [filterDevice,  setFilterDevice]  = useState('all');
   const [filterUser,    setFilterUser]    = useState('all');
-  const [dateRange,     setDateRange]     = useState({ from: '', to: '' });
+  const [dateRange,     setDateRange]     = useState({ from: getLocalDateString(), to: getLocalDateString() });
   const [timeRange,     setTimeRange]     = useState({ fromTime: '', toTime: '' });
   const [timePreset,    setTimePreset]    = useState('all');
-  const [presetFilter,  setPresetFilter]  = useState('all');
+  const [presetFilter,  setPresetFilter]  = useState('today');
 
   // Preparation Form state
   const [form,          setForm]          = useState(null);
@@ -2243,17 +2243,13 @@ export default function StockTransactions({ defaultVoucher } = {}) {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold tracking-wide">
                 <Calendar size={13} />
-                <span>DATE: {dateRange.from || formattedToday} - {dateRange.to || formattedToday}</span>
+                <span>
+                  DATE: {dateRange.from ? dateRange.from.replace(/-/g, '/') : formattedToday.replace(/-/g, '/')} - {dateRange.to ? dateRange.to.replace(/-/g, '/') : formattedToday.replace(/-/g, '/')}
+                </span>
               </div>
-              {(timeRange.fromTime || timeRange.toTime) && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold tracking-wide">
-                  <Clock size={13} />
-                  <span>TIME: {timeRange.fromTime || '00:00'} - {timeRange.toTime || '23:59'}</span>
-                </div>
-              )}
             </div>
           </div>
 
@@ -2330,11 +2326,11 @@ export default function StockTransactions({ defaultVoucher } = {}) {
 
             </div>
 
-            {/* Right Filter Form Box */}
+            {/* Right Filter Form Box (Matches Subsystem 3x2 Grid) */}
             <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
 
-                {/* Voucher Code input */}
+                {/* 1. Voucher Code input */}
                 <div>
                   <input
                     type="text"
@@ -2345,43 +2341,28 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                   />
                 </div>
 
-                {/* ConsigneeUnit Dropdown */}
+                {/* 2. ConsigneeUnit Dropdown */}
                 <div>
                   <select
                     value={filterStore}
                     onChange={e => setFilterStore(e.target.value)}
                     className="w-full h-9 rounded-lg border border-slate-300 px-2.5 text-xs outline-none focus:border-blue-500 bg-white text-slate-700"
                   >
-                    <option value="all">ConsigneeUnit: All</option>
+                    <option value="all">ConsigneeUnit</option>
                     {storeOptions.map(st => (
                       <option key={st} value={st}>{st}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Select Filter Presets */}
-                <div>
-                  <select
-                    value={presetFilter}
-                    onChange={e => handlePresetFilter(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-slate-300 px-2.5 text-xs outline-none focus:border-blue-500 bg-white text-slate-700 font-medium"
-                  >
-                    <option value="all">Select Filter</option>
-                    <option value="today">Today's Vouchers</option>
-                    <option value="prepared">Prepared (Pending Review)</option>
-                    <option value="posted">Posted to Stock</option>
-                    <option value="clear">✕ Reset All Filters</option>
-                  </select>
-                </div>
-
-                {/* ObjectState (Status) */}
+                {/* 3. ObjectState (Status) */}
                 <div>
                   <select
                     value={filterState}
                     onChange={e => setFilterState(e.target.value)}
                     className="w-full h-9 rounded-lg border border-slate-300 px-2.5 text-xs outline-none focus:border-blue-500 bg-white text-slate-700 font-medium"
                   >
-                    <option value="all">ObjectState: All States</option>
+                    <option value="all">ObjectState</option>
                     <option value="prepared">Prepared</option>
                     <option value="checked">Checked</option>
                     <option value="approved">Approved</option>
@@ -2390,132 +2371,60 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                   </select>
                 </div>
 
-                {/* DeviceName */}
+                {/* 4. DeviceName */}
                 <div>
                   <select
                     value={filterDevice}
                     onChange={e => setFilterDevice(e.target.value)}
                     className="w-full h-9 rounded-lg border border-slate-300 px-2.5 text-xs outline-none focus:border-blue-500 bg-white text-slate-700 font-medium"
                   >
-                    <option value="all">Device: All Devices</option>
+                    <option value="all">Device</option>
                     <option value="Web Client">Web Client</option>
                   </select>
                 </div>
 
-                {/* User Dropdown */}
+                {/* 5. User Dropdown */}
                 <div>
                   <select
                     value={filterUser}
                     onChange={e => setFilterUser(e.target.value)}
                     className="w-full h-9 rounded-lg border border-slate-300 px-2.5 text-xs outline-none focus:border-blue-500 bg-white text-slate-700 font-medium"
                   >
-                    <option value="all">User: All Users</option>
+                    <option value="all">User</option>
                     {usersList.map(u => (
                       <option key={u._id} value={u._id}>{u.name} ({u.role})</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Date & Time Filtration Row */}
-                <div className="md:col-span-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  {/* Date Range Inputs */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-                      <Calendar size={12} className="text-blue-600" /> Date:
-                    </span>
-                    <input
-                      type="date"
-                      value={dateRange.from}
-                      onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-medium outline-none focus:border-blue-500 bg-white"
-                      title="From Date"
-                    />
-                    <span className="text-slate-400 font-medium">to</span>
-                    <input
-                      type="date"
-                      value={dateRange.to}
-                      onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-medium outline-none focus:border-blue-500 bg-white"
-                      title="To Date"
-                    />
-                  </div>
-
-                  {/* Time Range Inputs & Presets */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-                      <Clock size={12} className="text-indigo-600" /> Time (h:m:s):
-                    </span>
-                    <input
-                      type="time"
-                      value={timeRange.fromTime}
-                      onChange={e => {
-                        setTimeRange(prev => ({ ...prev, fromTime: e.target.value }));
-                        setTimePreset('custom');
-                      }}
-                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono outline-none focus:border-blue-500 bg-white"
-                      title="From Time (HH:mm)"
-                      placeholder="00:00"
-                    />
-                    <span className="text-slate-400 font-medium">to</span>
-                    <input
-                      type="time"
-                      value={timeRange.toTime}
-                      onChange={e => {
-                        setTimeRange(prev => ({ ...prev, toTime: e.target.value }));
-                        setTimePreset('custom');
-                      }}
-                      className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono outline-none focus:border-blue-500 bg-white"
-                      title="To Time (HH:mm)"
-                      placeholder="23:59"
-                    />
-
-                    {/* Quick Time Presets */}
-                    <div className="flex items-center gap-1">
-                      {[
-                        { id: 'all', label: 'All Day', f: '', t: '' },
-                        { id: 'morning', label: 'Morning (08-12)', f: '08:00', t: '12:00' },
-                        { id: 'afternoon', label: 'Afternoon (12-17)', f: '12:00', t: '17:00' },
-                        { id: 'evening', label: 'Evening (17-22)', f: '17:00', t: '22:00' },
-                        { id: 'now', label: 'Up to Now', f: '00:00', t: () => {
-                          const now = new Date();
-                          return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                        }},
-                      ].map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            const fVal = typeof p.f === 'function' ? p.f() : p.f;
-                            const tVal = typeof p.t === 'function' ? p.t() : p.t;
-                            setTimeRange({ fromTime: fVal, toTime: tVal });
-                            setTimePreset(p.id);
-                          }}
-                          className={`px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer ${
-                            timePreset === p.id
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {(timeRange.fromTime || timeRange.toTime || dateRange.from || dateRange.to) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDateRange({ from: '', to: '' });
-                          setTimeRange({ fromTime: '', toTime: '' });
-                          setTimePreset('all');
-                        }}
-                        className="text-[11px] text-blue-600 hover:text-blue-800 font-bold ml-1 cursor-pointer"
-                        title="Reset Date & Time filter"
-                      >
-                        ✕ Reset
-                      </button>
-                    )}
-                  </div>
+                {/* 6. Date Range Quick Selector (Matches Image 1 reference # DATE) */}
+                <div className="flex items-center gap-1 bg-slate-50/60 border border-slate-200 rounded-xl px-2 py-1 h-9">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap"># DATE</span>
+                  <input
+                    type="date"
+                    value={dateRange.from}
+                    onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                    className="w-full bg-transparent text-xs text-slate-800 outline-none font-mono"
+                    title="From Date"
+                  />
+                  <span className="text-slate-300">-</span>
+                  <input
+                    type="date"
+                    value={dateRange.to}
+                    onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                    className="w-full bg-transparent text-xs text-slate-800 outline-none font-mono"
+                    title="To Date"
+                  />
+                  {(dateRange.from || dateRange.to) && (
+                    <button
+                      type="button"
+                      onClick={() => setDateRange({ from: '', to: '' })}
+                      className="text-slate-400 hover:text-slate-600 text-xs px-1 hover:bg-slate-200/50 rounded"
+                      title="Clear date filter (show all dates)"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
 
               </div>
