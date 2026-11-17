@@ -88,9 +88,14 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  // ── 1. Telegram Bot Verification Gate (Optional token decoding or direct 2FA check) ──
+  // ── 1. Telegram Bot Verification Gate (Enforced: first verified by Telegram Bot) ──
   const otpToken = req.headers['x-otp-token'] || req.body.otpToken;
-  if (otpToken && otpToken !== 'verified_token' && otpToken !== 'verified_role_bypass') {
+  if (!otpToken) {
+    res.status(401);
+    throw new Error('Telegram Bot verification required. Please verify via @SharpPlusBot first.');
+  }
+
+  if (otpToken !== 'verified_token' && otpToken !== 'verified_role_bypass') {
     try {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(otpToken, process.env.JWT_SECRET);

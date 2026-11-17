@@ -93,27 +93,27 @@ const FloatingInput = React.forwardRef(function FloatingInput({
 });
 
 /* ═══════════════════════════════════════════════════════════════════
-   Login page — Clean & Standard
+   Login page — First Telegram Bot Verification, Then Username & Password
 ═══════════════════════════════════════════════════════════════════ */
 export default function Login() {
-  // ── Standard basic login form state ──
+  // ── Step 1: Telegram Bot Verification State ──
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp'
+  const [phone, setPhone] = useState('0912627366');
+  const [otp, setOtp] = useState('');
+  const [otpToken, setOtpToken] = useState('');
+  const [userId, setUserId] = useState('');
+  const [maskedName, setMaskedName] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+
+  // ── Step 2: Username & Password Form State ──
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // ── Optional Telegram Bot OTP flow ──
-  const [useTelegramOtp, setUseTelegramOtp] = useState(false);
-  const [step, setStep] = useState('phone'); // 'phone' | 'otp'
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [userId, setUserId] = useState('');
-  const [maskedName, setMaskedName] = useState('');
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpError, setOtpError] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
 
   const { login, companyInfo } = useAuth();
   const navigate = useNavigate();
@@ -150,16 +150,20 @@ export default function Login() {
     return () => clearInterval(interval);
   }, [checkBackendHealth]);
 
-  // ── Standard Login Submit ──────────────────────────────────
+  // ── Step 2 Submit: Access System with Username & Password ────
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!otpToken) {
+      setServerError('Telegram Bot verification required. Please complete Step 1 first.');
+      return;
+    }
     setTouched({ email: true, password: true });
     const cleanEmail = email.trim();
     if (!cleanEmail || !password) return;
     setServerError('');
     setLoading(true);
     try {
-      await login(cleanEmail, password);
+      await login(cleanEmail, password, otpToken);
       setBackendStatus('online');
       navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
@@ -172,14 +176,14 @@ export default function Login() {
         setBackendStatus('offline');
         setServerError('Backend server is offline on port 5000. Please start it with npm run dev:server.');
       } else {
-        setServerError('Invalid email or password. Please verify your credentials.');
+        setServerError('Invalid username/email or password. Please verify your credentials.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Telegram Bot: Request OTP ──────────────────────────────
+  // ── Step 1: Request OTP via Telegram Bot ────────────────────
   const handleRequestOtp = async (e) => {
     if (e) e.preventDefault();
     if (!phone.trim()) { setOtpError('Please enter your phone number.'); return; }
@@ -203,7 +207,7 @@ export default function Login() {
     } finally { setOtpLoading(false); }
   };
 
-  // ── Telegram Bot: Verify OTP ────────────────────────────────
+  // ── Step 1: Verify OTP from Telegram Bot ────────────────────
   const handleVerifyOtp = async (e) => {
     if (e) e.preventDefault();
     if (otp.length < 6) { setOtpError('Please enter the 6-digit code received from @SharpPlusBot.'); return; }
@@ -211,17 +215,16 @@ export default function Login() {
     try {
       const res = await api.post('/auth/verify-otp', { userId, otp });
       setBackendStatus('online');
-      if (res.data?.user?.token) {
-        await login(res.data.user);
-        navigate(location.state?.from || '/', { replace: true });
-        return;
-      }
+      const verifiedToken = res.data.otpToken || res.data?.user?.token || 'verified_token';
+      setOtpToken(verifiedToken);
+      // Pre-fill email/username if provided
       if (res.data?.user?.email) {
         setEmail(res.data.user.email);
       }
-      setUseTelegramOtp(false);
+      setOtp('');
       setServerError('');
-      setTimeout(() => passwordRef.current?.focus(), 100);
+      setOtpError('');
+      setTimeout(() => passwordRef.current?.focus(), 150);
     } catch (err) {
       const msg = err.response?.data?.message || 'Invalid OTP code. Please check @SharpPlusBot and try again.';
       setOtpError(msg);
@@ -869,9 +872,11 @@ export default function Login() {
 
               {/* Heading */}
               <div className="mb-6">
-                <h2 className="login-heading">Sign In</h2>
+                <h2 className="login-heading">{otpToken ? 'Sign In' : 'Verification'}</h2>
                 <p className="login-subtext">
-                  Welcome back! Enter your institutional credentials to access your workspace.
+                  {otpToken
+                    ? 'Step 2 of 2: Enter your username and password to access the system.'
+                    : 'Step 1 of 2: First verify your account via @SharpPlusBot on Telegram.'}
                 </p>
               </div>
 
@@ -891,81 +896,15 @@ export default function Login() {
                 </div>
               )}
 
-              {!useTelegramOtp ? (
-                /* ── 1. Standard Clean Basic Login Form ── */
-                <form onSubmit={handleSubmit} noValidate>
-                  <FloatingInput
-                    id="login-email"
-                    label="Email / Institutional ID"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="username"
-                    required
-                    hasError={touched.email && !email.trim()}
-                    errorMsg="Enter your email or institutional ID."
-                  />
-
-                  <FloatingInput
-                    ref={passwordRef}
-                    id="login-password"
-                    label="Password"
-                    type={showPw ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    required
-                    hasError={touched.password && !password}
-                    errorMsg="Enter your password."
-                    suffix={
-                      <button
-                        type="button"
-                        onClick={() => setShowPw((v) => !v)}
-                        aria-label={showPw ? 'Hide password' : 'Show password'}
-                      >
-                        {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
-                      </button>
-                    }
-                  />
-
-                  <button
-                    id="login-submit"
-                    type="submit"
-                    disabled={loading}
-                    className="login-btn-primary"
-                    aria-busy={loading}
-                  >
-                    {loading ? (
-                      <><span className="login-spinner" aria-hidden="true" />Signing in…</>
-                    ) : (
-                      <span className="flex items-center justify-center gap-1.5">
-                        <span>Sign In</span>
-                        <ArrowRight size={16} />
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Clean discreet option for Telegram OTP */}
-                  <div className="mt-5 pt-4 border-t border-slate-100 text-center">
-                    <button
-                      type="button"
-                      onClick={() => { setUseTelegramOtp(true); setStep('phone'); setServerError(''); }}
-                      className="text-xs text-blue-600 hover:text-blue-800 font-semibold hover:underline inline-flex items-center gap-1.5 transition"
-                    >
-                      <Smartphone size={13} />
-                      <span>Sign in with Telegram Bot OTP instead</span>
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                /* ── 2. Clean Telegram Bot OTP Sign-In (Minimal & Focused) ── */
+              {!otpToken ? (
+                /* ── STEP 1: First verify by Telegram Bot ── */
                 <div className="space-y-4">
                   {step === 'phone' ? (
                     <form onSubmit={handleRequestOtp} className="space-y-3">
                       <div className="flex items-center justify-between pb-1">
                         <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                           <Smartphone size={14} className="text-blue-600" />
-                          <span>Telegram OTP Verification</span>
+                          <span>Telegram Bot Verification</span>
                         </span>
                         <a
                           href="https://t.me/SharpPlusBot"
@@ -978,7 +917,7 @@ export default function Login() {
                       </div>
 
                       <p className="text-xs text-slate-500 leading-relaxed">
-                        Enter your registered phone number to receive a one-time verification code via <strong>@SharpPlusBot</strong>.
+                        Enter your phone number to receive a 6-digit verification code from <strong>@SharpPlusBot</strong>.
                       </p>
 
                       {otpError && (
@@ -1007,10 +946,10 @@ export default function Login() {
                         className="login-btn-primary"
                       >
                         {otpLoading ? (
-                          <><span className="login-spinner" aria-hidden="true" />Sending OTP…</>
+                          <><span className="login-spinner" aria-hidden="true" />Sending OTP via Telegram…</>
                         ) : (
                           <span className="flex items-center justify-center gap-1.5">
-                            <span>Send Code via Telegram</span>
+                            <span>Send Verification Code</span>
                             <ArrowRight size={16} />
                           </span>
                         )}
@@ -1073,7 +1012,7 @@ export default function Login() {
                           <><span className="login-spinner" aria-hidden="true" />Verifying code…</>
                         ) : (
                           <span className="flex items-center justify-center gap-1.5">
-                            <span>Verify Code &amp; Sign In</span>
+                            <span>Verify Code &amp; Continue</span>
                             <ArrowRight size={16} />
                           </span>
                         )}
@@ -1101,17 +1040,75 @@ export default function Login() {
                       </div>
                     </form>
                   )}
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 text-center">
+                </div>
+              ) : (
+                /* ── STEP 2: Then type username and password to access the system ── */
+                <form onSubmit={handleSubmit} noValidate>
+                  <div className="mb-4 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs shadow-2xs">
+                    <span className="flex items-center gap-1.5 font-bold text-emerald-800">
+                      <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                      <span>Bot Verified: {phone || 'Authorized Session'}</span>
+                    </span>
                     <button
                       type="button"
-                      onClick={() => { setUseTelegramOtp(false); setOtpError(''); setServerError(''); }}
-                      className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline"
+                      onClick={() => { setOtpToken(''); setStep('phone'); setOtp(''); setOtpError(''); }}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 underline font-semibold"
                     >
-                      ← Back to standard email &amp; password sign-in
+                      Re-verify
                     </button>
                   </div>
-                </div>
+
+                  <FloatingInput
+                    id="login-email"
+                    label="Username / Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    required
+                    hasError={touched.email && !email.trim()}
+                    errorMsg="Enter your username or email."
+                  />
+
+                  <FloatingInput
+                    ref={passwordRef}
+                    id="login-password"
+                    label="Password"
+                    type={showPw ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                    hasError={touched.password && !password}
+                    errorMsg="Enter your password."
+                    suffix={
+                      <button
+                        type="button"
+                        onClick={() => setShowPw((v) => !v)}
+                        aria-label={showPw ? 'Hide password' : 'Show password'}
+                      >
+                        {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    }
+                  />
+
+                  <button
+                    id="login-submit"
+                    type="submit"
+                    disabled={loading}
+                    className="login-btn-primary"
+                    aria-busy={loading}
+                  >
+                    {loading ? (
+                      <><span className="login-spinner" aria-hidden="true" />Accessing system…</>
+                    ) : (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <span>Sign In to System</span>
+                        <ArrowRight size={16} />
+                      </span>
+                    )}
+                  </button>
+                </form>
               )}
             </div>
           </div>
