@@ -3461,56 +3461,36 @@ export default function Settings() {
                     filteredNavItems.map((nav) => {
                       return (
                         <tr key={nav.key} className="hover:bg-slate-50/70 transition-colors bg-white">
-                          <td className="py-3.5 px-4 font-semibold text-ink-900">
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[13px] text-ink-900 font-bold">
-                                    {nav.label}
-                                  </span>
-                                  {nav.route && (
-                                    <code className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-ink-500">
-                                      {nav.route}
-                                    </code>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1 text-[10px] font-bold opacity-75 hover:opacity-100">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleNavRow(nav.key, true)}
-                                    className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
-                                    title={`Make ${nav.label} visible for all roles`}
-                                  >
-                                    All
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleNavRow(nav.key, false)}
-                                    className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
-                                    title={`Hide ${nav.label} for all roles`}
-                                  >
-                                    None
-                                  </button>
-                                </div>
+                          <td className="py-2.5 px-4 font-semibold text-ink-900">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] text-ink-900 font-bold" title={nav.desc || nav.label}>
+                                  {nav.label}
+                                </span>
+                                {nav.route && (
+                                  <code className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-ink-500">
+                                    {nav.route}
+                                  </code>
+                                )}
                               </div>
-                              {nav.desc && (
-                                <p className="text-[11px] text-ink-400 font-normal leading-tight">
-                                  {nav.desc}
-                                </p>
-                              )}
-                              {nav.submenus && nav.submenus.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                                  <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wider mr-0.5">Controls:</span>
-                                  {nav.submenus.map((sub, sIdx) => (
-                                    <span
-                                      key={sIdx}
-                                      className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 text-[10px] text-ink-600 font-medium"
-                                    >
-                                      {sub}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
+                              <div className="flex items-center gap-1 text-[10px] font-bold opacity-75 hover:opacity-100">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleNavRow(nav.key, true)}
+                                  className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
+                                  title={`Make ${nav.label} visible for all roles`}
+                                >
+                                  All
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleNavRow(nav.key, false)}
+                                  className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
+                                  title={`Hide ${nav.label} for all roles`}
+                                >
+                                  None
+                                </button>
+                              </div>
                             </div>
                           </td>
                           {displayedRoles.map((r) => {
@@ -4259,31 +4239,15 @@ export default function Settings() {
 
                             return (
                               <tr key={nav.key} className={`hover:bg-slate-50/60 transition ${overridden ? 'bg-emerald-50/20' : ''}`}>
-                                <td className="py-3.5 px-4">
+                                <td className="py-2.5 px-4">
                                   <div className="font-bold text-ink-900 text-[13px] flex items-center gap-2">
-                                    <span>{nav.label}</span>
-                                    <span className="text-[10px] font-mono text-ink-400 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
-                                      {nav.route}
-                                    </span>
+                                    <span title={nav.desc || nav.label}>{nav.label}</span>
+                                    {nav.route && (
+                                      <span className="text-[10px] font-mono text-ink-400 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                                        {nav.route}
+                                      </span>
+                                    )}
                                   </div>
-                                  <p className="text-[11px] text-ink-500 mt-0.5">{nav.desc}</p>
-                                  {nav.submenus && nav.submenus.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                      <span className="text-[10px] text-ink-400 font-semibold uppercase tracking-wider mr-1">Controls:</span>
-                                      {nav.submenus.map((sub, sIdx) => (
-                                        <span
-                                          key={sIdx}
-                                          className={`text-[10px] px-2 py-0.5 rounded-md font-medium border ${
-                                            isVisible
-                                              ? 'bg-slate-50 text-slate-700 border-slate-200'
-                                              : 'bg-red-50 text-red-500 border-red-150 line-through opacity-70'
-                                          }`}
-                                        >
-                                          {sub}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
                                 </td>
                                 <td className="py-3.5 px-4 text-center">
                                   <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
