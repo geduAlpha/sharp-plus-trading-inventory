@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Eye, EyeOff, Phone, ArrowRight, Building2, KeyRound, Smartphone, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Phone, ArrowRight, Building2, KeyRound, Smartphone, ShieldCheck, CheckCircle2, Lock, Send, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 
@@ -52,7 +52,7 @@ function CurvedLines() {
 const FloatingInput = React.forwardRef(function FloatingInput({
   id, label, type = 'text', value = '', onChange,
   autoComplete, required, hasError, errorMsg,
-  suffix,
+  suffix, disabled = false,
 }, ref) {
   const filled = Boolean(value && String(value).length > 0);
   return (
@@ -61,6 +61,7 @@ const FloatingInput = React.forwardRef(function FloatingInput({
         className={[
           'login-field__wrap',
           hasError ? 'login-field__wrap--error' : '',
+          disabled ? 'opacity-60 bg-slate-100 cursor-not-allowed' : '',
         ].join(' ')}
       >
         <input
@@ -71,10 +72,11 @@ const FloatingInput = React.forwardRef(function FloatingInput({
           onChange={onChange}
           autoComplete={autoComplete}
           required={required}
+          disabled={disabled}
           placeholder=" "
           aria-describedby={hasError ? `${id}-err` : undefined}
           aria-invalid={hasError || undefined}
-          className="login-field__input"
+          className={`login-field__input ${disabled ? 'cursor-not-allowed text-slate-500' : ''}`}
         />
         <label htmlFor={id} className={['login-field__label', filled ? 'login-field__label--filled' : ''].join(' ')}>
           {label}
@@ -91,29 +93,27 @@ const FloatingInput = React.forwardRef(function FloatingInput({
 });
 
 /* ═══════════════════════════════════════════════════════════════════
-   Login page
+   Login page — Clean & Standard
 ═══════════════════════════════════════════════════════════════════ */
 export default function Login() {
-  // ── Authentication workflow: Direct Role Sign-In or Telegram Bot 2FA ──
-  const [authMode, setAuthMode] = useState('password'); 
-  const [step, setStep] = useState('phone');  // 'phone' | 'otp' (inside OTP flow)
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpToken, setOtpToken] = useState('');       // short-lived JWT after OTP verified
-  const [userId, setUserId] = useState('');
-  const [maskedName, setMaskedName] = useState('');
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpError, setOtpError] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);       // countdown seconds
-
-  // ── Login form state ────────────────────────────────────────
+  // ── Standard basic login form state ──
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
-  const [activeRole, setActiveRole] = useState('Admin');
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // ── Optional Telegram Bot OTP flow ──
+  const [useTelegramOtp, setUseTelegramOtp] = useState(false);
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp'
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [userId, setUserId] = useState('');
+  const [maskedName, setMaskedName] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
 
   const { login, companyInfo } = useAuth();
   const navigate = useNavigate();
@@ -124,7 +124,7 @@ export default function Login() {
   // ── Resend countdown ────────────────────────────────────────
   React.useEffect(() => {
     if (resendTimer <= 0) return;
-    const t = setTimeout(() => setResendTimer(r => r - 1), 1000);
+    const t = setTimeout(() => setResendTimer((r) => r - 1), 1000);
     return () => clearTimeout(t);
   }, [resendTimer]);
 
@@ -150,9 +150,38 @@ export default function Login() {
     return () => clearInterval(interval);
   }, [checkBackendHealth]);
 
-  // ── Step 1: Request OTP ─────────────────────────────────────
-  const handleRequestOtp = async (e) => {
+  // ── Standard Login Submit ──────────────────────────────────
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setTouched({ email: true, password: true });
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) return;
+    setServerError('');
+    setLoading(true);
+    try {
+      await login(cleanEmail, password);
+      setBackendStatus('online');
+      navigate(location.state?.from || '/', { replace: true });
+    } catch (err) {
+      const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
+      if (serverMsg) {
+        setServerError(serverMsg);
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setServerError('Connection timed out. Please check that the backend server is running on port 5000.');
+      } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
+        setBackendStatus('offline');
+        setServerError('Backend server is offline on port 5000. Please start it with npm run dev:server.');
+      } else {
+        setServerError('Invalid email or password. Please verify your credentials.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Telegram Bot: Request OTP ──────────────────────────────
+  const handleRequestOtp = async (e) => {
+    if (e) e.preventDefault();
     if (!phone.trim()) { setOtpError('Please enter your phone number.'); return; }
     setOtpLoading(true); setOtpError('');
     try {
@@ -160,7 +189,7 @@ export default function Login() {
       setBackendStatus('online');
       setUserId(res.data.userId || '');
       setMaskedName(res.data.maskedName || '');
-      setOtp(''); // OTP cannot auto-fill; strictly filled by the user from Telegram
+      setOtp('');
       setStep('otp');
       setResendTimer(60);
       setTimeout(() => otpRefs[0]?.current?.focus(), 100);
@@ -168,33 +197,29 @@ export default function Login() {
       const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
       if (serverMsg) {
         setOtpError(serverMsg);
-      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setOtpError('Request timed out. Please check that the server is active.');
-      } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
-        setBackendStatus('offline');
-        setOtpError('Backend server connection issue. Please ensure the backend is running on port 5000.');
       } else {
-        setOtpError('Failed to send OTP. Please check your phone number and ensure you started @SharpPlusBot on Telegram.');
+        setOtpError('Failed to send OTP. Ensure phone is registered and @SharpPlusBot is started on Telegram.');
       }
     } finally { setOtpLoading(false); }
   };
 
-  // ── Step 2: Verify OTP from Telegram Bot ────────────────────
+  // ── Telegram Bot: Verify OTP ────────────────────────────────
   const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (otp.length < 6) { setOtpError('Please enter the full 6-digit OTP code received from @SharpPlusBot.'); return; }
+    if (e) e.preventDefault();
+    if (otp.length < 6) { setOtpError('Please enter the 6-digit code received from @SharpPlusBot.'); return; }
     setOtpLoading(true); setOtpError('');
     try {
       const res = await api.post('/auth/verify-otp', { userId, otp });
       setBackendStatus('online');
-      // Pre-fill email/username from verified record
+      if (res.data?.user?.token) {
+        await login(res.data.user);
+        navigate(location.state?.from || '/', { replace: true });
+        return;
+      }
       if (res.data?.user?.email) {
         setEmail(res.data.user.email);
       }
-      setOtpToken(res.data.otpToken || res.data?.user?.token || 'verified_token');
-      // Advance to Step 2: Username & Password entrance page
-      setAuthMode('password');
-      setOtp('');
+      setUseTelegramOtp(false);
       setServerError('');
       setTimeout(() => passwordRef.current?.focus(), 100);
     } catch (err) {
@@ -211,50 +236,6 @@ export default function Login() {
     const newOtp = digits.join('').slice(0, 6);
     setOtp(newOtp);
     if (value && idx < 5) otpRefs[idx + 1]?.current?.focus();
-  };
-
-  /* validation */
-  const emailErr = touched.email && !email.trim();
-  const passwordErr = touched.password && !password;
-
-  /* ── handlers ──────────────────────────────────────────────── */
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setTouched({ email: true, password: true });
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !password) return;
-    setServerError('');
-    setLoading(true);
-    try {
-      await login(cleanEmail, password, otpToken || undefined);
-      setBackendStatus('online');
-      navigate(location.state?.from || '/', { replace: true });
-    } catch (err) {
-      const serverMsg = err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response.data : null);
-      if (serverMsg) {
-        setServerError(serverMsg);
-      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setServerError('Connection timed out. Please check that the backend server is running on port 5000.');
-      } else if (err.message === 'Network Error' || !err.response || err.message?.includes('500') || err.message?.includes('ECONNREFUSED')) {
-        setBackendStatus('offline');
-        setServerError('Backend server connection issue. Please make sure the backend server is running on port 5000.');
-      } else {
-        setServerError('Invalid credentials. Please verify your email and password.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickFill = (role) => {
-    setAuthMode('password');
-    setEmail(role.email);
-    setPassword('admin123');
-    setActiveRole(role.label);
-    setServerError('');
-    setTouched({ email: false, password: false });
-    // Fills input fields only — user must explicitly click the "Sign in" button to log in
-    setTimeout(() => passwordRef.current?.focus(), 50);
   };
 
   return (
@@ -417,9 +398,9 @@ export default function Login() {
         /* the white glassy card */
         .login-form-block {
           width: 100%;
-          max-width: 400px;
-          background: rgba(255,255,255,.92);
-          border: 1px solid rgba(219,234,254,.8);
+          max-width: 410px;
+          background: rgba(255,255,255,.94);
+          border: 1px solid rgba(219,234,254,.85);
           border-radius: 20px;
           box-shadow:
             0 4px 6px -1px rgba(37,99,235,.06),
@@ -886,275 +867,250 @@ export default function Login() {
           <div className="login-form-wrap">
             <div className="login-form-block">
 
-              {/* ── Authentication Mode Stepper / Tab Switcher ── */}
+              {/* Heading */}
               <div className="mb-6">
-                <div className="flex items-center justify-between p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode('password');
-                      setOtpError('');
-                      setServerError('');
-                    }}
-                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                      authMode === 'password'
-                        ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <KeyRound size={13} className={authMode === 'password' ? 'text-blue-600' : 'text-slate-400'} />
-                    <span>Role Sign-In</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode('otp');
-                      setOtpError('');
-                      setServerError('');
-                    }}
-                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                      authMode === 'otp'
-                        ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80'
-                        : otpToken
-                        ? 'text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {otpToken ? (
-                      <CheckCircle2 size={13} className="text-emerald-600" />
-                    ) : (
-                      <Smartphone size={13} className={authMode === 'otp' ? 'text-blue-600' : 'text-slate-400'} />
-                    )}
-                    <span>Telegram 2FA</span>
-                  </button>
-                </div>
+                <h2 className="login-heading">Sign In</h2>
+                <p className="login-subtext">
+                  Welcome back! Enter your institutional credentials to access your workspace.
+                </p>
               </div>
 
-              {/* ══ MODE A: Password Sign-In (Step 2) ══ */}
-              {authMode === 'password' && (
-                <div className="otp-step">
-                  {otpToken && (
-                    <div className="otp-verified-badge mb-4 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold">
-                        <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-                        <span>Bot Verified (@SharpPlusBot)</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { setOtpToken(''); setAuthMode('otp'); setStep('phone'); }}
-                        className="text-[11px] text-slate-500 hover:text-slate-800 font-semibold underline"
-                      >
-                        Re-verify
-                      </button>
-                    </div>
-                  )}
-
-                  <h2 className="login-heading">{otpToken ? 'Step 2: Sign In to Your Role' : 'Sign In to Your Account'}</h2>
-                  <p className="login-subtext">
-                    {otpToken
-                      ? 'Bot verification completed! Sign in with your role credentials or select your staff role below.'
-                      : 'Welcome back! Enter your institutional credentials or select your staff role to sign in.'}
-                  </p>
-
-                  {/* session timeout notice */}
-                  {location.state?.sessionExpired && !serverError && (
-                    <div className="login-timeout-banner" role="alert">
-                      <strong>Session timeout —</strong> You were automatically signed out after{' '}
-                      {location.state?.timeoutMinutes || 2} minutes of inactivity. Please sign in again.
-                    </div>
-                  )}
-
-                  {serverError && (
-                    <div className="login-server-error" role="alert">
-                      <span aria-hidden="true">⚠</span>
-                      <span>{serverError}</span>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleSubmit} noValidate>
-                    <FloatingInput
-                      id="login-email"
-                      label="Email / Institutional ID"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      autoComplete="username"
-                      required
-                      hasError={touched.email && !email.trim()}
-                      errorMsg="Enter your email or institutional ID."
-                    />
-                    <FloatingInput
-                      ref={passwordRef}
-                      id="login-password"
-                      label="Password"
-                      type={showPw ? 'text' : 'password'}
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                      required
-                      hasError={touched.password && !password}
-                      errorMsg="Enter your password."
-                      suffix={
-                        <button type="button" onClick={() => setShowPw(v => !v)}
-                          aria-label={showPw ? 'Hide password' : 'Show password'}>
-                          {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
-                        </button>
-                      }
-                    />
-
-                    <button
-                      id="login-submit" type="submit" disabled={loading}
-                      className="login-btn-primary" aria-busy={loading}
-                    >
-                      {loading ? (
-                        <><span className="login-spinner" aria-hidden="true" />Signing in…</>
-                      ) : 'Sign in'}
-                    </button>
-                  </form>
-
-                  {/* role switcher */}
-                  <div className="login-divider" aria-hidden="true">or quick fill role</div>
-                  <div className="login-roles" role="group" aria-label="Quick role switcher">
-                    {ROLES.map(r => (
-                      <button key={r.label} type="button"
-                        onClick={() => handleQuickFill(r)}
-                        className={['login-role-btn', activeRole === r.label ? 'login-role-btn--active' : ''].join(' ')}
-                        aria-pressed={activeRole === r.label}>
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <p className="login-forgot">
-                    Need to verify with a different phone?{' '}
-                    <span role="button" tabIndex={0} onClick={() => { setOtpToken(''); setAuthMode('otp'); setStep('phone'); }}>
-                      Re-verify with Telegram Bot
-                    </span>
-                  </p>
+              {/* Session timeout notice */}
+              {location.state?.sessionExpired && !serverError && (
+                <div className="login-timeout-banner" role="alert">
+                  <strong>Session timeout —</strong> You were automatically signed out after{' '}
+                  {location.state?.timeoutMinutes || 2} minutes of inactivity. Please sign in again.
                 </div>
               )}
 
-              {/* ══ MODE B: Telegram OTP Sign-In ══ */}
-              {authMode === 'otp' && (
-                <div>
-                  {/* STEP 1: Phone number */}
-                  {step === 'phone' && (
-                    <div className="otp-step">
-                      <h2 className="otp-step__title">Step 1: Verify via Telegram Bot</h2>
-                      <p className="otp-step__sub">
+              {/* Server error */}
+              {serverError && (
+                <div className="login-server-error" role="alert">
+                  <span aria-hidden="true">⚠</span>
+                  <span>{serverError}</span>
+                </div>
+              )}
+
+              {!useTelegramOtp ? (
+                /* ── 1. Standard Clean Basic Login Form ── */
+                <form onSubmit={handleSubmit} noValidate>
+                  <FloatingInput
+                    id="login-email"
+                    label="Email / Institutional ID"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    required
+                    hasError={touched.email && !email.trim()}
+                    errorMsg="Enter your email or institutional ID."
+                  />
+
+                  <FloatingInput
+                    ref={passwordRef}
+                    id="login-password"
+                    label="Password"
+                    type={showPw ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                    hasError={touched.password && !password}
+                    errorMsg="Enter your password."
+                    suffix={
+                      <button
+                        type="button"
+                        onClick={() => setShowPw((v) => !v)}
+                        aria-label={showPw ? 'Hide password' : 'Show password'}
+                      >
+                        {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    }
+                  />
+
+                  <button
+                    id="login-submit"
+                    type="submit"
+                    disabled={loading}
+                    className="login-btn-primary"
+                    aria-busy={loading}
+                  >
+                    {loading ? (
+                      <><span className="login-spinner" aria-hidden="true" />Signing in…</>
+                    ) : (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <span>Sign In</span>
+                        <ArrowRight size={16} />
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Clean discreet option for Telegram OTP */}
+                  <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+                    <button
+                      type="button"
+                      onClick={() => { setUseTelegramOtp(true); setStep('phone'); setServerError(''); }}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-semibold hover:underline inline-flex items-center gap-1.5 transition"
+                    >
+                      <Smartphone size={13} />
+                      <span>Sign in with Telegram Bot OTP instead</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* ── 2. Clean Telegram Bot OTP Sign-In (Minimal & Focused) ── */
+                <div className="space-y-4">
+                  {step === 'phone' ? (
+                    <form onSubmit={handleRequestOtp} className="space-y-3">
+                      <div className="flex items-center justify-between pb-1">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Smartphone size={14} className="text-blue-600" />
+                          <span>Telegram OTP Verification</span>
+                        </span>
+                        <a
+                          href="https://t.me/SharpPlusBot"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-semibold"
+                        >
+                          <Send size={11} /> @SharpPlusBot
+                        </a>
+                      </div>
+
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         Enter your registered phone number to receive a one-time verification code via <strong>@SharpPlusBot</strong>.
                       </p>
 
                       {otpError && (
-                        <div className="login-server-error flex items-start gap-2" role="alert">
+                        <div className="login-server-error" role="alert">
                           <span aria-hidden="true">⚠</span>
                           <span>{otpError}</span>
                         </div>
                       )}
 
-                      <form onSubmit={handleRequestOtp}>
-                        <label style={{ fontSize: '.7rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '.06em', display: 'block', marginBottom: '.4rem' }}>
-                          Phone Number
-                        </label>
-                        <div className="phone-input-wrap">
-                          <Phone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                          <input
-                            type="tel"
-                            value={phone}
-                            onChange={e => { setPhone(e.target.value); setOtpError(''); }}
-                            placeholder="e.g. 0912627366 or +251911192xxx"
-                            autoComplete="tel"
-                            required
-                          />
-                        </div>
+                      <div className="phone-input-wrap">
+                        <Phone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => { setPhone(e.target.value); setOtpError(''); }}
+                          placeholder="Phone number (e.g. 0912627366)"
+                          autoComplete="tel"
+                          required
+                          autoFocus
+                        />
+                      </div>
 
-                        <button
-                          type="submit"
-                          disabled={otpLoading}
-                          className="login-btn-primary"
-                          style={{ marginTop: '1.2rem' }}
-                        >
-                          {otpLoading ? (
-                            <><span className="login-spinner" aria-hidden="true" />Sending OTP…</>
-                          ) : (
-                            <>Send OTP via Telegram <ArrowRight size={16} /></>
-                          )}
-                        </button>
-                      </form>
-                    </div>
-                  )}
+                      <button
+                        type="submit"
+                        disabled={otpLoading}
+                        className="login-btn-primary"
+                      >
+                        {otpLoading ? (
+                          <><span className="login-spinner" aria-hidden="true" />Sending OTP…</>
+                        ) : (
+                          <span className="flex items-center justify-center gap-1.5">
+                            <span>Send Code via Telegram</span>
+                            <ArrowRight size={16} />
+                          </span>
+                        )}
+                      </button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyOtp} className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800">Enter Telegram Code</span>
+                        <span className="text-[11px] text-slate-400 font-medium">@SharpPlusBot</span>
+                      </div>
 
-                  {/* STEP 2: Enter OTP */}
-                  {step === 'otp' && (
-                    <div className="otp-step">
-                      <h2 className="otp-step__title">Enter OTP Code</h2>
-                      <p className="otp-step__sub">
-                        A 6-digit verification code was sent to <strong>{maskedName ? maskedName + "'s" : 'your'}</strong> Telegram.{' '}
-                        Check <strong>@SharpPlusBot</strong> and enter the code below to proceed to username &amp; password sign-in.
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        A 6-digit code was sent to <strong>{maskedName ? `${maskedName}'s` : 'your'}</strong> Telegram. Enter the code below:
                       </p>
 
                       {otpError && (
-                        <div className="login-server-error flex items-start gap-2" role="alert">
+                        <div className="login-server-error" role="alert">
                           <span aria-hidden="true">⚠</span>
                           <span>{otpError}</span>
                         </div>
                       )}
 
-                      <form onSubmit={handleVerifyOtp}>
-                        <div className="otp-boxes">
-                          {[0, 1, 2, 3, 4, 5].map(idx => (
-                            <input
-                              key={idx}
-                              ref={otpRefs[idx]}
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={1}
-                              value={otp[idx] || ''}
-                              onChange={e => handleOtpKey(idx, e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
-                                  otpRefs[idx - 1]?.current?.focus();
-                                }
-                              }}
-                              onPaste={e => {
-                                const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-                                if (text) { setOtp(text); setTimeout(() => otpRefs[Math.min(text.length, 5)]?.current?.focus(), 0); }
-                                e.preventDefault();
-                              }}
-                              className="otp-box"
-                              autoFocus={idx === 0}
-                              aria-label={`OTP digit ${idx + 1}`}
-                            />
-                          ))}
-                        </div>
-
-                        <button
-                          type="submit"
-                          disabled={otpLoading || otp.length < 6}
-                          className="login-btn-primary"
-                        >
-                          {otpLoading ? (
-                            <><span className="login-spinner" aria-hidden="true" />Verifying OTP…</>
-                          ) : (
-                            <>Verify OTP &amp; Continue <ArrowRight size={16} /></>
-                          )}
-                        </button>
-                      </form>
-
-                      <div className="otp-resend">
-                        {resendTimer > 0
-                          ? <span>Resend code in {resendTimer}s</span>
-                          : <>
-                            <span>Didn't receive code? </span>
-                            <button type="button" onClick={() => { setStep('phone'); setOtp(''); setOtpError(''); }}>
-                              Change phone &amp; resend
-                            </button>
-                          </>
-                        }
+                      <div className="otp-boxes my-3">
+                        {[0, 1, 2, 3, 4, 5].map((idx) => (
+                          <input
+                            key={idx}
+                            ref={otpRefs[idx]}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={otp[idx] || ''}
+                            onChange={(e) => handleOtpKey(idx, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
+                                otpRefs[idx - 1]?.current?.focus();
+                              }
+                            }}
+                            onPaste={(e) => {
+                              const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                              if (text) {
+                                setOtp(text);
+                                setTimeout(() => otpRefs[Math.min(text.length, 5)]?.current?.focus(), 0);
+                              }
+                              e.preventDefault();
+                            }}
+                            className="otp-box"
+                            autoFocus={idx === 0}
+                            aria-label={`OTP digit ${idx + 1}`}
+                          />
+                        ))}
                       </div>
-                    </div>
+
+                      <button
+                        type="submit"
+                        disabled={otpLoading || otp.length < 6}
+                        className="login-btn-primary"
+                      >
+                        {otpLoading ? (
+                          <><span className="login-spinner" aria-hidden="true" />Verifying code…</>
+                        ) : (
+                          <span className="flex items-center justify-center gap-1.5">
+                            <span>Verify Code &amp; Sign In</span>
+                            <ArrowRight size={16} />
+                          </span>
+                        )}
+                      </button>
+
+                      <div className="otp-resend flex items-center justify-between text-xs pt-1">
+                        {resendTimer > 0 ? (
+                          <span className="text-slate-400">Resend in {resendTimer}s</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleRequestOtp}
+                            className="text-blue-600 font-bold hover:underline"
+                          >
+                            Resend Telegram Code
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setStep('phone'); setOtp(''); setOtpError(''); }}
+                          className="text-slate-500 hover:text-slate-800 underline"
+                        >
+                          Change phone
+                        </button>
+                      </div>
+                    </form>
                   )}
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-center">
+                    <button
+                      type="button"
+                      onClick={() => { setUseTelegramOtp(false); setOtpError(''); setServerError(''); }}
+                      className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline"
+                    >
+                      ← Back to standard email &amp; password sign-in
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
