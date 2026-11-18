@@ -570,7 +570,7 @@ export default function SalesMarketingSubsystem() {
         </div>
       </div>
 
-      {/* ── 2. Functional Menu Item Display (Only displays the active item selected from sidebar) ── */}
+      {/* ── 2. Functional Menu Tab: shows only the active item selected from sidebar, no other sublists ── */}
       <div className="bg-white p-1.5 rounded-xl border border-slate-200/90 shadow-xs flex items-center gap-1 overflow-x-auto select-none">
         {[
           { key: 'cash-sales', label: 'Cash Sales Voucher', icon: ShoppingBag, color: 'emerald' },
