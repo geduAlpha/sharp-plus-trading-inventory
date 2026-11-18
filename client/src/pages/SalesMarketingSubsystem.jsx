@@ -570,7 +570,7 @@ export default function SalesMarketingSubsystem() {
         </div>
       </div>
 
-      {/* ── 2. Six Functional Menu Tabs Navigation ── */}
+      {/* ── 2. Functional Menu Item Display (Only displays the active item selected from sidebar) ── */}
       <div className="bg-white p-1.5 rounded-xl border border-slate-200/90 shadow-xs flex items-center gap-1 overflow-x-auto select-none">
         {[
           { key: 'cash-sales', label: 'Cash Sales Voucher', icon: ShoppingBag, color: 'emerald' },
@@ -579,21 +579,15 @@ export default function SalesMarketingSubsystem() {
           { key: 'security-report', label: 'Security Report', icon: Shield, color: 'rose' },
           { key: 'sales-closing', label: 'Sales Closing', icon: Lock, color: 'amber' },
           { key: 'sales-route-mapping', label: 'Sales Route Mapping', icon: MapPin, color: 'indigo' },
-        ].map((t) => {
+        ].filter(t => t.key === activeTab).map((t) => {
           const Icon = t.icon;
-          const isActive = activeTab === t.key;
           return (
             <button
               key={t.key}
               type="button"
-              onClick={() => handleTabChange(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap bg-blue-600 text-white shadow-xs cursor-default"
             >
-              <Icon size={14} className={isActive ? 'text-white' : 'text-slate-400'} />
+              <Icon size={14} className="text-white" />
               <span>{t.label}</span>
             </button>
           );

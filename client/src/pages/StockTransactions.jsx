@@ -2434,24 +2434,15 @@ export default function StockTransactions({ defaultVoucher } = {}) {
 
           {/* 2C. Secondary Toolbar: Type Switcher & Bulk Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs text-xs">
-            {/* Voucher Type Tabs */}
+            {/* Voucher Type Tab - Only display the specific voucher selected from the sidebar */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-              {VOUCHERS.map(v => {
+              {VOUCHERS.filter(v => v.key === activeVoucherKey).map(v => {
                 const Icon = v.icon;
-                const active = v.key === activeVoucherKey;
                 return (
                   <button
                     key={v.key}
                     type="button"
-                    onClick={() => {
-                      setSearchParams({ voucherType: v.key });
-                      setSelectedRowId(null);
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition duration-150 whitespace-nowrap shadow-xs ${
-                      active
-                        ? 'bg-blue-600 text-white shadow-blue-500/20'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                    }`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition duration-150 whitespace-nowrap shadow-xs bg-blue-600 text-white shadow-blue-500/20 cursor-default"
                   >
                     <Icon size={14} />
                     <span>{v.label}</span>
