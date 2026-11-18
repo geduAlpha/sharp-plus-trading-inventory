@@ -357,23 +357,27 @@ export default function StockTransactions({ defaultVoucher } = {}) {
     return materials.find(m => m._id === directLine?.material) || null;
   }, [materials, directLine?.material]);
 
-  // Current Available Balance of the selected item in the editor (store-aware)
-  const currentAvailableBalance = useMemo(() => {
-    if (!directLine?.material) return null;
-    const targetStore = (directLine?.location || form?.storeLocation || 'Main Store').trim().toLowerCase();
-    if (selectedDirectMaterial?.storeBalances?.length) {
-      const match = selectedDirectMaterial.storeBalances.find(
-        b => (b.store || '').trim().toLowerCase() === targetStore
-      );
+  // Store-aware stock helper for any material and store location
+  const getMaterialStoreStock = useCallback((mat, storeName) => {
+    if (!mat) return 0;
+    const target = (storeName || form?.storeLocation || directLine?.location || 'Main store').trim().toLowerCase();
+    if (Array.isArray(mat.storeBalances) && mat.storeBalances.length > 0) {
+      const match = mat.storeBalances.find(b => (b.store || '').trim().toLowerCase() === target);
       if (match !== undefined && match.balance !== undefined && match.balance !== null) {
         return Number(match.balance);
       }
+      if (mat.storeLocation && mat.storeLocation.trim().toLowerCase() !== target) {
+        return 0;
+      }
     }
-    if (selectedDirectMaterial && selectedDirectMaterial.currentStock !== undefined && selectedDirectMaterial.currentStock !== null) {
-      return Number(selectedDirectMaterial.currentStock);
-    }
-    return directLine?.systemStock !== undefined && directLine?.systemStock !== null ? Number(directLine.systemStock) : 0;
-  }, [selectedDirectMaterial, directLine?.material, directLine?.location, form?.storeLocation, directLine?.systemStock]);
+    return Number(mat.currentStock ?? 0);
+  }, [form?.storeLocation, directLine?.location]);
+
+  // Current Available Balance of the selected item in the editor (store-aware)
+  const currentAvailableBalance = useMemo(() => {
+    if (!directLine?.material) return null;
+    return getMaterialStoreStock(selectedDirectMaterial, form?.storeLocation || directLine?.location);
+  }, [selectedDirectMaterial, directLine?.material, directLine?.location, form?.storeLocation, getMaterialStoreStock]);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -479,7 +483,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
           subTotal: it.subTotal ?? total,
           totalAmount: total,
           serialNumber: it.serialNumber || '',
-          systemStock: it.systemStock ?? mat?.currentStock ?? 0,
+          systemStock: it.systemStock ?? (mat ? getMaterialStoreStock(mat, it.storeLocation || txn.storeLocation) : 0),
           physicalCount: it.physicalCount ?? null,
           projectedBalance: it.projectedBalance ?? 0,
           reconciliationNote: it.reconciliationNote || '',
@@ -569,16 +573,8 @@ export default function StockTransactions({ defaultVoucher } = {}) {
     const mat = materials.find(m => m._id === matId);
     if (!mat) return;
 
-    const targetStore = (form?.storeLocation || mat.storeLocation || 'Main store').trim().toLowerCase();
-    let curStock = Number(mat.currentStock ?? 0);
-    if (mat.storeBalances?.length) {
-      const match = mat.storeBalances.find(b => (b.store || '').trim().toLowerCase() === targetStore);
-      if (match !== undefined && match.balance !== undefined && match.balance !== null) {
-        curStock = Number(match.balance);
-      } else if (mat.storeLocation && mat.storeLocation.trim().toLowerCase() !== targetStore) {
-        curStock = 0;
-      }
-    }
+    const targetStore = form?.storeLocation || 'Main store';
+    const curStock = getMaterialStoreStock(mat, targetStore);
     const isPosAdj = activeVoucherKey === 'pos_adjustment';
     const isNegAdj = activeVoucherKey === 'neg_adjustment';
 
@@ -610,6 +606,9 @@ export default function StockTransactions({ defaultVoucher } = {}) {
         defaultPhys = '0';
         proj = 0;
       }
+    } else {
+      // In GRVs (Cash GRV, Credit GRV), receiving goods increases stock in destination store
+      proj = curStock + 1;
     }
 
     setDirectLine(prev => ({
@@ -620,7 +619,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       description: mat.name,
       category: mat.category || 'Item',
       uom: mat.unit || 'Pcs',
-      location: mat.storeLocation || form?.storeLocation || 'Main store',
+      location: targetStore,
       unitCost: mat.unitCost ? Number(mat.unitCost).toFixed(3) : '0.000',
       systemStock: curStock,
       physicalCount: defaultPhys,
@@ -690,6 +689,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
     let proj = curStock;
     if (isPosAdj) proj = curStock + qty;
     else if (isNegAdj) proj = curStock - qty;
+    else proj = curStock + qty; // For GRVs (Cash GRV, Credit GRV), receiving goods increases store stock
 
     setDirectLine(d => ({
       ...d,
@@ -1195,9 +1195,9 @@ export default function StockTransactions({ defaultVoucher } = {}) {
         totalAmount: lineTotal,
         serialNumber: '',
         activity: 'Imported',
-        systemStock: matched.currentStock || 0,
+        systemStock: getMaterialStoreStock(matched, form?.storeLocation || 'Main store'),
         physicalCount: null,
-        projectedBalance: matched.currentStock || 0,
+        projectedBalance: getMaterialStoreStock(matched, form?.storeLocation || 'Main store'),
         reconciliationNote: 'Imported line',
         taxRate: form?.taxRate || 15,
         taxAmount: 0,
@@ -1609,11 +1609,14 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                         className="w-full h-8 pl-3 pr-8 rounded border border-slate-300 text-xs bg-white text-slate-800 outline-none focus:border-blue-500 font-medium"
                       >
                         <option value="">Select Article / Product...</option>
-                        {materials.map(m => (
-                          <option key={m._id} value={m._id}>
-                            {m.code ? `${m.code} - ` : ''}{m.name}{m.currentStock !== undefined && m.currentStock !== null ? ` (Avail: ${m.currentStock})` : ''}
-                          </option>
-                        ))}
+                        {materials.map(m => {
+                          const avail = getMaterialStoreStock(m, form?.storeLocation || 'Main store');
+                          return (
+                            <option key={m._id} value={m._id}>
+                              {m.code ? `${m.code} - ` : ''}{m.name}{avail !== undefined && avail !== null ? ` (Avail: ${avail})` : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                       {directLine.material && (
                         <button
@@ -1901,7 +1904,37 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                   <div className="relative flex-1">
                     <select
                       value={form.storeLocation}
-                      onChange={e => setForm(f => ({ ...f, storeLocation: e.target.value, consigneeUnit: e.target.value }))}
+                      onChange={e => {
+                        const newStore = e.target.value;
+                        setForm(f => ({ ...f, storeLocation: newStore, consigneeUnit: newStore }));
+                        if (directLine?.material) {
+                          const mat = materials.find(m => m._id === directLine.material);
+                          if (mat) {
+                            const curStock = getMaterialStoreStock(mat, newStore);
+                            const isPosAdj = activeVoucherKey === 'pos_adjustment';
+                            const isNegAdj = activeVoucherKey === 'neg_adjustment';
+                            let defaultPhys = directLine.physicalCount;
+                            let proj = directLine.projectedBalance;
+                            const qty = Number(directLine.quantity) || 1;
+                            if (isPosAdj) {
+                              defaultPhys = String(curStock + qty);
+                              proj = curStock + qty;
+                            } else if (isNegAdj) {
+                              defaultPhys = String(curStock - qty);
+                              proj = curStock - qty;
+                            } else {
+                              proj = curStock + qty;
+                            }
+                            setDirectLine(d => ({
+                              ...d,
+                              location: newStore,
+                              systemStock: curStock,
+                              physicalCount: defaultPhys,
+                              projectedBalance: proj,
+                            }));
+                          }
+                        }
+                      }}
                       className="w-full h-8 pl-2 pr-7 rounded border border-slate-300 bg-white text-xs font-medium text-slate-800 outline-none focus:border-blue-500"
                     >
                       {storeOptions.map(st => (
@@ -1911,7 +1944,37 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                     {form.storeLocation && (
                       <button
                         type="button"
-                        onClick={() => setForm(f => ({ ...f, storeLocation: 'Main store', consigneeUnit: 'Main store' }))}
+                        onClick={() => {
+                          const newStore = 'Main store';
+                          setForm(f => ({ ...f, storeLocation: newStore, consigneeUnit: newStore }));
+                          if (directLine?.material) {
+                            const mat = materials.find(m => m._id === directLine.material);
+                            if (mat) {
+                              const curStock = getMaterialStoreStock(mat, newStore);
+                              const isPosAdj = activeVoucherKey === 'pos_adjustment';
+                              const isNegAdj = activeVoucherKey === 'neg_adjustment';
+                              let defaultPhys = directLine.physicalCount;
+                              let proj = directLine.projectedBalance;
+                              const qty = Number(directLine.quantity) || 1;
+                              if (isPosAdj) {
+                                defaultPhys = String(curStock + qty);
+                                proj = curStock + qty;
+                              } else if (isNegAdj) {
+                                defaultPhys = String(curStock - qty);
+                                proj = curStock - qty;
+                              } else {
+                                proj = curStock + qty;
+                              }
+                              setDirectLine(d => ({
+                                ...d,
+                                location: newStore,
+                                systemStock: curStock,
+                                physicalCount: defaultPhys,
+                                projectedBalance: proj,
+                              }));
+                            }
+                          }
+                        }}
                         className="absolute right-2 top-2 text-slate-400 hover:text-red-500"
                       >
                         <X size={12} />
