@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, Lock, Building2 } from 'lucide-react';
+import { ChevronDown, Lock, Building2, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeSidebar } from '../../context/ThemeSidebarContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -272,6 +272,87 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
   // Accordion state (top-level and sub-level)
   const [openMenu, setOpenMenu] = useState(null);
   const [openSubMenu, setOpenSubMenu] = useState(null);
+
+  // Floating Expandable Submenu Flyout for Collapsed Sidebar Mode
+  const [flyoutMenu, setFlyoutMenu] = useState(null);
+  const flyoutRef = React.useRef(null);
+  const flyoutTimeoutRef = React.useRef(null);
+
+  const calculateFlyoutTop = useCallback((triggerEl, items) => {
+    if (!triggerEl) return 80;
+    const rect = triggerEl.getBoundingClientRect();
+    const approxHeight = Math.min(window.innerHeight - 30, Math.max(140, items.length * 44 + 70));
+    return Math.max(12, Math.min(rect.top, window.innerHeight - approxHeight - 16));
+  }, []);
+
+  const handleOpenFlyout = useCallback((e, group, items, color) => {
+    if (!collapsed) return;
+    if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current);
+    const topPos = calculateFlyoutTop(e.currentTarget, items);
+    setFlyoutMenu({
+      id: group.id,
+      label: group.label,
+      icon: group.icon,
+      color,
+      items,
+      top: topPos,
+    });
+  }, [collapsed, calculateFlyoutTop]);
+
+  const handleToggleFlyout = useCallback((e, group, items, color) => {
+    if (!collapsed) return;
+    if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current);
+    if (flyoutMenu?.id === group.id) {
+      setFlyoutMenu(null);
+    } else {
+      const topPos = calculateFlyoutTop(e.currentTarget, items);
+      setFlyoutMenu({
+        id: group.id,
+        label: group.label,
+        icon: group.icon,
+        color,
+        items,
+        top: topPos,
+      });
+    }
+  }, [collapsed, flyoutMenu?.id, calculateFlyoutTop]);
+
+  const handleScheduleCloseFlyout = useCallback(() => {
+    if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current);
+    flyoutTimeoutRef.current = setTimeout(() => {
+      setFlyoutMenu(null);
+    }, 250);
+  }, []);
+
+  const handleCancelCloseFlyout = useCallback(() => {
+    if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current);
+  }, []);
+
+  // Close flyout on outside click or Escape key
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (flyoutRef.current && !flyoutRef.current.contains(e.target)) {
+        setFlyoutMenu(null);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setFlyoutMenu(null);
+    };
+    if (flyoutMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+      if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current);
+    };
+  }, [flyoutMenu]);
+
+  // When uncollapsing sidebar, automatically close any active flyout
+  React.useEffect(() => {
+    if (!collapsed) setFlyoutMenu(null);
+  }, [collapsed]);
 
   // Auto-detect which group is active on initial load or route change
   React.useEffect(() => {
@@ -549,25 +630,34 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
     if (visibleChildren.length === 0) return null;
 
     if (collapsed) {
-      const allLeaves = visibleChildren.flatMap(c => c.isGroup ? (c.children || []) : [c]);
-      const firstActiveChild = allLeaves.find((c) => !isItemOnHold(c)) || allLeaves[0];
+      const isFlyoutOpen = flyoutMenu?.id === group.id;
       return (
-        <NavLink
+        <div
           key={group.id}
-          to={firstActiveChild?.to || '/'}
-          onClick={onClose}
-          title={t(group.label)}
-          className={({ isActive }) => getLinkClasses(isActive || active)}
+          className="relative"
+          onMouseEnter={(e) => handleOpenFlyout(e, group, visibleChildren, groupColor)}
+          onMouseLeave={handleScheduleCloseFlyout}
         >
-          {({ isActive }) => (
+          <button
+            type="button"
+            onClick={(e) => handleToggleFlyout(e, group, visibleChildren, groupColor)}
+            title={t(group.label)}
+            className={`w-full ${getLinkClasses(isFlyoutOpen || active)} ${
+              isFlyoutOpen
+                ? isDark
+                  ? 'bg-white/20 text-white font-bold ring-2 ring-indigo-500/50'
+                  : 'bg-indigo-100 text-indigo-800 font-bold ring-2 ring-indigo-500/30'
+                : ''
+            }`}
+          >
             <span
-              className={getIconBadgeClasses(isActive || active)}
-              style={isActive || active ? { backgroundColor: groupColor, color: '#ffffff' } : undefined}
+              className={getIconBadgeClasses(isFlyoutOpen || active)}
+              style={isFlyoutOpen || active ? { backgroundColor: groupColor, color: '#ffffff' } : undefined}
             >
               <MuiIconResolver name={group.icon} size={resolvedIconSize} />
             </span>
-          )}
-        </NavLink>
+          </button>
+        </div>
       );
     }
 
@@ -937,6 +1027,196 @@ export default function Sidebar({ open, onClose, collapsed = false }) {
           )}
         </div>
       </aside>
+
+      {/* ── Collapsed Flyout Submenu Panel (Responsive interactive expandable submenu for collapsed sidebar) ── */}
+      {collapsed && flyoutMenu && (
+        <div
+          ref={flyoutRef}
+          className="fixed z-50 flex flex-col rounded-2xl shadow-2xl border animate-in fade-in zoom-in-95 duration-150 select-none overflow-hidden"
+          style={{
+            left: '74px',
+            top: `${flyoutMenu.top}px`,
+            width: '270px',
+            maxHeight: 'calc(100vh - 24px)',
+            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+            borderColor: isDark ? 'rgba(51, 65, 85, 0.8)' : 'rgba(226, 232, 240, 0.9)',
+            boxShadow: isDark
+              ? '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)'
+              : '0 20px 45px -10px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+          }}
+          onMouseEnter={handleCancelCloseFlyout}
+          onMouseLeave={handleScheduleCloseFlyout}
+        >
+          {/* Header */}
+          <div
+            className={`px-3.5 py-3 border-b flex items-center justify-between gap-2 ${
+              isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-100 bg-slate-50/90'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-white shadow-xs"
+                style={{ backgroundColor: flyoutMenu.color || accentHex }}
+              >
+                <MuiIconResolver name={flyoutMenu.icon} size={15} />
+              </span>
+              <div className="min-w-0">
+                <h4 className={`text-xs font-black tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {t(flyoutMenu.label)}
+                </h4>
+                <span className={`text-[10px] font-semibold tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {flyoutMenu.items.length} {flyoutMenu.items.length === 1 ? 'sub-menu' : 'sub-menus'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFlyoutMenu(null)}
+              className={`p-1 rounded-lg text-slate-400 hover:text-slate-600 transition ${
+                isDark ? 'hover:bg-white/10' : 'hover:bg-slate-200/60'
+              }`}
+              title="Close sub-menu"
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          {/* Submenu Item List */}
+          <div className="p-1.5 space-y-0.5 overflow-y-auto max-h-[calc(100vh-140px)] scrollbar-thin">
+            {flyoutMenu.items.map((sub) => {
+              // Nested Sub-Group (e.g. Sales and Marketing Management System under Sub System)
+              if (sub.isGroup && sub.children?.length > 0) {
+                const subKids = sub.children.filter(canDisplayItem);
+                if (subKids.length === 0) return null;
+                return (
+                  <div key={sub.id} className="pt-1.5 pb-0.5 first:pt-0">
+                    <div className="px-2 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <MuiIconResolver name={sub.icon} size={12} className="text-slate-400" />
+                      <span className="truncate">{t(sub.label)}</span>
+                    </div>
+                    <div className={`space-y-0.5 pl-1.5 border-l-2 ml-2 ${isDark ? 'border-slate-800' : 'border-slate-200/60'}`}>
+                      {subKids.map((kid) => {
+                        const isKidHeld = isItemOnHold(kid);
+                        if (isKidHeld) {
+                          if (!isDev) return null;
+                          return (
+                            <div
+                              key={kid.id}
+                              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs opacity-50 select-none cursor-not-allowed"
+                            >
+                              <span className="truncate">{t(kid.label)}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Hold</span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <NavLink
+                            key={kid.id}
+                            to={kid.to}
+                            end={Boolean(kid.exact)}
+                            onClick={() => {
+                              setFlyoutMenu(null);
+                              onClose();
+                            }}
+                            className={({ isActive }) =>
+                              `group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                                isActive
+                                  ? isDark
+                                    ? 'bg-white/15 text-white font-bold'
+                                    : 'bg-indigo-50 text-indigo-700 font-bold'
+                                  : isDark
+                                  ? 'text-slate-300 hover:bg-white/10 hover:text-white'
+                                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                              }`
+                            }
+                          >
+                            {({ isActive }) => (
+                              <>
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full shrink-0 transition-colors ${
+                                    isActive ? 'bg-indigo-500' : isDark ? 'bg-slate-600' : 'bg-slate-300'
+                                  }`}
+                                />
+                                <MuiIconResolver name={kid.icon} size={13} className="shrink-0 text-slate-400 group-hover:text-slate-600" />
+                                <span className="truncate flex-1">{t(kid.label)}</span>
+                              </>
+                            )}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Standard Leaf Sub-Item
+              const isHeld = isItemOnHold(sub);
+              if (isHeld) {
+                if (!isDev) return null;
+                return (
+                  <div
+                    key={sub.id}
+                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs opacity-50 select-none cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MuiIconResolver name={sub.icon} size={14} className="text-slate-400 shrink-0" />
+                      <span className="truncate">{t(sub.label)}</span>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Hold</span>
+                  </div>
+                );
+              }
+
+              return (
+                <NavLink
+                  key={sub.id}
+                  to={sub.to}
+                  end={Boolean(sub.exact)}
+                  onClick={() => {
+                    setFlyoutMenu(null);
+                    onClose();
+                  }}
+                  className={({ isActive }) =>
+                    `group flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 ${
+                      isActive
+                        ? isDark
+                          ? 'bg-white/15 text-white font-bold shadow-xs'
+                          : 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100/80 shadow-xs'
+                        : isDark
+                        ? 'text-slate-300 hover:bg-white/10 hover:text-white font-medium'
+                        : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-900 font-medium'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-all ${
+                          isActive
+                            ? 'text-white shadow-xs'
+                            : isDark
+                            ? 'bg-white/10 text-slate-300 group-hover:bg-white/20 group-hover:text-white'
+                            : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-800'
+                        }`}
+                        style={isActive ? { backgroundColor: flyoutMenu.color || accentHex, color: '#ffffff' } : undefined}
+                      >
+                        <MuiIconResolver name={sub.icon} size={13} />
+                      </span>
+                      <span className="truncate flex-1 tracking-tight">{t(sub.label)}</span>
+                      {isActive && (
+                        <span
+                          className="h-1.5 w-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: flyoutMenu.color || accentHex }}
+                        />
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </>
   );
 }
