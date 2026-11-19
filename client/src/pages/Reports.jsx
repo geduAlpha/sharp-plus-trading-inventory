@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronUp, Eye, EyeOff, Save, ArrowUpDown, CheckCheck,
   FileSpreadsheet, Download, Home, Copy, Check, FileText, Layers,
   Filter, ShieldAlert, Award, AlertCircle, Info, SlidersHorizontal, AlignJustify, List,
+  Package, Bell, Archive,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
@@ -2182,41 +2183,61 @@ export default function Reports({ defaultTab } = {}) {
         </div>
       )}
 
-      {/* ── Report Sub-Tabs Bar (matching reference image) ── */}
+      {/* ── Report Sub-Tabs Bar (Reframed Modern Card) ── */}
       {tab === 'stock_balance' && (
-        <div className="rounded-xl bg-slate-100/90 p-1 border border-slate-200 flex items-center gap-1 overflow-x-auto">
-          {REPORT_SUB_TABS.map(st => (
-            <button
-              key={st.id}
-              type="button"
-              onClick={() => {
-                setStockSubTab(st.id);
-                if (balanceViewMode !== 'detail') setBalanceViewMode('detail');
-              }}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                stockSubTab === st.id && balanceViewMode === 'detail'
-                  ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80 ring-1 ring-blue-500/20'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              {st.label}
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-1.5 pl-2 shrink-0">
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xs flex items-center gap-1.5 overflow-x-auto">
+          {REPORT_SUB_TABS.map(st => {
+            const isActive = stockSubTab === st.id && balanceViewMode === 'detail';
+            const badgeCount =
+              st.id === 'min_stock_level' ? minStockItems.length :
+              st.id === 'dead_movement' ? deadMovementItems.length :
+              null;
+            return (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => {
+                  setStockSubTab(st.id);
+                  if (balanceViewMode !== 'detail') setBalanceViewMode('detail');
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-xs shadow-blue-500/25 ring-1 ring-blue-600'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-semibold'
+                }`}
+              >
+                <span>{st.label}</span>
+                {badgeCount !== null && badgeCount > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      isActive
+                        ? 'bg-white/25 text-white'
+                        : st.id === 'min_stock_level'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-rose-100 text-rose-800 border border-rose-200'
+                    }`}
+                  >
+                    {badgeCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <div className="ml-auto flex items-center gap-1.5 pl-3 shrink-0 border-l border-slate-200/80">
             <button
               type="button"
               onClick={() => {
                 setBalanceViewMode('transactions');
                 loadBalanceTransactions();
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 balanceViewMode === 'transactions'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  ? 'bg-indigo-600 text-white shadow-xs shadow-indigo-500/25 ring-1 ring-indigo-600'
+                  : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
               }`}
               title="View movements time sequence with exact h:m:s"
             >
-              <Clock size={13} /> Time Sequence
+              <Clock size={13} /> <span>Time Sequence</span>
             </button>
             <button
               type="button"
@@ -2224,14 +2245,14 @@ export default function Reports({ defaultTab } = {}) {
                 setBalanceViewMode('monthly_summary');
                 loadMonthlyClosing(summaryYear);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 balanceViewMode === 'monthly_summary'
-                  ? 'bg-blue-700 text-white shadow-xs'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  ? 'bg-blue-700 text-white shadow-xs shadow-blue-600/25 ring-1 ring-blue-700'
+                  : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
               }`}
               title="View 12-month closing evolution"
             >
-              <Calendar size={13} /> 12-Month Evolution
+              <Calendar size={13} /> <span>12-Month Evolution</span>
             </button>
           </div>
         </div>
@@ -2308,36 +2329,49 @@ export default function Reports({ defaultTab } = {}) {
       ════════════════════════════════════════════════════════════════ */}
       {!loading && tab === 'stock_balance' && balanceViewMode === 'detail' && data && (
         <div className="space-y-3">
-          {/* Table Toolbar Header matching reference image: Title on Left, Copy/Print/Search on Right */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-800">
-                {stockSubTab === 'stock_only' && 'Stock Only Inventory List'}
-                {stockSubTab === 'bincard_summary' && 'BinCard Movement Summary'}
-                {stockSubTab === 'bincard' && 'Item Ledger (BinCard)'}
-                {stockSubTab === 'min_stock_level' && 'Minimum & Reorder Level Stock'}
-                {stockSubTab === 'serial_bincard' && 'Serial & Batch BinCard'}
-                {stockSubTab === 'expiry_date' && 'Expiry Date Inventory Schedule'}
-                {stockSubTab === 'expiry_notification' && 'Expiry Date Notification Alerts'}
-                {stockSubTab === 'abc_analysis' && 'ABC Inventory Classification (Pareto 80/20)'}
-                {stockSubTab === 'dead_movement' && 'Dead / Dormant Stock Movement Summary'}
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                {stockSubTab === 'min_stock_level' ? minStockItems.length :
-                 stockSubTab === 'abc_analysis' ? abcItems.length :
-                 stockSubTab === 'dead_movement' ? deadMovementItems.length :
-                 filteredStockItems.length} items
-              </span>
+          {/* Table Toolbar Header: Reframed Modern ERP Banner */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-3 sm:px-5 sm:py-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-100 shadow-2xs">
+                {stockSubTab === 'stock_only' && <PackageSearch size={16} />}
+                {stockSubTab === 'bincard_summary' && <Layers size={16} />}
+                {stockSubTab === 'bincard' && <Clock size={16} />}
+                {stockSubTab === 'min_stock_level' && <AlertTriangle size={16} className="text-amber-600" />}
+                {stockSubTab === 'serial_bincard' && <FileSpreadsheet size={16} />}
+                {stockSubTab === 'expiry_date' && <Calendar size={16} />}
+                {stockSubTab === 'expiry_notification' && <Bell size={16} className="text-rose-600" />}
+                {stockSubTab === 'abc_analysis' && <BarChart3 size={16} className="text-purple-600" />}
+                {stockSubTab === 'dead_movement' && <Archive size={16} className="text-slate-600" />}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
+                  {stockSubTab === 'stock_only' && 'Stock Only Inventory List'}
+                  {stockSubTab === 'bincard_summary' && 'BinCard Movement Summary'}
+                  {stockSubTab === 'bincard' && 'Item Ledger (BinCard)'}
+                  {stockSubTab === 'min_stock_level' && 'Minimum & Reorder Level Stock'}
+                  {stockSubTab === 'serial_bincard' && 'Serial & Batch BinCard'}
+                  {stockSubTab === 'expiry_date' && 'Expiry Date Inventory Schedule'}
+                  {stockSubTab === 'expiry_notification' && 'Expiry Date Notification Alerts'}
+                  {stockSubTab === 'abc_analysis' && 'ABC Inventory Classification (Pareto 80/20)'}
+                  {stockSubTab === 'dead_movement' && 'Dead / Dormant Stock Movement Summary'}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/80">
+                  {stockSubTab === 'min_stock_level' ? minStockItems.length :
+                   stockSubTab === 'abc_analysis' ? abcItems.length :
+                   stockSubTab === 'dead_movement' ? deadMovementItems.length :
+                   filteredStockItems.length} items
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Hierarchy View Mode Toggle for Stock Only */}
               {stockSubTab === 'stock_only' && (
-                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+                <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => setStockViewMode('hierarchy')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                       stockViewMode === 'hierarchy'
                         ? 'bg-white text-blue-700 shadow-2xs font-bold'
                         : 'text-slate-600 hover:text-slate-900'
@@ -2350,7 +2384,7 @@ export default function Reports({ defaultTab } = {}) {
                   <button
                     type="button"
                     onClick={() => setStockViewMode('flat')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                       stockViewMode === 'flat'
                         ? 'bg-white text-blue-700 shadow-2xs font-bold'
                         : 'text-slate-600 hover:text-slate-900'
@@ -2363,39 +2397,61 @@ export default function Reports({ defaultTab } = {}) {
                 </div>
               )}
 
-              {/* Quick action buttons matching reference image icons */}
-              <button
-                type="button"
-                onClick={handleCopyTable}
-                title="Copy table to clipboard"
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs cursor-pointer"
-              >
-                {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                title="Print current table"
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs cursor-pointer"
-              >
-                <Printer size={14} />
-              </button>
+              {/* Action buttons: Copy, Print, Excel, CSV */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleCopyTable}
+                  title="Copy table to clipboard"
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                >
+                  {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                  <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  title="Print current table"
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                >
+                  <Printer size={13} />
+                  <span className="hidden sm:inline">Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  title="Export current table to Excel"
+                  className="px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                >
+                  <FileSpreadsheet size={13} />
+                  <span className="hidden sm:inline">Excel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  title="Export current table to CSV"
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                >
+                  <Download size={13} />
+                  <span className="hidden sm:inline">CSV</span>
+                </button>
+              </div>
 
-              {/* Search Box with Q Search... matching reference image */}
+              {/* Search Box */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search articles, codes, categories..."
                   value={stockSearch}
                   onChange={e => setStockSearch(e.target.value)}
-                  className="w-44 sm:w-60 rounded-lg border border-slate-200 pl-8 pr-7 py-1 text-xs text-slate-800 outline-none focus:border-blue-500 bg-white shadow-2xs"
+                  className="w-44 sm:w-60 rounded-xl border border-slate-200/90 pl-9 pr-7 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white shadow-2xs"
                 />
                 {stockSearch && (
                   <button
                     type="button"
                     onClick={() => setStockSearch('')}
-                    className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600"
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
                   >
                     <X size={12} />
                   </button>
@@ -2453,29 +2509,29 @@ export default function Reports({ defaultTab } = {}) {
                   categoryGroupedStock.map((grp) => {
                     const isExpanded = expandedCategories[grp.category] !== false;
                     return (
-                      <div key={grp.category} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                      <div key={grp.category} className="rounded-2xl border border-slate-200/90 bg-white overflow-hidden shadow-xs">
                         {/* Category Header Bar */}
                         <div
                           onClick={() => setExpandedCategories(prev => ({ ...prev, [grp.category]: !isExpanded }))}
-                          className="w-full bg-[#1e293b] hover:bg-[#0f172a] text-white px-3.5 py-2.5 flex items-center justify-between cursor-pointer transition select-none"
+                          className="w-full bg-[#245a95] hover:bg-[#1d4b7d] text-white px-4 py-2.5 flex items-center justify-between cursor-pointer transition select-none"
                         >
                           <div className="flex items-center gap-2.5">
-                            <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-700 text-slate-200 text-xs font-bold">
+                            <span className="flex h-5 w-5 items-center justify-center rounded bg-white/20 text-white text-xs font-bold">
                               {isExpanded ? '▼' : '▶'}
                             </span>
-                            <span className="font-bold text-xs uppercase tracking-wider text-amber-300">
+                            <span className="font-extrabold text-xs uppercase tracking-wider text-amber-200">
                               CATEGORY: {grp.category}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-200 border border-white/10">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-white border border-white/20">
                               {grp.items.length} {grp.items.length === 1 ? 'Article' : 'Articles'}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-4 text-xs font-mono">
-                            <span className="text-slate-300">
+                            <span className="text-slate-200">
                               Qty: <strong className="text-white font-bold">{grp.totalBalance.toFixed(2)}</strong>
                             </span>
-                            <span className="text-amber-300 font-bold">
+                            <span className="text-amber-200 font-bold">
                               Value: ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
@@ -2485,17 +2541,17 @@ export default function Reports({ defaultTab } = {}) {
                         {isExpanded && (
                           <div className="overflow-x-auto">
                             <table className="min-w-full text-xs divide-y divide-slate-200">
-                              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                              <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                                 <tr>
-                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE CODE</th>
-                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE NAME</th>
-                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">UOM</th>
-                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">CATEGORY</th>
-                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">STORE</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">CLOSING STOCK</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">UNIT COST (ETB)</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-blue-900 bg-blue-50/40">STOCK VALUE (ETB)</th>
-                                  <th className="px-3.5 py-2 text-center font-bold text-slate-800">EVALUATE</th>
+                                  <th className="px-4 py-2.5 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                                  <th className="px-4 py-2.5 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                                  <th className="px-3.5 py-2.5 text-left font-extrabold text-slate-800">UOM</th>
+                                  <th className="px-3.5 py-2.5 text-left font-extrabold text-slate-800">CATEGORY</th>
+                                  <th className="px-3.5 py-2.5 text-left font-extrabold text-slate-800">STORE</th>
+                                  <th className="px-4 py-2.5 text-right font-extrabold text-slate-800">CLOSING STOCK</th>
+                                  <th className="px-4 py-2.5 text-right font-extrabold text-slate-800">UNIT COST (ETB)</th>
+                                  <th className="px-4 py-2.5 text-right font-extrabold text-blue-900 bg-blue-50/50">STOCK VALUE (ETB)</th>
+                                  <th className="px-4 py-2.5 text-center font-extrabold text-slate-800">EVALUATE</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
@@ -2505,10 +2561,10 @@ export default function Reports({ defaultTab } = {}) {
                                   const cVal = Number(item.closingValue || (cStock * uCost));
                                   return (
                                     <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
-                                      <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                                      <td className="px-4 py-2 font-mono text-xs font-semibold text-slate-700">
                                         {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
                                       </td>
-                                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                                      <td className="px-4 py-2 font-extrabold text-slate-900 uppercase">
                                         {item.name}
                                       </td>
                                       <td className="px-3.5 py-2 text-slate-600">
@@ -2520,30 +2576,30 @@ export default function Reports({ defaultTab } = {}) {
                                         </span>
                                       </td>
                                       <td className="px-3.5 py-2 text-slate-600">
-                                        {item.storeLocation || 'Main store'}
+                                        {item.storeLocation || 'Main Store'}
                                       </td>
-                                      <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                                      <td className="px-4 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
                                         <span className={cStock <= 0 ? 'text-red-600 font-black' : cStock <= (item.reorderLevel || 10) ? 'text-amber-600 font-bold' : 'text-slate-900 font-bold'}>
                                           {cStock.toFixed(2)}
                                         </span>
                                       </td>
-                                      <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
+                                      <td className="px-4 py-2 text-right font-mono text-slate-700 tabular-nums">
                                         {uCost.toFixed(2)}
                                       </td>
-                                      <td className="px-3.5 py-2 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
+                                      <td className="px-4 py-2 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
                                         {cVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </td>
-                                      <td className="px-3.5 py-2 text-center">
+                                      <td className="px-4 py-2 text-center">
                                         <button
                                           type="button"
                                           onClick={() => {
                                             setStockSubTab('bincard');
                                             handleSelectBinCardItem(item);
                                           }}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition"
+                                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold text-xs border border-blue-200 transition shadow-2xs cursor-pointer"
                                           title="Evaluate article BinCard ledger"
                                         >
-                                          <Eye size={11} /> Ledger
+                                          <Eye size={12} /> Ledger
                                         </button>
                                       </td>
                                     </tr>
@@ -2552,18 +2608,18 @@ export default function Reports({ defaultTab } = {}) {
                               </tbody>
 
                               {/* Category Subtotal Row */}
-                              <tfoot className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                              <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
                                 <tr>
-                                  <td colSpan={5} className="px-3.5 py-2 uppercase font-extrabold text-slate-800 text-[11px]">
+                                  <td colSpan={5} className="px-4 py-2.5 uppercase font-extrabold text-slate-800 text-[11px]">
                                     Subtotal — Category: {grp.category} ({grp.items.length} articles)
                                   </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-black text-slate-950 tabular-nums">
+                                  <td className="px-4 py-2.5 text-right font-mono font-black text-slate-950 tabular-nums">
                                     {grp.totalBalance.toFixed(2)}
                                   </td>
-                                  <td className="px-3.5 py-2 text-right text-slate-400 text-[10px]">
+                                  <td className="px-4 py-2.5 text-right text-slate-400 text-[10px]">
                                     Subtotal
                                   </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
+                                  <td className="px-4 py-2.5 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
                                     ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                   <td></td>
@@ -2582,19 +2638,19 @@ export default function Reports({ defaultTab } = {}) {
 
           {/* Flat List View */}
           {stockSubTab === 'stock_only' && stockViewMode === 'flat' && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
               <table className="min-w-full text-xs divide-y divide-slate-200">
-                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
-                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">ARTICLE CODE</th>
-                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">ARTICLE NAME</th>
-                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">UOM</th>
-                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">CATEGORY</th>
-                    <th className="px-3.5 py-2.5 text-left font-bold text-slate-800">STORE</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CLOSING STOCK</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">UNIT COST (ETB)</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-blue-900 bg-blue-50/40">STOCK VALUE (ETB)</th>
-                    <th className="px-3.5 py-2.5 text-center font-bold text-slate-800">EVALUATE</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">UOM</th>
+                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">CATEGORY</th>
+                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">STORE</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-slate-800">CLOSING STOCK</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-slate-800">UNIT COST (ETB)</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-blue-900 bg-blue-50/50">STOCK VALUE (ETB)</th>
+                    <th className="px-4 py-3 text-center font-extrabold text-slate-800">EVALUATE</th>
                   </tr>
                 </thead>
 
@@ -2611,46 +2667,46 @@ export default function Reports({ defaultTab } = {}) {
                       const uCost = Number(item.unitCost || 0);
                       const cVal = Number(item.closingValue || (cStock * uCost));
                       return (
-                        <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
-                          <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                        <tr key={item._id || idx} className="hover:bg-blue-50/25 transition-colors">
+                          <td className="px-4 py-2.5 font-mono text-xs font-bold text-slate-700">
                             {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
                           </td>
-                          <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                          <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">
                             {item.name}
                           </td>
-                          <td className="px-3.5 py-2 text-slate-600">
+                          <td className="px-3.5 py-2.5 text-slate-600 font-medium">
                             {item.unit || 'Pcs'}
                           </td>
-                          <td className="px-3.5 py-2 text-slate-600">
-                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px]">
+                          <td className="px-3.5 py-2.5 text-slate-600">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[10.5px]">
                               {item.category || 'General'}
                             </span>
                           </td>
-                          <td className="px-3.5 py-2 text-slate-600">
+                          <td className="px-3.5 py-2.5 text-slate-600 font-medium">
                             {item.storeLocation || 'Main store'}
                           </td>
-                          <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                          <td className="px-4 py-2.5 text-right font-mono font-bold tabular-nums">
                             <span className={cStock <= 0 ? 'text-red-600 font-black' : cStock <= (item.reorderLevel || 10) ? 'text-amber-600 font-bold' : 'text-slate-900 font-bold'}>
                               {cStock.toFixed(2)}
                             </span>
                           </td>
-                          <td className="px-3.5 py-2 text-right font-mono text-slate-700 tabular-nums">
+                          <td className="px-4 py-2.5 text-right font-mono text-slate-700 tabular-nums font-semibold">
                             {uCost.toFixed(2)}
                           </td>
-                          <td className="px-3.5 py-2 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
+                          <td className="px-4 py-2.5 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
                             {cVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td className="px-3.5 py-2 text-center">
+                          <td className="px-4 py-2.5 text-center">
                             <button
                               type="button"
                               onClick={() => {
                                 setStockSubTab('bincard');
                                 handleSelectBinCardItem(item);
                               }}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold text-xs border border-blue-200 transition shadow-2xs cursor-pointer"
                               title="Evaluate article BinCard ledger"
                             >
-                              <Eye size={11} /> Ledger
+                              <Eye size={12} /> Ledger
                             </button>
                           </td>
                         </tr>
@@ -2660,18 +2716,18 @@ export default function Reports({ defaultTab } = {}) {
                 </tbody>
 
                 {filteredStockItems.length > 0 && (
-                  <tfoot className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                  <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
                     <tr>
-                      <td colSpan={5} className="px-3.5 py-2.5 uppercase font-extrabold text-slate-800">
-                        Total ({filteredStockItems.length} items)
+                      <td colSpan={5} className="px-4 py-3 uppercase font-extrabold text-slate-800">
+                        TOTAL ({filteredStockItems.length} ITEMS)
                       </td>
-                      <td className="px-3.5 py-2.5 text-right font-mono font-black text-slate-950 tabular-nums">
+                      <td className="px-4 py-3 text-right font-mono font-black text-slate-950 tabular-nums">
                         {stockEvaluationSummary.totalUnits.toFixed(2)}
                       </td>
-                      <td className="px-3.5 py-2.5 text-right text-slate-400 text-[10px]">
+                      <td className="px-4 py-3 text-right text-slate-500 font-semibold text-[11px] uppercase">
                         Grand Total
                       </td>
-                      <td className="px-3.5 py-2.5 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
+                      <td className="px-4 py-3 text-right font-mono font-black text-blue-900 bg-blue-100/50 tabular-nums">
                         ETB {stockEvaluationSummary.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td></td>
@@ -2731,19 +2787,23 @@ export default function Reports({ defaultTab } = {}) {
                   categoryGroupedStock.map((grp) => {
                     const isExpanded = expandedCategories[grp.category] !== false;
                     return (
-                      <div key={grp.category} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                      <div key={grp.category} className="rounded-2xl border border-slate-200/90 bg-white overflow-hidden shadow-xs">
                         {/* Category Header Bar (Solid Blue banner matching screenshot) */}
                         <div
                           onClick={() => setExpandedCategories(prev => ({ ...prev, [grp.category]: !isExpanded }))}
-                          className="w-full bg-[#357bbd] hover:bg-[#2b68a3] text-white px-3.5 py-2 flex items-center justify-between cursor-pointer transition select-none"
+                          className="w-full bg-[#245a95] hover:bg-[#1d4b7d] text-white px-4 py-2.5 flex items-center justify-between cursor-pointer transition select-none"
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold">{isExpanded ? '▼' : '▶'}</span>
-                            <span className="text-xs font-bold tracking-wide">Category: {grp.category}</span>
-                            <span className="text-[11px] font-normal opacity-85">({grp.items.length} item{grp.items.length !== 1 ? 's' : ''})</span>
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-5 w-5 items-center justify-center rounded bg-white/20 text-white text-xs font-bold">
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                            <span className="text-xs font-extrabold tracking-wide text-amber-200 uppercase">Category: {grp.category}</span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-white border border-white/20">
+                              {grp.items.length} item{grp.items.length !== 1 ? 's' : ''}
+                            </span>
                           </div>
                           <div className="flex items-center gap-4 text-xs font-semibold opacity-95 font-mono">
-                            <span>Balance: <strong>{grp.totalBalance.toFixed(2)}</strong></span>
+                            <span className="text-slate-200">Balance: <strong className="text-white font-bold">{grp.totalBalance.toFixed(2)}</strong></span>
                             <span className="text-amber-200 font-bold">Valuation: ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </div>
                         </div>
@@ -2752,19 +2812,19 @@ export default function Reports({ defaultTab } = {}) {
                         {isExpanded && (
                           <div className="overflow-x-auto">
                             <table className="min-w-full text-xs divide-y divide-slate-200">
-                              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                              <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                                 <tr>
-                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE CODE</th>
-                                  <th className="px-3.5 py-2 text-left font-bold text-slate-800">ARTICLE NAME</th>
-                                  <th className="px-3 py-2 text-left font-bold text-slate-800">UOM</th>
-                                  <th className="px-3 py-2 text-left font-bold text-slate-800">CATEGORY</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">OPENING</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-emerald-800 bg-emerald-50/50">INWARD</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-rose-800 bg-rose-50/50">OUTWARD</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-slate-900 bg-blue-50/50">BALANCE</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-slate-800">UNIT COST (ETB)</th>
-                                  <th className="px-3.5 py-2 text-right font-bold text-blue-900 bg-blue-50/40">STOCK VALUE (ETB)</th>
-                                  <th className="px-3.5 py-2 text-center font-bold text-slate-800">EVALUATE</th>
+                                  <th className="px-4 py-2.5 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                                  <th className="px-4 py-2.5 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                                  <th className="px-3 py-2.5 text-left font-extrabold text-slate-800">UOM</th>
+                                  <th className="px-3 py-2.5 text-left font-extrabold text-slate-800">CATEGORY</th>
+                                  <th className="px-3.5 py-2.5 text-right font-extrabold text-slate-800">OPENING</th>
+                                  <th className="px-3.5 py-2.5 text-right font-extrabold text-emerald-800 bg-emerald-50/50">INWARD</th>
+                                  <th className="px-3.5 py-2.5 text-right font-extrabold text-rose-800 bg-rose-50/50">OUTWARD</th>
+                                  <th className="px-3.5 py-2.5 text-right font-extrabold text-slate-900 bg-blue-50/50">BALANCE</th>
+                                  <th className="px-3.5 py-2.5 text-right font-extrabold text-slate-800">UNIT COST (ETB)</th>
+                                  <th className="px-3.5 py-2.5 text-right font-extrabold text-blue-900 bg-blue-50/50">STOCK VALUE (ETB)</th>
+                                  <th className="px-3.5 py-2.5 text-center font-extrabold text-slate-800">EVALUATE</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
@@ -2774,10 +2834,10 @@ export default function Reports({ defaultTab } = {}) {
                                   const cVal = Number(item.closingValue || (cStock * uCost));
                                   return (
                                     <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
-                                      <td className="px-3.5 py-2 font-mono text-xs font-semibold text-slate-700">
+                                      <td className="px-4 py-2 font-mono text-xs font-semibold text-slate-700">
                                         {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
                                       </td>
-                                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">
+                                      <td className="px-4 py-2 font-extrabold text-slate-900 uppercase">
                                         {item.name}
                                       </td>
                                       <td className="px-3 py-2 text-slate-600">
@@ -2811,10 +2871,10 @@ export default function Reports({ defaultTab } = {}) {
                                             setStockSubTab('bincard');
                                             handleSelectBinCardItem(item);
                                           }}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 transition"
+                                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold text-xs border border-blue-200 transition shadow-2xs cursor-pointer"
                                           title="Evaluate article BinCard ledger"
                                         >
-                                          <Eye size={11} /> Ledger
+                                          <Eye size={12} /> Ledger
                                         </button>
                                       </td>
                                     </tr>
@@ -2823,27 +2883,27 @@ export default function Reports({ defaultTab } = {}) {
                               </tbody>
 
                               {/* Category Group Subtotal Row */}
-                              <tfoot className="bg-slate-100/90 font-bold border-t border-slate-300 text-slate-900 text-xs">
+                              <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
                                 <tr>
-                                  <td colSpan={4} className="px-3.5 py-2 uppercase font-extrabold text-slate-800 text-[11px]">
+                                  <td colSpan={4} className="px-4 py-2.5 uppercase font-extrabold text-slate-800 text-[11px]">
                                     Subtotal — Category: {grp.category} ({grp.items.length} items)
                                   </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-slate-800 tabular-nums">
+                                  <td className="px-3.5 py-2.5 text-right font-mono font-extrabold text-slate-800 tabular-nums">
                                     {grp.totalOpening.toFixed(2)}
                                   </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-emerald-800 tabular-nums">
+                                  <td className="px-3.5 py-2.5 text-right font-mono font-extrabold text-emerald-800 tabular-nums">
                                     {grp.totalInward.toFixed(2)}
                                   </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-extrabold text-rose-800 tabular-nums">
+                                  <td className="px-3.5 py-2.5 text-right font-mono font-extrabold text-rose-800 tabular-nums">
                                     {grp.totalOutward.toFixed(2)}
                                   </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-black text-blue-950 tabular-nums">
+                                  <td className="px-3.5 py-2.5 text-right font-mono font-black text-blue-950 tabular-nums">
                                     {grp.totalBalance.toFixed(2)}
                                   </td>
-                                  <td className="px-3.5 py-2 text-right text-slate-400 text-[10px]">
+                                  <td className="px-3.5 py-2.5 text-right text-slate-400 text-[10px]">
                                     Subtotal
                                   </td>
-                                  <td className="px-3.5 py-2 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
+                                  <td className="px-3.5 py-2.5 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
                                     ETB {grp.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                   <td></td>
@@ -2866,16 +2926,16 @@ export default function Reports({ defaultTab } = {}) {
           {stockSubTab === 'bincard' && (
             <div className="space-y-3">
               {/* Article Selector Row */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">Select Article:</span>
+                  <span className="text-xs font-extrabold text-slate-800">Select Article:</span>
                   <select
                     value={binCardArticleId}
                     onChange={e => {
                       const sel = filteredStockItems.find(i => String(i._id) === String(e.target.value));
                       if (sel) handleSelectBinCardItem(sel);
                     }}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 font-semibold"
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 font-semibold"
                   >
                     <option value="">-- Choose an article to inspect ledger --</option>
                     {filteredStockItems.map(i => (
@@ -2888,8 +2948,8 @@ export default function Reports({ defaultTab } = {}) {
 
                 {selectedLedgerMaterial && (
                   <div className="flex items-center gap-3 text-xs">
-                    <span className="text-slate-500">Current Stock: <strong className="text-slate-900">{selectedLedgerMaterial.currentStock} {selectedLedgerMaterial.unit}</strong></span>
-                    <span className="text-slate-500">Unit Cost: <strong className="text-slate-900">{(selectedLedgerMaterial.unitCost || 0).toFixed(2)} ETB</strong></span>
+                    <span className="text-slate-500 font-medium">Current Stock: <strong className="text-slate-900 font-bold">{selectedLedgerMaterial.currentStock} {selectedLedgerMaterial.unit}</strong></span>
+                    <span className="text-slate-500 font-medium">Unit Cost: <strong className="text-slate-900 font-bold">{(selectedLedgerMaterial.unitCost || 0).toFixed(2)} ETB</strong></span>
                   </div>
                 )}
               </div>
@@ -2902,25 +2962,25 @@ export default function Reports({ defaultTab } = {}) {
               )}
 
               {!ledgerLoading && !ledgerData && (
-                <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center text-xs text-slate-400">
-                  Select an article above or click "BinCard" on any item in the BinCard Summary table to load its running ledger.
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-xs text-slate-400">
+                  Select an article above or click "Ledger" on any item in the inventory tables to load its running ledger.
                 </div>
               )}
 
               {!ledgerLoading && ledgerData && (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
                   <table className="min-w-full text-xs divide-y divide-slate-200">
-                    <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                    <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                       <tr>
-                        <th className="px-3 py-2 text-left">DATE & TIME</th>
-                        <th className="px-3 py-2 text-left">VOUCHER #</th>
-                        <th className="px-3 py-2 text-left">TYPE</th>
-                        <th className="px-3 py-2 text-left">PARTY / REASON</th>
-                        <th className="px-3 py-2 text-right text-emerald-800 bg-emerald-50/50">IN (+)</th>
-                        <th className="px-3 py-2 text-right text-rose-800 bg-rose-50/50">OUT (−)</th>
-                        <th className="px-3 py-2 text-right text-blue-900 bg-blue-50/50">BALANCE</th>
-                        <th className="px-3 py-2 text-center">STATUS</th>
-                        <th className="px-3 py-2 text-left">HANDLED BY</th>
+                        <th className="px-4 py-3 text-left font-extrabold text-slate-800">DATE & TIME</th>
+                        <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">VOUCHER #</th>
+                        <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">TYPE</th>
+                        <th className="px-4 py-3 text-left font-extrabold text-slate-800">PARTY / REASON</th>
+                        <th className="px-4 py-3 text-right font-extrabold text-emerald-800 bg-emerald-50/50">IN (+)</th>
+                        <th className="px-4 py-3 text-right font-extrabold text-rose-800 bg-rose-50/50">OUT (−)</th>
+                        <th className="px-4 py-3 text-right font-extrabold text-blue-900 bg-blue-50/50">BALANCE</th>
+                        <th className="px-3.5 py-3 text-center font-extrabold text-slate-800">STATUS</th>
+                        <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">HANDLED BY</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -2933,23 +2993,23 @@ export default function Reports({ defaultTab } = {}) {
                       ) : (
                         ledgerData.ledger?.map((row, idx) => (
                           <tr key={row.txnId || idx} className="hover:bg-slate-50/80 transition">
-                            <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">{formatDateTime(row.date)}</td>
-                            <td className="px-3 py-2 font-mono font-bold text-slate-900">{row.voucherNo}</td>
-                            <td className="px-3 py-2 text-slate-700">{VOUCHER_LABELS[row.voucherType] || row.voucherType}</td>
-                            <td className="px-3 py-2 text-slate-600 truncate max-w-xs">{row.supplier !== '—' ? row.supplier : row.reason}</td>
-                            <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
+                            <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatDateTime(row.date)}</td>
+                            <td className="px-3.5 py-2.5 font-mono font-bold text-slate-900">{row.voucherNo}</td>
+                            <td className="px-3.5 py-2.5 text-slate-700">{VOUCHER_LABELS[row.voucherType] || row.voucherType}</td>
+                            <td className="px-4 py-2.5 text-slate-600 truncate max-w-xs">{row.supplier !== '—' ? row.supplier : row.reason}</td>
+                            <td className="px-4 py-2.5 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
                               {row.inQty > 0 ? `+${row.inQty}` : '—'}
                             </td>
-                            <td className="px-3 py-2 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
+                            <td className="px-4 py-2.5 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
                               {row.outQty > 0 ? `−${row.outQty}` : '—'}
                             </td>
-                            <td className="px-3 py-2 text-right font-mono font-black text-blue-900 bg-blue-50/20 tabular-nums">
+                            <td className="px-4 py-2.5 text-right font-mono font-black text-blue-900 bg-blue-50/20 tabular-nums">
                               {row.balanceAfter}
                             </td>
-                            <td className="px-3 py-2 text-center">
+                            <td className="px-3.5 py-2.5 text-center">
                               <WorkflowBadge status={row.status} />
                             </td>
-                            <td className="px-3 py-2 text-slate-600">{row.performedBy}</td>
+                            <td className="px-3.5 py-2.5 text-slate-600">{row.performedBy}</td>
                           </tr>
                         ))
                       )}
@@ -2964,19 +3024,19 @@ export default function Reports({ defaultTab } = {}) {
               SUB-TAB 4: MIN. STOCK LEVEL
           ══════════════════════════════════════════════════════════════ */}
           {stockSubTab === 'min_stock_level' && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
               <table className="min-w-full text-xs divide-y divide-slate-200">
-                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
-                    <th className="px-2.5 py-2.5 text-left">UOM</th>
-                    <th className="px-3.5 py-2.5 text-left">CATEGORY</th>
-                    <th className="px-3 py-2.5 text-right font-bold text-red-700">CURRENT STOCK</th>
-                    <th className="px-3 py-2.5 text-right text-slate-700">MIN. STOCK LEVEL</th>
-                    <th className="px-3 py-2.5 text-right text-slate-700">REORDER LEVEL</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-amber-700">DEFICIT (SHORTAGE)</th>
-                    <th className="px-3.5 py-2.5 text-center">STATUS</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                    <th className="px-3 py-3 text-left font-extrabold text-slate-800">UOM</th>
+                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">CATEGORY</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-red-700">CURRENT STOCK</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-slate-700">MIN. STOCK LEVEL</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-slate-700">REORDER LEVEL</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-amber-700">DEFICIT (SHORTAGE)</th>
+                    <th className="px-4 py-3 text-center font-extrabold text-slate-800">STATUS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -2992,25 +3052,25 @@ export default function Reports({ defaultTab } = {}) {
                       const shortage = Math.max(0, (item.reorderLevel || item.minStock || 10) - (item.closingStock || 0));
                       return (
                         <tr key={item._id || idx} className="hover:bg-amber-50/20 transition">
-                          <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
-                          <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
-                          <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
-                          <td className="px-3.5 py-2 text-slate-600">{item.category}</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-red-700 tabular-nums">
+                          <td className="px-4 py-2.5 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                          <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">{item.name}</td>
+                          <td className="px-3 py-2.5 text-slate-600 font-medium">{item.unit}</td>
+                          <td className="px-3.5 py-2.5 text-slate-600">{item.category}</td>
+                          <td className="px-4 py-2.5 text-right font-mono font-bold text-red-700 tabular-nums">
                             {Number(item.closingStock || 0).toFixed(2)}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                          <td className="px-4 py-2.5 text-right font-mono text-slate-600 tabular-nums">
                             {Number(item.minStock || 0).toFixed(2)}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                          <td className="px-4 py-2.5 text-right font-mono text-slate-600 tabular-nums">
                             {Number(item.reorderLevel || 10).toFixed(2)}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-amber-800 tabular-nums">
+                          <td className="px-4 py-2.5 text-right font-mono font-bold text-amber-800 tabular-nums">
                             {shortage > 0 ? `-${shortage.toFixed(2)}` : '0.00'}
                           </td>
-                          <td className="px-3 py-2 text-center">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              item.closingStock <= 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              item.closingStock <= 0 ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
                             }`}>
                               {item.closingStock <= 0 ? 'CRITICAL OUT OF STOCK' : 'LOW STOCK REORDER'}
                             </span>
@@ -3020,6 +3080,25 @@ export default function Reports({ defaultTab } = {}) {
                     })
                   )}
                 </tbody>
+                {minStockItems.length > 0 && (
+                  <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                    <tr>
+                      <td colSpan={4} className="px-4 py-3 uppercase font-extrabold text-slate-800">
+                        Total Low Stock / Critical Items ({minStockItems.length})
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-red-700 tabular-nums">
+                        {minStockItems.reduce((acc, i) => acc + Number(i.closingStock || 0), 0).toFixed(2)}
+                      </td>
+                      <td colSpan={2} className="px-4 py-3 text-right text-slate-400 text-[10px] uppercase font-bold">
+                        Total Deficit
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-black text-amber-800 tabular-nums">
+                        -{minStockItems.reduce((acc, i) => acc + Math.max(0, (i.reorderLevel || i.minStock || 10) - (i.closingStock || 0)), 0).toFixed(2)}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}
@@ -3271,36 +3350,36 @@ export default function Reports({ defaultTab } = {}) {
               SUB-TAB 6: EXPIRY DATE
           ══════════════════════════════════════════════════════════════ */}
           {stockSubTab === 'expiry_date' && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
               <table className="min-w-full text-xs divide-y divide-slate-200">
-                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
-                    <th className="px-3.5 py-2.5 text-left">BATCH / LOT NO</th>
-                    <th className="px-3.5 py-2.5 text-left">STORE</th>
-                    <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CURRENT STOCK</th>
-                    <th className="px-3.5 py-2.5 text-left">EXPIRY DATE</th>
-                    <th className="px-3.5 py-2.5 text-center">STATUS</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">BATCH / LOT NO</th>
+                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">STORE</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-slate-800">CURRENT STOCK</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">EXPIRY DATE</th>
+                    <th className="px-4 py-3 text-center font-extrabold text-slate-800">STATUS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredStockItems.map((item, idx) => (
-                    <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
-                      <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
-                      <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
-                      <td className="px-3.5 py-2 font-mono text-slate-600">
+                    <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                      <td className="px-4 py-2.5 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                      <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">{item.name}</td>
+                      <td className="px-3.5 py-2.5 font-mono text-slate-600">
                         {`BATCH-${item.code || (item._id ? item._id.slice(-5).toUpperCase() : '01')}`}
                       </td>
-                      <td className="px-3.5 py-2 text-slate-600">{item.storeLocation || 'Main Store'}</td>
-                      <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                      <td className="px-3.5 py-2.5 text-slate-600 font-medium">{item.storeLocation || 'Main Store'}</td>
+                      <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums">
                         {Number(item.closingStock || 0).toFixed(2)} {item.unit}
                       </td>
-                      <td className="px-3.5 py-2 font-mono text-slate-700">
+                      <td className="px-4 py-2.5 font-mono text-slate-700 font-medium">
                         {new Date(Date.now() + (idx + 1) * 35 * 86400000).toISOString().slice(0, 10)}
                       </td>
-                      <td className="px-3.5 py-2 text-center">
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <td className="px-4 py-2.5 text-center">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           Good Shelf-Life
                         </span>
                       </td>
@@ -3317,20 +3396,20 @@ export default function Reports({ defaultTab } = {}) {
           {stockSubTab === 'expiry_notification' && (
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Card className="border-l-4 border-l-red-500 bg-red-50/20">
-                  <p className="text-xs font-semibold text-red-800">Expired Items (&lt; 0 Days)</p>
+                <Card className="border-l-4 border-l-red-500 bg-red-50/20 rounded-2xl shadow-xs">
+                  <p className="text-xs font-bold text-red-800">Expired Items (&lt; 0 Days)</p>
                   <p className="text-2xl font-black text-red-700 mt-1 tabular">0</p>
                   <p className="text-[11px] text-red-600 mt-0.5">Immediate write-off / disposal required</p>
                 </Card>
-                <Card className="border-l-4 border-l-amber-500 bg-amber-50/20">
-                  <p className="text-xs font-semibold text-amber-800">Expiring Soon (&lt; 60 Days)</p>
+                <Card className="border-l-4 border-l-amber-500 bg-amber-50/20 rounded-2xl shadow-xs">
+                  <p className="text-xs font-bold text-amber-800">Expiring Soon (&lt; 60 Days)</p>
                   <p className="text-2xl font-black text-amber-700 mt-1 tabular">
                     {Math.min(3, filteredStockItems.length)}
                   </p>
                   <p className="text-[11px] text-amber-600 mt-0.5">Prioritize issuance / sales</p>
                 </Card>
-                <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/20">
-                  <p className="text-xs font-semibold text-emerald-800">Safe Stock (&gt; 90 Days)</p>
+                <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/20 rounded-2xl shadow-xs">
+                  <p className="text-xs font-bold text-emerald-800">Safe Stock (&gt; 90 Days)</p>
                   <p className="text-2xl font-black text-emerald-700 mt-1 tabular">
                     {Math.max(0, filteredStockItems.length - 3)}
                   </p>
@@ -3338,16 +3417,16 @@ export default function Reports({ defaultTab } = {}) {
                 </Card>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
                 <table className="min-w-full text-xs divide-y divide-slate-200">
-                  <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                  <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                     <tr>
-                      <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
-                      <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
-                      <th className="px-3.5 py-2.5 text-left">BATCH</th>
-                      <th className="px-3.5 py-2.5 text-right font-bold text-slate-800">CURRENT STOCK</th>
-                      <th className="px-3.5 py-2.5 text-left">EXPIRY DATE</th>
-                      <th className="px-3.5 py-2.5 text-center">NOTIFICATION ALERT</th>
+                      <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                      <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                      <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">BATCH</th>
+                      <th className="px-4 py-3 text-right font-extrabold text-slate-800">CURRENT STOCK</th>
+                      <th className="px-4 py-3 text-left font-extrabold text-slate-800">EXPIRY DATE</th>
+                      <th className="px-4 py-3 text-center font-extrabold text-slate-800">NOTIFICATION ALERT</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -3355,19 +3434,19 @@ export default function Reports({ defaultTab } = {}) {
                       const daysLeft = (idx + 1) * 22;
                       const isAlert = daysLeft < 60;
                       return (
-                        <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
-                          <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
-                          <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
-                          <td className="px-3.5 py-2 font-mono text-slate-600">{`LOT-${idx + 101}`}</td>
-                          <td className="px-3.5 py-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        <tr key={item._id || idx} className="hover:bg-blue-50/20 transition-colors">
+                          <td className="px-4 py-2.5 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                          <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">{item.name}</td>
+                          <td className="px-3.5 py-2.5 font-mono text-slate-600">{`LOT-${idx + 101}`}</td>
+                          <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums">
                             {Number(item.closingStock || 0).toFixed(2)} {item.unit}
                           </td>
-                          <td className="px-3.5 py-2 font-mono text-slate-700">
+                          <td className="px-4 py-2.5 font-mono text-slate-700 font-medium">
                             {new Date(Date.now() + daysLeft * 86400000).toISOString().slice(0, 10)}
                           </td>
-                          <td className="px-3.5 py-2 text-center">
+                          <td className="px-4 py-2.5 text-center">
                             <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              isAlert ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                              isAlert ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             }`}>
                               {isAlert ? `WARNING (${daysLeft} DAYS LEFT)` : 'SAFE (> 60 DAYS)'}
                             </span>
@@ -3388,9 +3467,9 @@ export default function Reports({ defaultTab } = {}) {
             <div className="space-y-3">
               {/* ABC Definition Summary */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Card className="border-l-4 border-l-purple-600 bg-purple-50/20">
+                <Card className="border-l-4 border-l-purple-600 bg-purple-50/20 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-purple-900">Class A (High Value)</p>
+                    <p className="text-xs font-extrabold text-purple-900">Class A (High Value)</p>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">~70% Value</span>
                   </div>
                   <p className="text-2xl font-black text-purple-900 mt-1 tabular">
@@ -3399,9 +3478,9 @@ export default function Reports({ defaultTab } = {}) {
                   <p className="text-[11px] text-purple-700 mt-0.5">Strict control, daily verification</p>
                 </Card>
 
-                <Card className="border-l-4 border-l-blue-600 bg-blue-50/20">
+                <Card className="border-l-4 border-l-blue-600 bg-blue-50/20 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-blue-900">Class B (Moderate Value)</p>
+                    <p className="text-xs font-extrabold text-blue-900">Class B (Moderate Value)</p>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">~20% Value</span>
                   </div>
                   <p className="text-2xl font-black text-blue-900 mt-1 tabular">
@@ -3410,9 +3489,9 @@ export default function Reports({ defaultTab } = {}) {
                   <p className="text-[11px] text-blue-700 mt-0.5">Normal control, weekly audit</p>
                 </Card>
 
-                <Card className="border-l-4 border-l-amber-600 bg-amber-50/20">
+                <Card className="border-l-4 border-l-amber-600 bg-amber-50/20 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-amber-900">Class C (Low Value)</p>
+                    <p className="text-xs font-extrabold text-amber-900">Class C (Low Value)</p>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">~10% Value</span>
                   </div>
                   <p className="text-2xl font-black text-amber-900 mt-1 tabular">
@@ -3422,45 +3501,45 @@ export default function Reports({ defaultTab } = {}) {
                 </Card>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
                 <table className="min-w-full text-xs divide-y divide-slate-200">
-                  <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                  <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                     <tr>
-                      <th className="px-3 py-2.5 text-center">RANK</th>
-                      <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
-                      <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
-                      <th className="px-2.5 py-2.5 text-left">UOM</th>
-                      <th className="px-3 py-2.5 text-right font-bold text-slate-800">QTY ON HAND</th>
-                      <th className="px-3 py-2.5 text-right text-slate-700">UNIT COST (ETB)</th>
-                      <th className="px-3.5 py-2.5 text-right font-black text-slate-900">TOTAL VALUE (ETB)</th>
-                      <th className="px-3 py-2.5 text-right text-slate-700">% VALUE</th>
-                      <th className="px-3 py-2.5 text-right text-slate-700">CUMULATIVE %</th>
-                      <th className="px-3 py-2.5 text-center">ABC CLASS</th>
+                      <th className="px-3.5 py-3 text-center font-extrabold text-slate-800">RANK</th>
+                      <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                      <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                      <th className="px-3 py-3 text-left font-extrabold text-slate-800">UOM</th>
+                      <th className="px-4 py-3 text-right font-extrabold text-slate-800">QTY ON HAND</th>
+                      <th className="px-4 py-3 text-right font-extrabold text-slate-700">UNIT COST (ETB)</th>
+                      <th className="px-4 py-3 text-right font-extrabold text-slate-900">TOTAL VALUE (ETB)</th>
+                      <th className="px-3.5 py-3 text-right font-extrabold text-slate-700">% VALUE</th>
+                      <th className="px-3.5 py-3 text-right font-extrabold text-slate-700">CUMULATIVE %</th>
+                      <th className="px-4 py-3 text-center font-extrabold text-slate-800">ABC CLASS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {abcItems.map((item) => (
-                      <tr key={item._id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-3 py-2 text-center font-mono font-bold text-slate-500">{item.rank}</td>
-                        <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
-                        <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
-                        <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
-                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
+                      <tr key={item._id} className="hover:bg-blue-50/20 transition-colors">
+                        <td className="px-3.5 py-2.5 text-center font-mono font-bold text-slate-500">{item.rank}</td>
+                        <td className="px-4 py-2.5 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                        <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">{item.name}</td>
+                        <td className="px-3 py-2.5 text-slate-600 font-medium">{item.unit}</td>
+                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800 tabular-nums">
                           {Number(item.closingStock || 0).toFixed(2)}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                        <td className="px-4 py-2.5 text-right font-mono text-slate-600 tabular-nums">
                           {Number(item.unitCost || 0).toFixed(2)}
                         </td>
-                        <td className="px-3.5 py-2 text-right font-mono font-extrabold text-slate-900 tabular-nums">
+                        <td className="px-4 py-2.5 text-right font-mono font-extrabold text-slate-900 tabular-nums">
                           {Number(item.closingValue || 0).toFixed(2)}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                        <td className="px-3.5 py-2.5 text-right font-mono text-slate-600 tabular-nums">
                           {item.valuePercent.toFixed(2)}%
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                        <td className="px-3.5 py-2.5 text-right font-mono text-slate-600 tabular-nums font-semibold">
                           {item.cumulativePercent.toFixed(2)}%
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-4 py-2.5 text-center">
                           <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black ${
                             item.abcClass === 'A' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
                             item.abcClass === 'B' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
@@ -3472,6 +3551,25 @@ export default function Reports({ defaultTab } = {}) {
                       </tr>
                     ))}
                   </tbody>
+                  {abcItems.length > 0 && (
+                    <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                      <tr>
+                        <td colSpan={4} className="px-4 py-3 uppercase font-extrabold text-slate-800">
+                          Total ({abcItems.length} articles)
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-slate-950 tabular-nums">
+                          {abcItems.reduce((acc, i) => acc + Number(i.closingStock || 0), 0).toFixed(2)}
+                        </td>
+                        <td></td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-blue-900 bg-blue-100/40 tabular-nums">
+                          ETB {abcItems.reduce((acc, i) => acc + Number(i.closingValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-700">100.00%</td>
+                        <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-700">100.00%</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
@@ -3481,19 +3579,19 @@ export default function Reports({ defaultTab } = {}) {
               SUB-TAB 9: DEAD ITEM MOVEMENT SUMMARY
           ══════════════════════════════════════════════════════════════ */}
           {stockSubTab === 'dead_movement' && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
               <table className="min-w-full text-xs divide-y divide-slate-200">
-                <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE CODE</th>
-                    <th className="px-3.5 py-2.5 text-left">ARTICLE NAME</th>
-                    <th className="px-2.5 py-2.5 text-left">UOM</th>
-                    <th className="px-3.5 py-2.5 text-left">CATEGORY</th>
-                    <th className="px-3 py-2.5 text-right font-bold text-slate-800">CURRENT STOCK</th>
-                    <th className="px-3 py-2.5 text-right text-slate-700">UNIT COST (ETB)</th>
-                    <th className="px-3 py-2.5 text-right font-bold text-amber-800">STOCK VALUE (ETB)</th>
-                    <th className="px-3 py-2.5 text-center text-slate-700">OUTWARD ISSUES</th>
-                    <th className="px-3 py-2.5 text-center">DORMANCY STATUS</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                    <th className="px-3 py-3 text-left font-extrabold text-slate-800">UOM</th>
+                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">CATEGORY</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-slate-800">CURRENT STOCK</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-slate-700">UNIT COST (ETB)</th>
+                    <th className="px-4 py-3 text-right font-extrabold text-amber-800">STOCK VALUE (ETB)</th>
+                    <th className="px-3.5 py-3 text-center font-extrabold text-slate-700">OUTWARD ISSUES</th>
+                    <th className="px-4 py-3 text-center font-extrabold text-slate-800">DORMANCY STATUS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -3506,23 +3604,23 @@ export default function Reports({ defaultTab } = {}) {
                     </tr>
                   ) : (
                     deadMovementItems.map((item, idx) => (
-                      <tr key={item._id || idx} className="hover:bg-slate-50/70 transition">
-                        <td className="px-3.5 py-2 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
-                        <td className="px-3.5 py-2 font-bold text-slate-900 uppercase">{item.name}</td>
-                        <td className="px-2.5 py-2 text-slate-600">{item.unit}</td>
-                        <td className="px-3.5 py-2 text-slate-600">{item.category}</td>
-                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-800 tabular-nums">
+                      <tr key={item._id || idx} className="hover:bg-rose-50/20 transition-colors">
+                        <td className="px-4 py-2.5 font-mono font-semibold text-slate-700">{item.code || '—'}</td>
+                        <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">{item.name}</td>
+                        <td className="px-3 py-2.5 text-slate-600 font-medium">{item.unit}</td>
+                        <td className="px-3.5 py-2.5 text-slate-600">{item.category}</td>
+                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800 tabular-nums">
                           {Number(item.closingStock || 0).toFixed(2)}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-slate-600 tabular-nums">
+                        <td className="px-4 py-2.5 text-right font-mono text-slate-600 tabular-nums">
                           {Number(item.unitCost || 0).toFixed(2)}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono font-bold text-amber-800 tabular-nums">
+                        <td className="px-4 py-2.5 text-right font-mono font-bold text-amber-800 tabular-nums">
                           {Number(item.closingValue || 0).toFixed(2)}
                         </td>
-                        <td className="px-3 py-2 text-center font-mono font-bold text-slate-500">0</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        <td className="px-3.5 py-2.5 text-center font-mono font-bold text-slate-500">0</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                             DORMANT / DEAD STOCK
                           </span>
                         </td>
@@ -3530,6 +3628,25 @@ export default function Reports({ defaultTab } = {}) {
                     ))
                   )}
                 </tbody>
+                {deadMovementItems.length > 0 && (
+                  <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                    <tr>
+                      <td colSpan={4} className="px-4 py-3 uppercase font-extrabold text-slate-800">
+                        Total Dormant Items ({deadMovementItems.length})
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-black text-slate-950 tabular-nums">
+                        {deadMovementItems.reduce((acc, i) => acc + Number(i.closingStock || 0), 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-400 text-[10px] uppercase font-bold">
+                        Tied Up Capital
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-black text-rose-800 bg-rose-100/40 tabular-nums">
+                        ETB {deadMovementItems.reduce((acc, i) => acc + Number(i.closingValue || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td colSpan={2}></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}
