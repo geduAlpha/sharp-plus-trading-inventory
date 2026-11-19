@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Printer, Scale, Search, History, X, RefreshCw,
   ChevronLeft, ChevronRight, Calendar, ArrowRight, CheckCircle, Clock,
@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronUp, Eye, EyeOff, Save, ArrowUpDown, CheckCheck,
   FileSpreadsheet, Download, Home, Copy, Check, FileText, Layers,
   Filter, ShieldAlert, Award, AlertCircle, Info, SlidersHorizontal, AlignJustify, List,
-  Package, Bell, Archive,
+  Package, Bell, Archive, ShoppingBag, CreditCard,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
@@ -71,6 +71,20 @@ const TABS = [
   { key: 'neg_adjustment', label: '−ve Adjustment', endpoint: '/reports/neg-adjustment' },
   { key: 'stock', label: 'Stock Levels', endpoint: '/reports/stock-levels' },
   { key: 'purchases', label: 'Purchases', endpoint: '/reports/purchases' },
+];
+
+const ALL_REPORT_TABS = [
+  { key: 'summary', label: 'Overview', path: '/reports/summary', icon: BarChart3 },
+  { key: 'stock_balance', label: 'Stock Balance', path: '/reports/stock-balance', icon: Scale },
+  { key: 'cash_grv', label: 'Cash GRV', path: '/reports/cash-grv', icon: ShoppingBag, group: 'grv' },
+  { key: 'credit_grv', label: 'Credit GRV', path: '/reports/credit-grv', icon: CreditCard, group: 'grv' },
+  { key: 'pos_adjustment', label: '+ve Adjustment', path: '/reports/pos-adjustment', icon: TrendingUp, group: 'adj' },
+  { key: 'neg_adjustment', label: '−ve Adjustment', path: '/reports/neg-adjustment', icon: TrendingDown, group: 'adj' },
+  { key: 'disposal', label: 'Disposal', path: '/reports/disposal', icon: Trash2 },
+  { key: 'daily', label: 'Daily Report', path: '/reports/daily', icon: Calendar },
+  { key: 'stock', label: 'Stock Levels', path: '/reports/stock-levels', icon: PackageSearch },
+  { key: 'purchases', label: 'Purchases', path: '/reports/purchases', icon: ClipboardList },
+  { key: 'inventory_count', label: 'Inventory Count', path: '/reports/inventory-count', icon: Store },
 ];
 
 
@@ -840,6 +854,7 @@ function InventoryCountPanel() {
 
 // ── Main component ────────────────────────────────────────────────────
 export default function Reports({ defaultTab } = {}) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState(defaultTab || 'stock_balance');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1739,6 +1754,112 @@ export default function Reports({ defaultTab } = {}) {
             <Button variant="ghost" className="border border-ink-200" onClick={() => window.print()}>
               <Printer size={15} /> Print
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Report Type Master Selection Bar ── */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
+        {ALL_REPORT_TABS.map(rt => {
+          const isActive = tab === rt.key;
+          const Icon = rt.icon;
+          return (
+            <button
+              key={rt.key}
+              type="button"
+              onClick={() => {
+                setTab(rt.key);
+                navigate(rt.path);
+              }}
+              className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-xs shadow-blue-500/25 ring-1 ring-blue-600'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-semibold'
+              }`}
+            >
+              <Icon size={14} className={isActive ? 'text-white' : 'text-slate-400'} />
+              <span>{rt.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Paired Switcher for Both GRVs ── */}
+      {['cash_grv', 'credit_grv'].includes(tab) && (
+        <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-2 sm:p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Goods Receiving Vouchers
+            </span>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Switch between Cash & Credit receiving records
+            </span>
+          </div>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 text-xs font-semibold shadow-2xs">
+            <button
+              type="button"
+              onClick={() => { setTab('cash_grv'); navigate('/reports/cash-grv'); }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                tab === 'cash_grv'
+                  ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <ShoppingBag size={13} />
+              <span>Cash GRV Report</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('credit_grv'); navigate('/reports/credit-grv'); }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                tab === 'credit_grv'
+                  ? 'bg-blue-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <CreditCard size={13} />
+              <span>Credit GRV Report</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Paired Switcher for Both Adjustments ── */}
+      {['pos_adjustment', 'neg_adjustment'].includes(tab) && (
+        <div className="rounded-2xl border border-violet-200/80 bg-violet-50/40 p-2 sm:p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-violet-100 text-violet-800 border border-violet-200">
+              Stock Adjustments
+            </span>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Switch between Positive (+ve) & Negative (−ve) reconciliation records
+            </span>
+          </div>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 text-xs font-semibold shadow-2xs">
+            <button
+              type="button"
+              onClick={() => { setTab('pos_adjustment'); navigate('/reports/pos-adjustment'); }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                tab === 'pos_adjustment'
+                  ? 'bg-violet-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <TrendingUp size={13} />
+              <span>+ve Adjustment Report</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('neg_adjustment'); navigate('/reports/neg-adjustment'); }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                tab === 'neg_adjustment'
+                  ? 'bg-rose-600 text-white font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <TrendingDown size={13} />
+              <span>−ve Adjustment Report</span>
+            </button>
           </div>
         </div>
       )}
