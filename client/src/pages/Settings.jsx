@@ -3718,30 +3718,29 @@ export default function Settings() {
                   {CRUD_MODULE_ROWS.map((mod) => (
                     <tr key={mod.key} className="hover:bg-blue-50/20 transition-colors">
                       {/* Sticky Left Column: Module / Feature */}
-                      <td className="sticky left-0 z-20 py-3.5 px-4 font-bold text-ink-900 border-r-2 border-ink-200 bg-white whitespace-nowrap shadow-xs">
-                        <div className="pr-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-bold text-ink-900 leading-tight">{mod.label}</p>
-                            <div className="flex items-center gap-1 text-[10px] font-bold">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleCrudModuleRow(mod.key, true)}
-                                className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
-                                title={`Enable all 7 actions for ${mod.label}`}
-                              >
-                                All
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleCrudModuleRow(mod.key, false)}
-                                className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
-                                title={`Disable all 7 actions for ${mod.label}`}
-                              >
-                                None
-                              </button>
-                            </div>
+                      <td className="sticky left-0 z-20 py-2.5 px-4 font-bold text-ink-900 border-r-2 border-ink-200 bg-white whitespace-nowrap shadow-xs">
+                        <div className="pr-2 flex items-center justify-between gap-3">
+                          <span className="text-xs font-bold text-slate-900 leading-tight" title={mod.desc}>
+                            {mod.label}
+                          </span>
+                          <div className="flex items-center gap-1 text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCrudModuleRow(mod.key, true)}
+                              className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                              title={`Enable all 7 actions for ${mod.label}`}
+                            >
+                              All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCrudModuleRow(mod.key, false)}
+                              className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition cursor-pointer"
+                              title={`Disable all 7 actions for ${mod.label}`}
+                            >
+                              None
+                            </button>
                           </div>
-                          <p className="text-[10px] text-ink-400 font-normal leading-tight mt-0.5">{mod.desc}</p>
                         </div>
                       </td>
 
@@ -4363,9 +4362,8 @@ export default function Settings() {
 
                             return (
                               <tr key={mod.key} className={`hover:bg-slate-50/60 transition ${modHasOverride ? 'bg-purple-50/20' : ''}`}>
-                                <td className="py-3 px-4">
-                                  <div className="font-bold text-ink-900 text-xs">{mod.label}</div>
-                                  <div className="text-[11px] text-ink-400">{mod.desc}</div>
+                                <td className="py-2.5 px-4">
+                                  <div className="font-bold text-ink-900 text-xs" title={mod.desc}>{mod.label}</div>
                                 </td>
                                 {CRUD_ACTIONS.map((act) => {
                                   const permitted = getUserCrudPermission(mod.key, act.key);
