@@ -870,14 +870,19 @@ export default function Login() {
           <div className="login-form-wrap">
             <div className="login-form-block">
 
-              {/* Heading */}
-              <div className="mb-6">
-                <h2 className="login-heading">{otpToken ? 'Sign In' : 'Verification'}</h2>
-                <p className="login-subtext">
-                  {otpToken
-                    ? 'Step 2 of 2: Enter your username and password to access the system.'
-                    : 'Step 1 of 2: First verify your account via @SharpPlusBot on Telegram.'}
-                </p>
+              {/* Heading & Step Pill */}
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-blue-50 text-blue-700 border border-blue-200/80">
+                    {otpToken ? 'Step 2 of 2' : 'Step 1 of 2'}
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {otpToken ? 'Account Credentials' : 'Identity Verification'}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  {otpToken ? 'Sign In' : 'Verification'}
+                </h2>
               </div>
 
               {/* Session timeout notice */}
@@ -900,25 +905,29 @@ export default function Login() {
                 /* ── STEP 1: First verify by Telegram Bot ── */
                 <div className="space-y-4">
                   {step === 'phone' ? (
-                    <form onSubmit={handleRequestOtp} className="space-y-3">
-                      <div className="flex items-center justify-between pb-1">
-                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                          <Smartphone size={14} className="text-blue-600" />
-                          <span>Telegram Bot Verification</span>
-                        </span>
+                    <form onSubmit={handleRequestOtp} className="space-y-4">
+                      {/* Telegram Bot Service Card (Clean Framing UI) */}
+                      <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-blue-50/80 p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shadow-blue-500/25 shrink-0">
+                            <Send size={15} className="-ml-0.5 mt-0.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-slate-900 block truncate">Telegram Bot Service</span>
+                            <span className="text-[11px] text-slate-500 block truncate">Instant 6-digit verification code</span>
+                          </div>
+                        </div>
                         <a
                           href="https://t.me/SharpPlusBot"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-semibold"
+                          className="px-2.5 py-1 rounded-xl bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 text-[11px] font-bold shadow-2xs flex items-center gap-1 transition shrink-0"
+                          title="Open @SharpPlusBot in Telegram"
                         >
-                          <Send size={11} /> @SharpPlusBot
+                          <span>@SharpPlusBot</span>
+                          <ArrowRight size={11} />
                         </a>
                       </div>
-
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        Enter your phone number to receive a 6-digit verification code from <strong>@SharpPlusBot</strong>.
-                      </p>
 
                       {otpError && (
                         <div className="login-server-error" role="alert">
@@ -927,17 +936,20 @@ export default function Login() {
                         </div>
                       )}
 
-                      <div className="phone-input-wrap">
-                        <Phone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                        <input
-                          type="tel"
-                          value={phone}
-                          onChange={(e) => { setPhone(e.target.value); setOtpError(''); }}
-                          placeholder="Phone number (e.g. 0912627366)"
-                          autoComplete="tel"
-                          required
-                          autoFocus
-                        />
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 block">Phone Number</label>
+                        <div className="phone-input-wrap">
+                          <Phone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                          <input
+                            type="tel"
+                            value={phone}
+                            onChange={(e) => { setPhone(e.target.value); setOtpError(''); }}
+                            placeholder="0912627366"
+                            autoComplete="tel"
+                            required
+                            autoFocus
+                          />
+                        </div>
                       </div>
 
                       <button
@@ -946,25 +958,25 @@ export default function Login() {
                         className="login-btn-primary"
                       >
                         {otpLoading ? (
-                          <><span className="login-spinner" aria-hidden="true" />Sending OTP via Telegram…</>
+                          <><span className="login-spinner" aria-hidden="true" />Sending Code…</>
                         ) : (
-                          <span className="flex items-center justify-center gap-1.5">
+                          <span className="flex items-center justify-center gap-2">
                             <span>Send Verification Code</span>
-                            <ArrowRight size={16} />
+                            <ArrowRight size={15} />
                           </span>
                         )}
                       </button>
                     </form>
                   ) : (
-                    <form onSubmit={handleVerifyOtp} className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800">Enter Telegram Code</span>
-                        <span className="text-[11px] text-slate-400 font-medium">@SharpPlusBot</span>
+                    <form onSubmit={handleVerifyOtp} className="space-y-4">
+                      {/* Code Sent Info Card */}
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3.5 flex items-center justify-between gap-2 shadow-2xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+                          <span className="text-xs font-bold text-slate-900 truncate">Code sent via @SharpPlusBot</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-blue-700 bg-white border border-blue-200 px-2 py-0.5 rounded-lg shadow-2xs shrink-0">{phone}</span>
                       </div>
-
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        A 6-digit code was sent to <strong>{maskedName ? `${maskedName}'s` : 'your'}</strong> Telegram. Enter the code below:
-                      </p>
 
                       {otpError && (
                         <div className="login-server-error" role="alert">
