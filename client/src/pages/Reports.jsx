@@ -859,6 +859,7 @@ export default function Reports({ defaultTab } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [companyName, setcompanyName] = useState('Sharp Plus');
+  const [showAllReportTabs, setShowAllReportTabs] = useState(false);
 
   // Filter & Search states
   const currentYearMonthStr = () => {
@@ -1758,30 +1759,54 @@ export default function Reports({ defaultTab } = {}) {
         </div>
       )}
 
-      {/* ── Report Type Master Selection Bar ── */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
-        {ALL_REPORT_TABS.map(rt => {
-          const isActive = tab === rt.key;
-          const Icon = rt.icon;
-          return (
-            <button
-              key={rt.key}
-              type="button"
-              onClick={() => {
-                setTab(rt.key);
-                navigate(rt.path);
-              }}
-              className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-xs shadow-blue-500/25 ring-1 ring-blue-600'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-semibold'
-              }`}
-            >
-              <Icon size={14} className={isActive ? 'text-white' : 'text-slate-400'} />
-              <span>{rt.label}</span>
-            </button>
-          );
-        })}
+      {/* ── Report Type Sublist Toolbar: displays active report sublist with selection for both GRVs & both Adjustments ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs text-xs">
+        {/* Report Sublist Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          {(showAllReportTabs ? ALL_REPORT_TABS : ALL_REPORT_TABS.filter(rt => {
+            if (['cash_grv', 'credit_grv'].includes(tab)) {
+              return ['cash_grv', 'credit_grv'].includes(rt.key);
+            }
+            if (['pos_adjustment', 'neg_adjustment'].includes(tab)) {
+              return ['pos_adjustment', 'neg_adjustment'].includes(rt.key);
+            }
+            return rt.key === tab;
+          })).map(rt => {
+            const isActive = tab === rt.key;
+            const Icon = rt.icon;
+            return (
+              <button
+                key={rt.key}
+                type="button"
+                onClick={() => {
+                  setTab(rt.key);
+                  navigate(rt.path);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition duration-150 whitespace-nowrap shadow-xs cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-blue-500/20'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                <Icon size={14} className={isActive ? 'text-white' : 'text-slate-500'} />
+                <span>{rt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Option to toggle All Report Types */}
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={() => setShowAllReportTabs(!showAllReportTabs)}
+            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50/60 rounded-lg transition border border-slate-200/80 cursor-pointer"
+            title="Toggle between focused report sublist and all available reports"
+          >
+            <SlidersHorizontal size={12} />
+            <span>{showAllReportTabs ? 'Focused Sublist' : 'All Reports (11)'}</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Paired Switcher for Both GRVs ── */}

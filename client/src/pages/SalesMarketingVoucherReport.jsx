@@ -237,6 +237,9 @@ export default function SalesMarketingVoucherReport() {
     // 3. Sales Type filter
     if (filterSalesType !== 'all') {
       list = list.filter((t) => {
+        if (filterSalesType === 'sales_both') {
+          return ['cash_sale', 'cash_sales', 'credit_sale', 'credit_sales'].includes(t.voucherType);
+        }
         if (filterSalesType === 'cash_sale') {
           return t.voucherType === 'cash_sale' || t.voucherType === 'cash_sales';
         }
@@ -895,6 +898,41 @@ export default function SalesMarketingVoucherReport() {
         </div>
       </div>
 
+      {/* ── Sales Type Sublist Toolbar: allows selection for every sales report type, and both Cash & Credit Sales ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs text-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          {[
+            { key: 'all', label: 'All Sales Vouchers', icon: Receipt },
+            { key: 'sales_both', label: 'Both Cash & Credit Sales', icon: ShoppingBag },
+            { key: 'cash_sale', label: 'Cash Sales', icon: ShoppingBag },
+            { key: 'credit_sale', label: 'Credit Sales', icon: CreditCard },
+            { key: 'zeroing', label: 'Zeroing Voucher', icon: RotateCcw },
+            { key: 'sales_import', label: 'Sales Import / POS', icon: Layers },
+          ].map((st) => {
+            const isActive = filterSalesType === st.key;
+            const Icon = st.icon;
+            return (
+              <button
+                key={st.key}
+                type="button"
+                onClick={() => {
+                  setFilterSalesType(st.key);
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition duration-150 whitespace-nowrap shadow-xs cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-blue-500/20'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                <Icon size={14} className={isActive ? 'text-white' : 'text-slate-500'} />
+                <span>{st.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── 3. Filters & Search Control Bar (10 Filters) ── */}
       <div className="rounded-2xl bg-white p-4 sm:p-5 border border-slate-200/80 shadow-soft space-y-4">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -1034,6 +1072,7 @@ export default function SalesMarketingVoucherReport() {
               className="w-full py-2 px-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
             >
               <option value="all">All Sales Types</option>
+              <option value="sales_both">Both Cash & Credit Sales</option>
               <option value="cash_sale">Cash Sales Voucher</option>
               <option value="credit_sale">Credit Sales Voucher</option>
               <option value="zeroing">Zeroing Voucher</option>

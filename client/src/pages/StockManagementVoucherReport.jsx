@@ -315,6 +315,8 @@ export default function StockManagementVoucherReport() {
     // 3. Voucher Type filter
     if (filterVoucherType !== 'all') {
       list = list.filter((t) => {
+        if (filterVoucherType === 'grv') return t.voucherType === 'cash_grv' || t.voucherType === 'credit_grv';
+        if (filterVoucherType === 'adjustment') return t.voucherType === 'pos_adjustment' || t.voucherType === 'psav' || t.voucherType === 'neg_adjustment' || t.voucherType === 'nsav';
         if (filterVoucherType === 'cash_grv') return t.voucherType === 'cash_grv';
         if (filterVoucherType === 'credit_grv') return t.voucherType === 'credit_grv';
         if (filterVoucherType === 'pos_adjustment') return t.voucherType === 'pos_adjustment' || t.voucherType === 'psav';
@@ -877,6 +879,44 @@ export default function StockManagementVoucherReport() {
         </div>
       </div>
 
+      {/* ── Voucher Type Sublist Toolbar: allows selection for every report type, both GRVs, and both Adjustments ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs text-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          {[
+            { key: 'all', label: 'All Vouchers', icon: Boxes },
+            { key: 'grv', label: 'Both GRVs', icon: Truck },
+            { key: 'cash_grv', label: 'Cash GRV', icon: Truck },
+            { key: 'credit_grv', label: 'Credit GRV', icon: Truck },
+            { key: 'adjustment', label: 'Both Adjustments', icon: TrendingUp },
+            { key: 'pos_adjustment', label: '+ve Adjustment', icon: TrendingUp },
+            { key: 'neg_adjustment', label: '−ve Adjustment', icon: TrendingDown },
+            { key: 'inventory_count', label: 'Inventory Count', icon: ClipboardList },
+            { key: 'disposal', label: 'Disposal', icon: Warehouse },
+          ].map((vt) => {
+            const isActive = filterVoucherType === vt.key;
+            const Icon = vt.icon;
+            return (
+              <button
+                key={vt.key}
+                type="button"
+                onClick={() => {
+                  setFilterVoucherType(vt.key);
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition duration-150 whitespace-nowrap shadow-xs cursor-pointer ${
+                  isActive
+                    ? 'bg-teal-600 text-white shadow-teal-500/20'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                <Icon size={14} className={isActive ? 'text-white' : 'text-slate-500'} />
+                <span>{vt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── 3. Filters & Search Control Bar (10 Filters) ── */}
       <div className="rounded-2xl bg-white p-4 sm:p-5 border border-slate-200/80 shadow-soft space-y-4">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -1012,8 +1052,10 @@ export default function StockManagementVoucherReport() {
               className="w-full py-2 px-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 outline-none focus:border-teal-500"
             >
               <option value="all">All Voucher Types</option>
+              <option value="grv">Both GRVs (Cash & Credit)</option>
               <option value="cash_grv">Cash Goods Receiving Voucher (CGRV)</option>
               <option value="credit_grv">Credit Goods Receiving Voucher (CRGV)</option>
+              <option value="adjustment">Both Adjustments (+ve & −ve)</option>
               <option value="pos_adjustment">Positive Stock Adjustment Voucher (PSAV)</option>
               <option value="neg_adjustment">Negative Stock Adjustment Voucher (NSAV)</option>
               <option value="inventory_count">Inventory Count</option>
