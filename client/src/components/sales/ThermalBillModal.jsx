@@ -116,11 +116,14 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     sale?.voucherNo ||
     (isZeroing ? 'ZRO-00001' : (isCredit ? 'CRSALE-00001' : 'CSALE-00001'));
 
-  const fsNumber =
+  const rawFs =
     config.fsNo ||
     sale?.fsNo ||
-    (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') ||
-    `FS No.${String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
+    (sale?.fsNumber ? String(sale.fsNumber).padStart(8, '0') : '') ||
+    String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8);
+
+  const cleanFsDigits = String(rawFs).replace(/^FS\s*No\.?:?\s*/i, '').trim() || '00000001';
+  const fsNumber = `FS No: ${cleanFsDigits}`;
 
   const dateStr = formatFiscalDate(sale?.date);
 
@@ -577,7 +580,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               {/* Metadata */}
               <div className="text-[11px] space-y-0.5 mb-1.5 text-slate-800">
                 <div>Customer: {customerName}</div>
-                <div>FS No: {fsNumber}</div>
+                <div>{fsNumber}</div>
                 <div>Invoice: {invoiceNo}</div>
                 <div>Operator: {config.operator || 'System Operator'}</div>
               </div>

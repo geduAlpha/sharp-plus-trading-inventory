@@ -120,11 +120,13 @@ export const generateThermalReceiptText = (sale, config = {}) => {
   const addressLine1 = config.addressLine1 || 'ADDIS ABABA, BOLE MEDHANIALEM';
   const addressLine2 = config.addressLine2 || 'COMMERCIAL CENTER 4TH FLOOR';
   const phone = config.phone || 'TEL-+251 91 100 0111';
-  const fsNo =
+  const rawFs =
     config.fsNo ||
     sale?.fsNo ||
-    (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') ||
-    `FS No.${String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
+    (sale?.fsNumber ? String(sale.fsNumber).padStart(8, '0') : '') ||
+    String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8);
+  const cleanFsDigits = String(rawFs).replace(/^FS\s*No\.?:?\s*/i, '').trim() || '00000001';
+  const fsNo = `FS No: ${cleanFsDigits}`;
   const dateStr = formatFiscalDate(sale?.date);
 
   const customerName =
@@ -203,7 +205,7 @@ export const generateThermalReceiptText = (sale, config = {}) => {
 
   txt += `${invoiceHeader}\n`;
   txt += `Customer: ${customerName}\n`;
-  txt += `FS No: ${fsNo}\n`;
+  txt += `${fsNo}\n`;
   txt += `Invoice: ${invoiceNo}\n`;
   txt += `Operator: ${operator}\n`;
   txt += `${divider}\n`;
@@ -275,7 +277,8 @@ export const exportBillToPDF = (sale, config = {}) => {
   const customerTin = sale?.tin || sale?.customerTin || 'N/A';
   const dateStr = formatFiscalDate(sale?.date);
   const operator = config.operator || sale?.performedBy?.name || 'System Operator';
-  const fsNo = config.fsNo || sale?.fsNo || (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') || `FS No.${String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8)}`;
+  const rawFsPdf = config.fsNo || sale?.fsNo || (sale?.fsNumber ? String(sale.fsNumber).padStart(8, '0') : '') || String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8);
+  const fsNo = `FS No: ${String(rawFsPdf).replace(/^FS\s*No\.?:?\s*/i, '').trim() || '00000001'}`;
 
   // Header Banner
   doc.setFillColor(15, 23, 42); // slate-900
@@ -460,7 +463,8 @@ export const exportBillToWord = (sale, config = {}) => {
   const phone = config.phone || '+251 91 100 0111';
   const customerName = sale?.customerName || 'Walk-in Customer';
   const dateStr = formatFiscalDate(sale?.date);
-  const fsNo = config.fsNo || sale?.fsNo || (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') || 'FS No.00000001';
+  const rawFsA4 = config.fsNo || sale?.fsNo || (sale?.fsNumber ? String(sale.fsNumber).padStart(8, '0') : '') || String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8);
+  const fsNo = `FS No: ${String(rawFsA4).replace(/^FS\s*No\.?:?\s*/i, '').trim() || '00000001'}`;
 
   const rawItems = sale?.items || [];
   const items = rawItems.length > 0
@@ -965,7 +969,8 @@ export const openA4PrintWindow = (sale, config = {}) => {
     sale?.voucherType === 'credit_sale';
 
   const invoiceNo = sale?.voucherNo || (isCredit ? 'CRSALE-00001' : 'CSALE-00001');
-  const fsNo = config.fsNo || sale?.fsNo || (sale?.fsNumber ? `FS No.${String(sale.fsNumber).padStart(8, '0')}` : '') || 'FS No.00000001';
+  const rawFsA4 = config.fsNo || sale?.fsNo || (sale?.fsNumber ? String(sale.fsNumber).padStart(8, '0') : '') || String(sale?.voucherNo || '00000001').replace(/\D/g, '').padStart(8, '0').slice(-8);
+  const fsNo = `FS No: ${String(rawFsA4).replace(/^FS\s*No\.?:?\s*/i, '').trim() || '00000001'}`;
   const dateStr = formatFiscalDate(sale?.date);
   const tin = config.tinNumber || '0089234125';
   const orgName = (config.companyLines || []).join(' ') || 'Sharp Plus Trading PLC';
