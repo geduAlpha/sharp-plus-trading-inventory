@@ -69,7 +69,7 @@ const getDailyReport = asyncHandler(async (req, res) => {
 const getVoucherReport = asyncHandler(async (req, res) => {
   const { voucherType, from, to } = req.query;
 
-  const filter = { deletedAt: null, status: { $ne: 'voided' } };
+  const filter = { deletedAt: null, status: { $nin: ['voided', 'deleted'] }, isVoided: { $ne: true } };
   if (voucherType) filter.voucherType = voucherType;
   const df = rangeFilter(from, to, req);
   if (df) filter.date = df;
@@ -142,7 +142,7 @@ const getFreshBazaarReport = asyncHandler(async (req, res) => {
 
 // ── GET /api/reports/stock-levels ────────────────────────────────────
 const getStockLevelReport = asyncHandler(async (req, res) => {
-  const materials = await RawMaterial.find({}).sort({ name: 1 });
+  const materials = await RawMaterial.find({ deletedAt: null, isActive: true }).sort({ name: 1 });
   const totalValue = materials.reduce((s, m) => s + m.currentStock * (m.unitCost || 0), 0);
   res.json({ materials, totalValue, count: materials.length });
 });
@@ -150,7 +150,7 @@ const getStockLevelReport = asyncHandler(async (req, res) => {
 // ── GET /api/reports/purchases ────────────────────────────────────────
 const getPurchaseReport = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
-  const filter = {};
+  const filter = { deletedAt: null, status: { $ne: 'cancelled' } };
   const df = rangeFilter(from, to, req);
   if (df) filter.purchaseDate = df;
 
@@ -167,7 +167,7 @@ const getPurchaseReport = asyncHandler(async (req, res) => {
 // Cross-voucher summary for dashboard / overview
 const getSummaryReport = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
-  const match = {};
+  const match = { deletedAt: null, status: { $nin: ['voided', 'deleted'] }, isVoided: { $ne: true } };
   const df = rangeFilter(from, to, req);
   if (df) match.date = df;
 
@@ -348,7 +348,8 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
 
   const txnQuery = {
     $or: [{ status: { $in: ['approved', 'posted'] } }, { stockApplied: true }],
-    status: { $ne: 'voided' },
+    status: { $nin: ['voided', 'deleted'] },
+    isVoided: { $ne: true },
     deletedAt: null,
   };
   if (startDate) {
@@ -582,7 +583,8 @@ const getItemStockLedger = asyncHandler(async (req, res) => {
   }
 
   const filter = {
-    status: { $ne: 'voided' },
+    status: { $nin: ['voided', 'deleted'] },
+    isVoided: { $ne: true },
     deletedAt: null,
     $or: [
       { material: materialId },
@@ -675,11 +677,11 @@ const getStockBalanceTransactions = asyncHandler(async (req, res) => {
     to = target;
   }
 
-  const filter = { deletedAt: null };
-  if (status && status !== 'all') {
+  const filter = { deletedAt: null, isVoided: { $ne: true } };
+  if (status && status !== 'all' && status !== 'voided') {
     filter.status = status;
   } else {
-    filter.status = { $ne: 'voided' };
+    filter.status = { $nin: ['voided', 'deleted'] };
   }
 
   const df = rangeFilter(from, to, req, effectiveFromTime, effectiveToTime);
@@ -793,7 +795,7 @@ const getMonthlyClosingReport = asyncHandler(async (req, res) => {
     };
   });
 
-  const transactions = await StockTransaction.find({ status: { $ne: 'voided' }, deletedAt: null }).lean();
+  const transactions = await StockTransaction.find({ status: { $nin: ['voided', 'deleted'] }, isVoided: { $ne: true }, deletedAt: null }).lean();
 
   const monthData = [];
   for (let m = 0; m < 12; m++) {
@@ -1068,7 +1070,8 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
   // Query transactions up to endDate
   const txnQuery = {
     $or: [{ status: { $in: ['approved', 'posted'] } }, { stockApplied: true }],
-    status: { $ne: 'voided' },
+    status: { $nin: ['voided', 'deleted'] },
+    isVoided: { $ne: true },
     deletedAt: null,
   };
   if (startDate && endDate) {

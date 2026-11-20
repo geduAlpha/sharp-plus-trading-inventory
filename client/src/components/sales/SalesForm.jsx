@@ -360,7 +360,9 @@ export default function SalesForm({ voucherType: initialVoucherType = 'cash_sale
       const res = await api.get('/transactions', {
         params: { voucherType: isCredit ? 'credit_sale' : 'cash_sale' },
       });
-      setRecentSales(Array.isArray(res.data) ? res.data.slice(0, 10) : []);
+      const rawSales = Array.isArray(res.data) ? res.data : [];
+      const cleanSales = rawSales.filter(t => !t.deletedAt && !t.isVoided && (t.status || '').toLowerCase() !== 'voided');
+      setRecentSales(cleanSales.slice(0, 10));
     } catch (err) {
       console.warn('Failed to load recent sales:', err);
     } finally {

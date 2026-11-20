@@ -328,7 +328,8 @@ export default function StockManagementVoucherReport() {
 
   // Filtered & Sorted Transactions
   const filteredTransactions = useMemo(() => {
-    let list = [...transactions];
+    // Strictly exclude any voided or deleted vouchers — they belong strictly in Recycle Bin
+    let list = transactions.filter((t) => !t.deletedAt && !t.isVoided && (t.status || '').toLowerCase() !== 'voided');
 
     // 1. Voucher Number filter
     if (filterVoucherNo.trim()) {
@@ -408,12 +409,7 @@ export default function StockManagementVoucherReport() {
 
     // 9. Voucher Status filter
     if (filterStatus !== 'all') {
-      list = list.filter((t) => {
-        if (filterStatus === 'voided') {
-          return Boolean(t.isVoided || t.deletedAt || (t.status || '').toLowerCase() === 'voided');
-        }
-        return (t.status || 'pending').toLowerCase() === filterStatus.toLowerCase();
-      });
+      list = list.filter((t) => (t.status || 'pending').toLowerCase() === filterStatus.toLowerCase());
     }
 
     // 10. Branch filter
@@ -1219,7 +1215,6 @@ export default function StockManagementVoucherReport() {
               <option value="checked">Checked (Reviewed)</option>
               <option value="approved">Approved (Stock Deducted / Added)</option>
               <option value="posted">Posted (Finalized)</option>
-              <option value="voided">Voided / Deleted</option>
             </select>
           </div>
 

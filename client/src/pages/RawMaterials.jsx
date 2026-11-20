@@ -123,7 +123,8 @@ const Items = () => {
           isActive: 'all',
         },
       });
-      setMaterials(Array.isArray(res.data) ? res.data : (res.data?.data || []));
+      const rawList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setMaterials(rawList.filter(m => !m.deletedAt));
       setSelected(new Set());
     } catch (err) {
       console.error('Failed to load items:', err);

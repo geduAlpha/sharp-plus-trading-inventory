@@ -135,7 +135,7 @@ const getTransactions = asyncHandler(async (req, res) => {
     user: filterUser, code, voucherCode,
   } = req.query;
 
-  const filter = { deletedAt: null };
+  const filter = { deletedAt: null, isVoided: { $ne: true } };
   const isSalesQuery = voucherType === 'sales' || ['cash_sale', 'credit_sale', 'cash_sales', 'credit_sales', 'sales_import'].includes(voucherType);
   if (req.user?.role !== 'developer') {
     const { getCachedModules } = require('../middleware/moduleGateMiddleware');
@@ -176,12 +176,15 @@ const getTransactions = asyncHandler(async (req, res) => {
   if (requestedStatus && requestedStatus !== 'all' && requestedStatus !== 'all states') {
     if (requestedStatus === 'prepared') {
       filter.status = 'pending';
+    } else if (requestedStatus === 'voided') {
+      // Voided vouchers belong in the Recycle Bin only!
+      filter.status = '__none__';
     } else {
       filter.status = requestedStatus;
     }
   } else {
     // By default, voided vouchers are excluded from active origin views (visible in Recycle Bin)
-    filter.status = { $ne: 'voided' };
+    filter.status = { $nin: ['voided', 'deleted'] };
   }
 
   // ConsigneeUnit / Store Location
@@ -1157,7 +1160,7 @@ const permanentDeleteTransaction = asyncHandler(async (req, res) => {
 // ── GET /api/transactions/summary ────────────────────────────────────
 const getVoucherSummary = asyncHandler(async (req, res) => {
   const { from, to, voucherType } = req.query;
-  const match = {};
+  const match = { deletedAt: null, status: { $nin: ['voided', 'deleted'] }, isVoided: { $ne: true } };
   if (voucherType) match.voucherType = voucherType;
   if (from || to) {
     match.date = {};

@@ -290,7 +290,8 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       if (timeRange.toTime) params.toTime = timeRange.toTime;
 
       const res = await api.get('/transactions', { params });
-      const data = Array.isArray(res.data) ? res.data : [];
+      const rawData = Array.isArray(res.data) ? res.data : [];
+      const data = rawData.filter(t => !t.deletedAt && !t.isVoided && (t.status || '').toLowerCase() !== 'voided');
       setTransactions(data);
       if (selectedRowId && !data.some(d => d._id === selectedRowId)) {
         setSelectedRowId(null);
@@ -2430,7 +2431,6 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                     <option value="checked">Checked</option>
                     <option value="approved">Approved</option>
                     <option value="posted">Posted</option>
-                    <option value="voided">Voided</option>
                   </select>
                 </div>
 
