@@ -43,6 +43,7 @@ import {
   Package,
   SlidersHorizontal,
   ClipboardList,
+  Ban,
 } from 'lucide-react';
 
 const formatETB = (n) =>
@@ -81,6 +82,9 @@ export default function StockManagementVoucherReport() {
   // Modal State
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
+
+  // Bulk Selection State for voiding / batch operations
+  const [selectedBulk, setSelectedBulk] = useState(new Set());
 
   // Set default date range on initial mount
   useEffect(() => {
@@ -130,6 +134,31 @@ export default function StockManagementVoucherReport() {
   useEffect(() => {
     fetchStockTransactions();
   }, [fetchStockTransactions]);
+
+  // Void single voucher & reverse inventory
+  const handleVoidTransaction = async (tx) => {
+    const vNo = tx.voucherNo || tx._id?.slice(-6) || 'voucher';
+    if (!confirm(`Are you sure you want to void unwanted voucher "${vNo}"? Stock will be reversed automatically and moved to recycle bin.`)) return;
+    try {
+      await api.delete(`/transactions/${tx._id}`);
+      fetchStockTransactions();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Void transaction failed.');
+    }
+  };
+
+  // Bulk void selected vouchers & reverse inventory
+  const handleBulkVoid = async () => {
+    if (!selectedBulk.size) return;
+    if (!confirm(`Are you sure you want to void ${selectedBulk.size} selected unwanted voucher(s)? Stock will be reversed automatically and moved to recycle bin.`)) return;
+    try {
+      await api.delete('/transactions/bulk', { data: { ids: Array.from(selectedBulk) } });
+      setSelectedBulk(new Set());
+      fetchStockTransactions();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Bulk void failed.');
+    }
+  };
 
   // Handle Preset Changes
   const handlePresetChange = (preset) => {
@@ -1219,11 +1248,51 @@ export default function StockManagementVoucherReport() {
       </div>
 
       {/* ── 4. Main Report Data Grid (15 Columns + Actions) ── */}
+      {selectedBulk.size > 0 && (
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-rose-50 border border-rose-200 px-4 py-2 text-rose-800 text-xs font-semibold animate-fadeIn">
+          <span>{selectedBulk.size} voucher(s) selected</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedBulk(new Set())}
+              className="px-2.5 py-1 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition cursor-pointer"
+            >
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkVoid}
+              className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Ban size={13} /> Void Selected ({selectedBulk.size})
+            </button>
+          </div>
+        </div>
+      )}
       <div className="rounded-2xl bg-white border border-slate-200/80 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[10.5px] uppercase tracking-wider select-none">
+                {/* 0. Selection */}
+                <th className="py-3 px-2.5 text-center w-8">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all vouchers"
+                    checked={paginatedTransactions.length > 0 && paginatedTransactions.every(tx => selectedBulk.has(tx._id))}
+                    onChange={(e) => {
+                      const next = new Set(selectedBulk);
+                      if (e.target.checked) {
+                        paginatedTransactions.forEach(tx => next.add(tx._id));
+                      } else {
+                        paginatedTransactions.forEach(tx => next.delete(tx._id));
+                      }
+                      setSelectedBulk(next);
+                    }}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                </th>
+
                 {/* 1. Voucher Number */}
                 <th
                   onClick={() => handleSort('voucherNo')}
@@ -1312,14 +1381,14 @@ export default function StockManagementVoucherReport() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={16} className="py-12 text-center text-slate-400">
+                  <td colSpan={17} className="py-12 text-center text-slate-400">
                     <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-teal-500" />
                     <span>Loading stock vouchers and transactions...</span>
                   </td>
                 </tr>
               ) : paginatedTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="py-12 text-center text-slate-400">
+                  <td colSpan={17} className="py-12 text-center text-slate-400">
                     <Boxes size={32} className="mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600 text-sm">No stock vouchers found</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -1340,6 +1409,22 @@ export default function StockManagementVoucherReport() {
                         setDetailModalOpen(true);
                       }}
                     >
+                      {/* 0. Selection */}
+                      <td className="py-2.5 px-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label="Select voucher"
+                          checked={selectedBulk.has(tx._id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedBulk);
+                            if (e.target.checked) next.add(tx._id);
+                            else next.delete(tx._id);
+                            setSelectedBulk(next);
+                          }}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                        />
+                      </td>
+
                       {/* 1. Voucher Number */}
                       <td className="py-2.5 px-2.5 whitespace-nowrap">
                         <span className="font-mono font-bold text-teal-800 hover:underline">
@@ -1447,10 +1532,18 @@ export default function StockManagementVoucherReport() {
                               setSelectedVoucher(tx);
                               setDetailModalOpen(true);
                             }}
-                            className="p-1 rounded text-slate-500 hover:text-teal-600 hover:bg-slate-100 transition"
+                            className="p-1 rounded text-slate-500 hover:text-teal-600 hover:bg-slate-100 transition cursor-pointer"
                             title="View full voucher audit breakdown"
                           >
                             <Eye size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleVoidTransaction(tx)}
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Void unwanted voucher & reverse stock"
+                          >
+                            <Ban size={14} />
                           </button>
                         </div>
                       </td>

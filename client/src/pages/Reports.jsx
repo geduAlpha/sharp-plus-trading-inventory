@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronUp, Eye, EyeOff, Save, ArrowUpDown, CheckCheck,
   FileSpreadsheet, Download, Home, Copy, Check, FileText, Layers,
   Filter, ShieldAlert, Award, AlertCircle, Info, SlidersHorizontal, AlignJustify, List,
-  Package, Bell, Archive, ShoppingBag, CreditCard,
+  Package, Bell, Archive, ShoppingBag, CreditCard, Ban,
 } from 'lucide-react';
 import api from '../api/axios';
 import Card from '../components/ui/Card';
@@ -45,17 +45,17 @@ const BinocularsIcon = ({ className = "h-5 w-5", ...props }) => (
   </svg>
 );
 
-// Report sub-tabs matching the reference image
+// Report sub-tabs matching the reference image with selection icons
 const REPORT_SUB_TABS = [
-  { id: 'stock_only', label: 'Stock Only' },
-  { id: 'bincard_summary', label: 'BinCard Summary' },
-  { id: 'bincard', label: 'BinCard' },
-  { id: 'min_stock_level', label: 'Min. Stock Level' },
-  { id: 'serial_bincard', label: 'Serial BinCard' },
-  { id: 'expiry_date', label: 'Expiry Date' },
-  { id: 'expiry_notification', label: 'Expiry Date Notification' },
-  { id: 'abc_analysis', label: 'ABC Analysis' },
-  { id: 'dead_movement', label: 'Dead Item Movement Summary' },
+  { id: 'stock_only', label: 'Stock Only', icon: Package },
+  { id: 'bincard_summary', label: 'BinCard Summary', icon: Layers },
+  { id: 'bincard', label: 'BinCard', icon: ClipboardList },
+  { id: 'min_stock_level', label: 'Min. Stock Level', icon: AlertTriangle },
+  { id: 'serial_bincard', label: 'Serial BinCard', icon: FileSpreadsheet },
+  { id: 'expiry_date', label: 'Expiry Date', icon: Calendar },
+  { id: 'expiry_notification', label: 'Expiry Date Notification', icon: Bell },
+  { id: 'abc_analysis', label: 'ABC Analysis', icon: BarChart3 },
+  { id: 'dead_movement', label: 'Dead Item Movement Summary', icon: Archive },
 ];
 
 // Route → API endpoint map (used by the load function)
@@ -117,8 +117,52 @@ const Stat = ({ label, value, sub, color = 'text-ink-900', badge = null }) => (
 );
 
 // ── Voucher transactions table (shared by all voucher tabs) ───────────
-const VoucherTable = ({ data, showSupplier = false, showReason = false }) => {
+const VoucherTable = ({ data, showSupplier = false, showReason = false, onVoid, onBulkVoid }) => {
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // Clear selections when data changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [data]);
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked && data?.length) {
+      setSelectedIds(new Set(data.map(d => d._id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id, e) => {
+    e.stopPropagation();
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
   const cols = [
+    {
+      key: 'select',
+      header: (
+        <input
+          type="checkbox"
+          checked={Boolean(data?.length && selectedIds.size === data.length)}
+          onChange={handleSelectAll}
+          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-4 w-4"
+          title="Select all transactions"
+        />
+      ),
+      render: r => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(r._id)}
+          onChange={(e) => handleSelectRow(r._id, e)}
+          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-4 w-4"
+          title="Select transaction to void"
+        />
+      ),
+    },
     {
       key: 'date',
       header: 'Date & Time (h:m:s)',
@@ -147,8 +191,47 @@ const VoucherTable = ({ data, showSupplier = false, showReason = false }) => {
       render: r => <WorkflowBadge status={r.status || 'pending'} size="sm" />,
     },
     { key: 'performedBy', header: 'Handled By', render: r => r.performedBy?.name || '—' },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: r => (
+        <button
+          type="button"
+          onClick={() => onVoid && onVoid(r)}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold border border-rose-200 transition cursor-pointer"
+          title="Void unwanted voucher and reverse stock"
+        >
+          <Ban size={12} />
+          <span>Void</span>
+        </button>
+      ),
+    },
   ];
-  return <DataTable columns={cols} data={data} emptyMessage="No records in this period." title="Transaction History" icon={<History size={15} />} />;
+
+  return (
+    <div className="space-y-2">
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs">
+          <span className="font-bold text-rose-800">
+            {selectedIds.size} transaction{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (onBulkVoid) {
+                onBulkVoid(Array.from(selectedIds), () => setSelectedIds(new Set()));
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition shadow-xs cursor-pointer"
+          >
+            <Trash2 size={13} />
+            <span>Void Selected ({selectedIds.size})</span>
+          </button>
+        </div>
+      )}
+      <DataTable columns={cols} data={data} emptyMessage="No records in this period." title="Transaction History" icon={<History size={15} />} />
+    </div>
+  );
 };
 
 // ── Material breakdown table ──────────────────────────────────────────
@@ -915,6 +998,53 @@ export default function Reports({ defaultTab } = {}) {
   const [txnStatusFilter, setTxnStatusFilter] = useState('all'); // 'all', 'pending', 'checked', 'approved', 'posted'
   const [txnSortOrder, setTxnSortOrder] = useState('desc'); // 'desc' (newest first), 'asc' (oldest first)
   const [txnSearchQuery, setTxnSearchQuery] = useState('');
+  const [timeSeqSelected, setTimeSeqSelected] = useState(new Set());
+  const [selectedStockItems, setSelectedStockItems] = useState(new Set());
+  const [binCardSelected, setBinCardSelected] = useState(new Set());
+  const [serialBinCardSelected, setSerialBinCardSelected] = useState(new Set());
+
+  // Void single transaction from any report sub-menu
+  const handleVoidTxn = async (txn) => {
+    const vNo = txn.voucherNo || txn._id?.slice(-6) || 'voucher';
+    if (!confirm(`Are you sure you want to void unwanted voucher "${vNo}"? Stock will be reversed automatically and moved to recycle bin.`)) return;
+    try {
+      await api.delete(`/transactions/${txn._id}`);
+      load();
+      if (balanceViewMode === 'transactions') {
+        loadBalanceTransactions();
+      }
+      if (selectedLedgerMaterial) {
+        openItemLedger(selectedLedgerMaterial);
+      }
+      if (stockSubTab === 'serial_bincard') {
+        loadSerialBinCard();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Void transaction failed.');
+    }
+  };
+
+  // Bulk void selected transactions from any report sub-menu
+  const handleBulkVoidTxns = async (ids, onSuccess) => {
+    if (!ids?.length) return;
+    if (!confirm(`Are you sure you want to void ${ids.length} selected unwanted transaction(s)? Stock will be reversed automatically and moved to recycle bin.`)) return;
+    try {
+      await api.delete('/transactions/bulk', { data: { ids } });
+      if (onSuccess) onSuccess();
+      load();
+      if (balanceViewMode === 'transactions') {
+        loadBalanceTransactions();
+      }
+      if (selectedLedgerMaterial) {
+        openItemLedger(selectedLedgerMaterial);
+      }
+      if (stockSubTab === 'serial_bincard') {
+        loadSerialBinCard();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Bulk void failed.');
+    }
+  };
 
   // Item Ledger (Bin Card) modal state
   const [selectedLedgerMaterial, setSelectedLedgerMaterial] = useState(null);
@@ -2352,6 +2482,7 @@ export default function Reports({ defaultTab } = {}) {
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-semibold'
                 }`}
               >
+                {st.icon && React.createElement(st.icon, { size: 13, className: isActive ? 'text-white' : 'text-slate-400' })}
                 <span>{st.label}</span>
                 {badgeCount !== null && badgeCount > 0 && (
                   <span
@@ -2784,103 +2915,169 @@ export default function Reports({ defaultTab } = {}) {
 
           {/* Flat List View */}
           {stockSubTab === 'stock_only' && stockViewMode === 'flat' && (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-              <table className="min-w-full text-xs divide-y divide-slate-200">
-                <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
-                    <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
-                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">UOM</th>
-                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">CATEGORY</th>
-                    <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">STORE</th>
-                    <th className="px-4 py-3 text-right font-extrabold text-slate-800">CLOSING STOCK</th>
-                    <th className="px-4 py-3 text-right font-extrabold text-slate-800">UNIT COST (ETB)</th>
-                    <th className="px-4 py-3 text-right font-extrabold text-blue-900 bg-blue-50/50">STOCK VALUE (ETB)</th>
-                    <th className="px-4 py-3 text-center font-extrabold text-slate-800">EVALUATE</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100">
-                  {filteredStockItems.length === 0 ? (
+            <div className="space-y-2">
+              {selectedStockItems.size > 0 && (
+                <div className="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-200 px-4 py-2 text-blue-900 text-xs font-semibold animate-fadeIn">
+                  <span>{selectedStockItems.size} article(s) selected</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStockItems(new Set())}
+                      className="px-2.5 py-1 rounded-lg border border-blue-200 bg-white hover:bg-blue-50 text-blue-700 transition cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sel = filteredStockItems.filter(i => selectedStockItems.has(i._id));
+                        if (sel.length === 1) {
+                          setStockSubTab('bincard');
+                          handleSelectBinCardItem(sel[0]);
+                        } else {
+                          handleExportExcel();
+                        }
+                      }}
+                      className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Eye size={13} /> {selectedStockItems.size === 1 ? 'Inspect Selected Ledger' : `Export Selected (${selectedStockItems.size})`}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+                <table className="min-w-full text-xs divide-y divide-slate-200">
+                  <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
-                        No stock records matching the selected criteria.
-                      </td>
+                      <th className="px-3 py-3 text-center w-8">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all articles"
+                          checked={filteredStockItems.length > 0 && filteredStockItems.every(i => selectedStockItems.has(i._id))}
+                          onChange={(e) => {
+                            const next = new Set(selectedStockItems);
+                            if (e.target.checked) {
+                              filteredStockItems.forEach(i => { if (i._id) next.add(i._id); });
+                            } else {
+                              filteredStockItems.forEach(i => { if (i._id) next.delete(i._id); });
+                            }
+                            setSelectedStockItems(next);
+                          }}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </th>
+                      <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE CODE</th>
+                      <th className="px-4 py-3 text-left font-extrabold text-slate-800">ARTICLE NAME</th>
+                      <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">UOM</th>
+                      <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">CATEGORY</th>
+                      <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">STORE</th>
+                      <th className="px-4 py-3 text-right font-extrabold text-slate-800">CLOSING STOCK</th>
+                      <th className="px-4 py-3 text-right font-extrabold text-slate-800">UNIT COST (ETB)</th>
+                      <th className="px-4 py-3 text-right font-extrabold text-blue-900 bg-blue-50/50">STOCK VALUE (ETB)</th>
+                      <th className="px-4 py-3 text-center font-extrabold text-slate-800">EVALUATE</th>
                     </tr>
-                  ) : (
-                    filteredStockItems.map((item, idx) => {
-                      const cStock = Number(item.closingStock || 0);
-                      const uCost = Number(item.unitCost || 0);
-                      const cVal = Number(item.closingValue || (cStock * uCost));
-                      return (
-                        <tr key={item._id || idx} className="hover:bg-blue-50/25 transition-colors">
-                          <td className="px-4 py-2.5 font-mono text-xs font-bold text-slate-700">
-                            {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
-                          </td>
-                          <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">
-                            {item.name}
-                          </td>
-                          <td className="px-3.5 py-2.5 text-slate-600 font-medium">
-                            {item.unit || 'Pcs'}
-                          </td>
-                          <td className="px-3.5 py-2.5 text-slate-600">
-                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[10.5px]">
-                              {item.category || 'General'}
-                            </span>
-                          </td>
-                          <td className="px-3.5 py-2.5 text-slate-600 font-medium">
-                            {item.storeLocation || 'Main store'}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-mono font-bold tabular-nums">
-                            <span className={cStock <= 0 ? 'text-red-600 font-black' : cStock <= (item.reorderLevel || 10) ? 'text-amber-600 font-bold' : 'text-slate-900 font-bold'}>
-                              {cStock.toFixed(2)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-mono text-slate-700 tabular-nums font-semibold">
-                            {uCost.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
-                            {cVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-4 py-2.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setStockSubTab('bincard');
-                                handleSelectBinCardItem(item);
-                              }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold text-xs border border-blue-200 transition shadow-2xs cursor-pointer"
-                              title="Evaluate article BinCard ledger"
-                            >
-                              <Eye size={12} /> Ledger
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredStockItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
+                          No stock records matching the selected criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStockItems.map((item, idx) => {
+                        const cStock = Number(item.closingStock || 0);
+                        const uCost = Number(item.unitCost || 0);
+                        const cVal = Number(item.closingValue || (cStock * uCost));
+                        const isSelected = selectedStockItems.has(item._id);
+                        return (
+                          <tr key={item._id || idx} className={`transition-colors ${isSelected ? 'bg-blue-50/50' : 'hover:bg-blue-50/25'}`}>
+                            <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                aria-label="Select article"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const next = new Set(selectedStockItems);
+                                  if (e.target.checked) {
+                                    if (item._id) next.add(item._id);
+                                  } else {
+                                    if (item._id) next.delete(item._id);
+                                  }
+                                  setSelectedStockItems(next);
+                                }}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-xs font-bold text-slate-700">
+                              {item.code || (item._id ? 'ART-' + item._id.slice(-5).toUpperCase() : '—')}
+                            </td>
+                            <td className="px-4 py-2.5 font-extrabold text-slate-900 uppercase">
+                              {item.name}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-slate-600 font-medium">
+                              {item.unit || 'Pcs'}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-slate-600">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[10.5px]">
+                                {item.category || 'General'}
+                              </span>
+                            </td>
+                            <td className="px-3.5 py-2.5 text-slate-600 font-medium">
+                              {item.storeLocation || 'Main store'}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-mono font-bold tabular-nums">
+                              <span className={cStock <= 0 ? 'text-red-600 font-black' : cStock <= (item.reorderLevel || 10) ? 'text-amber-600 font-bold' : 'text-slate-900 font-bold'}>
+                                {cStock.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-mono text-slate-700 tabular-nums font-semibold">
+                              {uCost.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-mono font-black text-blue-700 bg-blue-50/20 tabular-nums">
+                              {cVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setStockSubTab('bincard');
+                                  handleSelectBinCardItem(item);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold text-xs border border-blue-200 transition shadow-2xs cursor-pointer"
+                                title="Evaluate article BinCard ledger"
+                              >
+                                <Eye size={12} /> Ledger
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+
+                  {filteredStockItems.length > 0 && (
+                    <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                      <tr>
+                        <td colSpan={6} className="px-4 py-3 uppercase font-extrabold text-slate-800">
+                          TOTAL ({filteredStockItems.length} ITEMS)
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-slate-950 tabular-nums">
+                          {stockEvaluationSummary.totalUnits.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-500 font-semibold text-[11px] uppercase">
+                          Grand Total
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-black text-blue-900 bg-blue-100/50 tabular-nums">
+                          ETB {stockEvaluationSummary.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
                   )}
-                </tbody>
-
-                {filteredStockItems.length > 0 && (
-                  <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
-                    <tr>
-                      <td colSpan={5} className="px-4 py-3 uppercase font-extrabold text-slate-800">
-                        TOTAL ({filteredStockItems.length} ITEMS)
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-black text-slate-950 tabular-nums">
-                        {stockEvaluationSummary.totalUnits.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-500 font-semibold text-[11px] uppercase">
-                        Grand Total
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-black text-blue-900 bg-blue-100/50 tabular-nums">
-                        ETB {stockEvaluationSummary.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
+                </table>
+              </div>
             </div>
           )}
 
@@ -3114,53 +3311,126 @@ export default function Reports({ defaultTab } = {}) {
               )}
 
               {!ledgerLoading && ledgerData && (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-                  <table className="min-w-full text-xs divide-y divide-slate-200">
-                    <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-extrabold text-slate-800">DATE & TIME</th>
-                        <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">VOUCHER #</th>
-                        <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">TYPE</th>
-                        <th className="px-4 py-3 text-left font-extrabold text-slate-800">PARTY / REASON</th>
-                        <th className="px-4 py-3 text-right font-extrabold text-emerald-800 bg-emerald-50/50">IN (+)</th>
-                        <th className="px-4 py-3 text-right font-extrabold text-rose-800 bg-rose-50/50">OUT (−)</th>
-                        <th className="px-4 py-3 text-right font-extrabold text-blue-900 bg-blue-50/50">BALANCE</th>
-                        <th className="px-3.5 py-3 text-center font-extrabold text-slate-800">STATUS</th>
-                        <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">HANDLED BY</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {ledgerData.ledger?.length === 0 ? (
+                <div className="space-y-2">
+                  {binCardSelected.size > 0 && (
+                    <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-200 px-4 py-2 text-rose-800 text-xs font-semibold animate-fadeIn">
+                      <span>{binCardSelected.size} movement(s) selected</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setBinCardSelected(new Set())}
+                          className="px-2.5 py-1 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleBulkVoidTxns(Array.from(binCardSelected), () => {
+                            setBinCardSelected(new Set());
+                            if (selectedLedgerMaterial) openItemLedger(selectedLedgerMaterial);
+                          })}
+                          className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          <Ban size={13} /> Void Selected ({binCardSelected.size})
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+                    <table className="min-w-full text-xs divide-y divide-slate-200">
+                      <thead className="bg-slate-100/95 text-slate-800 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200">
                         <tr>
-                          <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
-                            No ledger movements recorded for this material in the selected period.
-                          </td>
+                          <th className="px-3 py-3 text-center w-8">
+                            <input
+                              type="checkbox"
+                              aria-label="Select all movements"
+                              checked={ledgerData.ledger?.length > 0 && ledgerData.ledger.every(r => binCardSelected.has(r.txnId))}
+                              onChange={(e) => {
+                                const next = new Set(binCardSelected);
+                                if (e.target.checked) {
+                                  ledgerData.ledger?.forEach(r => { if (r.txnId) next.add(r.txnId); });
+                                } else {
+                                  ledgerData.ledger?.forEach(r => { if (r.txnId) next.delete(r.txnId); });
+                                }
+                                setBinCardSelected(next);
+                              }}
+                              className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </th>
+                          <th className="px-4 py-3 text-left font-extrabold text-slate-800">DATE & TIME</th>
+                          <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">VOUCHER #</th>
+                          <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">TYPE</th>
+                          <th className="px-4 py-3 text-left font-extrabold text-slate-800">PARTY / REASON</th>
+                          <th className="px-4 py-3 text-right font-extrabold text-emerald-800 bg-emerald-50/50">IN (+)</th>
+                          <th className="px-4 py-3 text-right font-extrabold text-rose-800 bg-rose-50/50">OUT (−)</th>
+                          <th className="px-4 py-3 text-right font-extrabold text-blue-900 bg-blue-50/50">BALANCE</th>
+                          <th className="px-3.5 py-3 text-center font-extrabold text-slate-800">STATUS</th>
+                          <th className="px-3.5 py-3 text-left font-extrabold text-slate-800">HANDLED BY</th>
+                          <th className="px-3 py-3 text-center font-extrabold text-slate-800">ACTIONS</th>
                         </tr>
-                      ) : (
-                        ledgerData.ledger?.map((row, idx) => (
-                          <tr key={row.txnId || idx} className="hover:bg-slate-50/80 transition">
-                            <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatDateTime(row.date)}</td>
-                            <td className="px-3.5 py-2.5 font-mono font-bold text-slate-900">{row.voucherNo}</td>
-                            <td className="px-3.5 py-2.5 text-slate-700">{VOUCHER_LABELS[row.voucherType] || row.voucherType}</td>
-                            <td className="px-4 py-2.5 text-slate-600 truncate max-w-xs">{row.supplier !== '—' ? row.supplier : row.reason}</td>
-                            <td className="px-4 py-2.5 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
-                              {row.inQty > 0 ? `+${row.inQty}` : '—'}
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {ledgerData.ledger?.length === 0 ? (
+                          <tr>
+                            <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
+                              No ledger movements recorded for this material in the selected period.
                             </td>
-                            <td className="px-4 py-2.5 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
-                              {row.outQty > 0 ? `−${row.outQty}` : '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-mono font-black text-blue-900 bg-blue-50/20 tabular-nums">
-                              {row.balanceAfter}
-                            </td>
-                            <td className="px-3.5 py-2.5 text-center">
-                              <WorkflowBadge status={row.status} />
-                            </td>
-                            <td className="px-3.5 py-2.5 text-slate-600">{row.performedBy}</td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        ) : (
+                          ledgerData.ledger?.map((row, idx) => (
+                            <tr key={row.txnId || idx} className="hover:bg-slate-50/80 transition">
+                              <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  aria-label="Select movement"
+                                  checked={binCardSelected.has(row.txnId)}
+                                  onChange={(e) => {
+                                    const next = new Set(binCardSelected);
+                                    if (e.target.checked) {
+                                      if (row.txnId) next.add(row.txnId);
+                                    } else {
+                                      if (row.txnId) next.delete(row.txnId);
+                                    }
+                                    setBinCardSelected(next);
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatDateTime(row.date)}</td>
+                              <td className="px-3.5 py-2.5 font-mono font-bold text-slate-900">{row.voucherNo}</td>
+                              <td className="px-3.5 py-2.5 text-slate-700">{VOUCHER_LABELS[row.voucherType] || row.voucherType}</td>
+                              <td className="px-4 py-2.5 text-slate-600 truncate max-w-xs">{row.supplier !== '—' ? row.supplier : row.reason}</td>
+                              <td className="px-4 py-2.5 text-right font-mono font-bold text-emerald-700 bg-emerald-50/20 tabular-nums">
+                                {row.inQty > 0 ? `+${row.inQty}` : '—'}
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-mono font-bold text-rose-700 bg-rose-50/20 tabular-nums">
+                                {row.outQty > 0 ? `−${row.outQty}` : '—'}
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-mono font-black text-blue-900 bg-blue-50/20 tabular-nums">
+                                {row.balanceAfter}
+                              </td>
+                              <td className="px-3.5 py-2.5 text-center">
+                                <WorkflowBadge status={row.status} />
+                              </td>
+                              <td className="px-3.5 py-2.5 text-slate-600">{row.performedBy}</td>
+                              <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                {row.txnId && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleVoidTxn({ _id: row.txnId, voucherNo: row.voucherNo })}
+                                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                    title="Void unwanted movement & reverse stock"
+                                  >
+                                    <Ban size={14} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -3304,6 +3574,31 @@ export default function Reports({ defaultTab } = {}) {
                 )}
               </div>
 
+              {serialBinCardSelected.size > 0 && (
+                <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-200 px-4 py-2 text-rose-800 text-xs font-semibold animate-fadeIn">
+                  <span>{serialBinCardSelected.size} batch transaction(s) selected</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSerialBinCardSelected(new Set())}
+                      className="px-2.5 py-1 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkVoidTxns(Array.from(serialBinCardSelected), () => {
+                        setSerialBinCardSelected(new Set());
+                        loadSerialBinCard();
+                      })}
+                      className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Ban size={13} /> Void Selected ({serialBinCardSelected.size})
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {serialBinCardLoading && (
                 <div className="py-16 text-center text-xs text-slate-400">
                   <RefreshCw className="animate-spin h-6 w-6 mx-auto mb-2 text-blue-600" />
@@ -3402,6 +3697,23 @@ export default function Reports({ defaultTab } = {}) {
                                       <table className="min-w-full text-xs divide-y divide-slate-200">
                                         <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider text-[10.5px] font-bold">
                                           <tr>
+                                            <th className="px-2 py-2 text-center w-7">
+                                              <input
+                                                type="checkbox"
+                                                aria-label="Select all batch transactions"
+                                                checked={batch.transactions?.length > 0 && batch.transactions.every(t => t.txnId && serialBinCardSelected.has(t.txnId))}
+                                                onChange={(e) => {
+                                                  const next = new Set(serialBinCardSelected);
+                                                  if (e.target.checked) {
+                                                    batch.transactions?.forEach(t => { if (t.txnId) next.add(t.txnId); });
+                                                  } else {
+                                                    batch.transactions?.forEach(t => { if (t.txnId) next.delete(t.txnId); });
+                                                  }
+                                                  setSerialBinCardSelected(next);
+                                                }}
+                                                className="h-3 w-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                              />
+                                            </th>
                                             <th className="px-3 py-2 text-left">VOUCHER</th>
                                             <th className="px-3 py-2 text-left">VOUCHER TYPE</th>
                                             <th className="px-3 py-2 text-left">CONSIGNEE</th>
@@ -3413,11 +3725,28 @@ export default function Reports({ defaultTab } = {}) {
                                             <th className="px-2.5 py-2 text-center">SCORE</th>
                                             <th className="px-3 py-2 text-left font-mono">BATCH NUMBER</th>
                                             <th className="px-3 py-2 text-center">ENQUIRY DATE</th>
+                                            <th className="px-2 py-2 text-center">ACTION</th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                           {(batch.transactions || []).map((t, tIdx) => (
                                             <tr key={t.txnId ? `${t.txnId}_${tIdx}` : tIdx} className="hover:bg-slate-50 transition-colors">
+                                              <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                                {t.txnId && (
+                                                  <input
+                                                    type="checkbox"
+                                                    aria-label="Select batch transaction"
+                                                    checked={serialBinCardSelected.has(t.txnId)}
+                                                    onChange={(e) => {
+                                                      const next = new Set(serialBinCardSelected);
+                                                      if (e.target.checked) next.add(t.txnId);
+                                                      else next.delete(t.txnId);
+                                                      setSerialBinCardSelected(next);
+                                                    }}
+                                                    className="h-3 w-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                  />
+                                                )}
+                                              </td>
                                               <td className="px-3 py-1.5 font-mono font-bold text-slate-900 whitespace-nowrap">
                                                 {t.voucher || '—'}
                                               </td>
@@ -3453,13 +3782,25 @@ export default function Reports({ defaultTab } = {}) {
                                               <td className="px-3 py-1.5 text-center text-slate-500 whitespace-nowrap font-medium">
                                                 {t.enquiryDate || enquiryDate}
                                               </td>
+                                              <td className="px-2 py-1.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                                {t.txnId && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleVoidTxn({ _id: t.txnId, voucherNo: t.voucher })}
+                                                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                                    title="Void unwanted batch transaction and reverse stock"
+                                                  >
+                                                    <Ban size={13} />
+                                                  </button>
+                                                )}
+                                              </td>
                                             </tr>
                                           ))}
                                         </tbody>
                                         {/* Batch Table Totals Footer */}
                                         <tfoot className="bg-slate-100/80 font-bold border-t border-slate-200 text-slate-800 text-[11px]">
                                           <tr>
-                                            <td colSpan={5} className="px-3 py-1.5 uppercase font-bold text-slate-600">
+                                            <td colSpan={6} className="px-3 py-1.5 uppercase font-bold text-slate-600">
                                               Batch {batch.batchNumber} Running Total
                                             </td>
                                             <td className="px-3 py-1.5 text-right font-mono font-bold text-emerald-800 tabular-nums">
@@ -3474,6 +3815,7 @@ export default function Reports({ defaultTab } = {}) {
                                             <td colSpan={3} className="px-3 py-1.5 text-center text-slate-400 font-normal">
                                               As of {enquiryDate}
                                             </td>
+                                            <td></td>
                                           </tr>
                                         </tfoot>
                                       </table>
@@ -4081,43 +4423,77 @@ export default function Reports({ defaultTab } = {}) {
           )}
 
           {!balanceTxnsLoading && balanceTxnsData && (
-            <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-white shadow-soft">
-              <table className="min-w-full text-xs divide-y divide-ink-200">
-                <thead className="bg-ink-100/90 text-ink-700 font-bold">
-                  <tr>
-                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Time Sequence (h:m:s)
-                    </th>
-                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Voucher #
-                    </th>
-                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Voucher Type
-                    </th>
-                    <th className="px-3 py-2.5 text-center uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Direction
-                    </th>
-                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px]">
-                      Items / Materials Moved
-                    </th>
-                    <th className="px-3 py-2.5 text-right uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Total Amount
-                    </th>
-                    <th className="px-3 py-2.5 text-center uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Workflow Status
-                    </th>
-                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Party / Reason
-                    </th>
-                    <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Handled By
-                    </th>
-                  </tr>
-                </thead>
+            <div className="space-y-2">
+              {timeSeqSelected.size > 0 && (
+                <div className="flex items-center justify-between p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs">
+                  <span className="font-bold text-rose-800">
+                    {timeSeqSelected.size} movement transaction(s) selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkVoidTxns(Array.from(timeSeqSelected), () => setTimeSeqSelected(new Set()))}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>Void Selected ({timeSeqSelected.size})</span>
+                  </button>
+                </div>
+              )}
+              <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-white shadow-soft">
+                <table className="min-w-full text-xs divide-y divide-ink-200">
+                  <thead className="bg-ink-100/90 text-ink-700 font-bold">
+                    <tr>
+                      <th className="px-3 py-2.5 text-center w-8">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(balanceTxnsData.transactions?.length && timeSeqSelected.size === balanceTxnsData.transactions.length)}
+                          onChange={e => {
+                            if (e.target.checked && balanceTxnsData.transactions?.length) {
+                              setTimeSeqSelected(new Set(balanceTxnsData.transactions.map(t => t._id)));
+                            } else {
+                              setTimeSeqSelected(new Set());
+                            }
+                          }}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-4 w-4"
+                          title="Select All"
+                        />
+                      </th>
+                      <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Time Sequence (h:m:s)
+                      </th>
+                      <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Voucher #
+                      </th>
+                      <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Voucher Type
+                      </th>
+                      <th className="px-3 py-2.5 text-center uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Direction
+                      </th>
+                      <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px]">
+                        Items / Materials Moved
+                      </th>
+                      <th className="px-3 py-2.5 text-right uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Total Amount
+                      </th>
+                      <th className="px-3 py-2.5 text-center uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Workflow Status
+                      </th>
+                      <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Party / Reason
+                      </th>
+                      <th className="px-3 py-2.5 text-left uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Handled By
+                      </th>
+                      <th className="px-3 py-2.5 text-center uppercase tracking-wider text-[11px] whitespace-nowrap">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-ink-100">
                   {balanceTxnsData.transactions?.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-ink-400">
+                      <td colSpan={11} className="px-4 py-12 text-center text-ink-400">
                         No movement transactions found for the selected time range and filters.
                       </td>
                     </tr>
@@ -4126,6 +4502,19 @@ export default function Reports({ defaultTab } = {}) {
                     const isIncoming = ['cash_grv', 'credit_grv', 'pos_adjustment', 'fresh_bazaar'].includes(t.voucherType) || t.type === 'in';
                     return (
                       <tr key={t._id} className="hover:bg-indigo-50/30 transition-colors">
+                        <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={timeSeqSelected.has(t._id)}
+                            onChange={e => {
+                              const next = new Set(timeSeqSelected);
+                              if (e.target.checked) next.add(t._id);
+                              else next.delete(t._id);
+                              setTimeSeqSelected(next);
+                            }}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-4 w-4"
+                          />
+                        </td>
                         <td className="px-3 py-2.5 whitespace-nowrap font-mono text-xs text-ink-800 font-semibold">
                           <span className="bg-ink-100 px-2 py-0.5 rounded text-[11px] text-ink-700">
                             {formatDateTime(t.date || t.createdAt)}
@@ -4191,13 +4580,25 @@ export default function Reports({ defaultTab } = {}) {
                         <td className="px-3 py-2.5 whitespace-nowrap text-ink-500 text-xs">
                           {t.performedBy}
                         </td>
+                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleVoidTxn(t)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold border border-rose-200 transition cursor-pointer"
+                            title="Void unwanted voucher and reverse stock"
+                          >
+                            <Ban size={12} />
+                            <span>Void</span>
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
+        )}
         </div>
       )}
 
@@ -4560,19 +4961,12 @@ export default function Reports({ defaultTab } = {}) {
           )}
 
           <p className="text-sm font-semibold text-ink-600">All movements on {data.date}</p>
-          <DataTable
-            columns={[
-              { key: 'date', header: 'Time (h:m:s)', render: r => <span className="font-mono text-xs">{formatDateTime(r.date || r.createdAt)}</span> },
-              { key: 'voucherType', header: 'Voucher', render: r => <span className="text-xs font-semibold">{VOUCHER_LABELS[r.voucherType] ?? r.voucherType ?? '—'}</span> },
-              { key: 'voucherNo', header: 'Ref', render: r => <span className="font-mono text-xs font-bold text-blue-700">{r.voucherNo || '—'}</span> },
-              { key: 'material', header: 'Material', render: r => r.material?.name ?? r.items?.[0]?.material?.name ?? '—' },
-              { key: 'quantity', header: 'Qty', render: r => <span className="tabular">{r.quantity ?? ''} {r.material?.unit ?? ''}</span> },
-              { key: 'type', header: 'Direction', render: r => <span className={r.type === 'in' ? 'text-emerald-700 font-medium' : 'text-red-700 font-medium'}>{r.type === 'in' ? '↑ IN' : '↓ OUT'}</span> },
-              { key: 'status', header: 'Status', render: r => <WorkflowBadge status={r.status || 'pending'} size="sm" /> },
-              { key: 'performedBy', header: 'By', render: r => r.performedBy?.name || '—' },
-            ]}
+          <VoucherTable
             data={data.transactions}
-            emptyMessage="No movements today."
+            showSupplier={true}
+            showReason={true}
+            onVoid={handleVoidTxn}
+            onBulkVoid={handleBulkVoidTxns}
           />
         </div>
       )}
@@ -4604,6 +4998,8 @@ export default function Reports({ defaultTab } = {}) {
             data={data.transactions}
             showSupplier={['cash_grv', 'credit_grv'].includes(tab)}
             showReason={['disposal', 'neg_adjustment', 'pos_adjustment'].includes(tab)}
+            onVoid={handleVoidTxn}
+            onBulkVoid={handleBulkVoidTxns}
           />
         </div>
       )}
