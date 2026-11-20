@@ -199,10 +199,11 @@ export const generateThermalReceiptText = (sale, config = {}) => {
   txt += `${addressLine1}\n`;
   if (addressLine2) txt += `${addressLine2}\n`;
   txt += `${phone}\n`;
-  txt += `${fsNo}    DATE: ${dateStr}\n\n`;
+  txt += `DATE: ${dateStr}\n\n`;
 
   txt += `${invoiceHeader}\n`;
   txt += `Customer: ${customerName}\n`;
+  txt += `FS No: ${fsNo}\n`;
   txt += `Invoice: ${invoiceNo}\n`;
   txt += `Operator: ${operator}\n`;
   txt += `${divider}\n`;
@@ -243,10 +244,8 @@ export const generateThermalReceiptText = (sale, config = {}) => {
 
   txt += `ITEM#                               ${String(processedItems.length).padStart(4, ' ')}\n`;
   txt += `${divider}\n`;
-  txt += `${fsNo}\n`;
-  txt += `\n`;
-  txt += `              ERCA\n`;
-  txt += `       [ET] ${sale?.mrc || config.machineNo || 'FG10044280'}\n`;
+  txt += `            [ET]  ERCA\n`;
+  txt += `         ${sale?.mrc || config.machineNo || 'FG10044280'}\n`;
   txt += `${divider}\n`;
   txt += `Powered By ${config.poweredBy || 'Sharp Plus System'}\n`;
 
@@ -630,13 +629,13 @@ export const exportBillToCSV = (sale, config = {}) => {
   const items = (sale?.items && sale.items.length > 0)
     ? sale.items
     : [
-        {
-          description: 'Item',
-          quantity: 1,
-          sellingPrice: sale?.totalRevenue || 0,
-          total: sale?.totalRevenue || 0,
-        },
-      ];
+      {
+        description: 'Item',
+        quantity: 1,
+        sellingPrice: sale?.totalRevenue || 0,
+        total: sale?.totalRevenue || 0,
+      },
+    ];
 
   let subtotal = 0;
   items.forEach((it, idx) => {
@@ -726,13 +725,13 @@ export const exportBillToExcel = (sale, config = {}) => {
   const items = (sale?.items && sale.items.length > 0)
     ? sale.items
     : [
-        {
-          description: 'Item',
-          quantity: 1,
-          sellingPrice: sale?.totalRevenue || 0,
-          total: sale?.totalRevenue || 0,
-        },
-      ];
+      {
+        description: 'Item',
+        quantity: 1,
+        sellingPrice: sale?.totalRevenue || 0,
+        total: sale?.totalRevenue || 0,
+      },
+    ];
 
   let subtotal = 0;
   items.forEach((it, idx) => {
@@ -927,20 +926,20 @@ export const openThermalPrintWindow = (sale, config = {}) => {
           <button class="print-btn" onclick="window.print()">🖨️ Click to Print Receipt</button>
         </div>
         <div class="receipt">${receiptText.replace(
-          /\n\s*ERCA\n\s*\[ET\]\s*([^\n]+)/,
-          `<div style="text-align: center; margin: 10px 0; font-family: monospace;">
-            <div style="display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
-              <svg viewBox="0 0 38 18" style="width: 38px; height: 18px; display: inline-block;" fill="none" stroke="#000">
-                <polygon points="6,2 36,2 30,16 0,16" stroke-width="2.5" stroke-linejoin="round" />
-                <line x1="3" y1="9" x2="20" y2="9" stroke-width="2.5" stroke-linecap="round" />
-              </svg>
-              <div style="display: inline-flex; flex-direction: column; align-items: center; line-height: 1;">
-                <span style="font-weight: 900; font-size: 13px; letter-spacing: 2px;">ERCA</span>
-                <span style="font-weight: bold; font-size: 12px; letter-spacing: 1px; margin-top: 2px;">$1</span>
+    /\n\s*\[ET\]\s*ERCA\n\s*([^\n]+)/,
+    `<div style="text-align: center; margin: 12px 0; font-family: monospace;">
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+              <div style="display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                <svg viewBox="0 0 38 18" style="width: 40px; height: 19px; display: inline-block;" fill="none" stroke="#000">
+                  <polygon points="6,2 36,2 30,16 0,16" stroke-width="3.2" stroke-linejoin="round" />
+                  <line x1="3" y1="9" x2="20" y2="9" stroke-width="3.2" stroke-linecap="round" />
+                </svg>
+                <span style="font-weight: 900; font-size: 14px; letter-spacing: 2px; line-height: 1;">ERCA</span>
               </div>
+              <div style="font-weight: bold; font-size: 12px; letter-spacing: 1px; margin-top: 2px;">$1</div>
             </div>
           </div>`
-        )}</div>
+  )}</div>
         <script>
           window.onload = function() {
             setTimeout(function() {
@@ -1158,12 +1157,15 @@ export const openA4PrintWindow = (sale, config = {}) => {
           </div>
 
           <div class="footer-note">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;">
-              <svg viewBox="0 0 38 18" style="width: 32px; height: 16px;" fill="none" stroke="#000">
-                <polygon points="6,2 36,2 30,16 0,16" stroke-width="2.5" stroke-linejoin="round" />
-                <line x1="3" y1="9" x2="20" y2="9" stroke-width="2.5" stroke-linecap="round" />
-              </svg>
-              <span style="font-weight: 800; font-size: 11px; font-family: monospace;">ERCA ${sale?.mrc || config.machineNo || 'FG10044280'}</span>
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; margin-bottom: 8px;">
+              <div style="display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                <svg viewBox="0 0 38 18" style="width: 36px; height: 17px;" fill="none" stroke="#000">
+                  <polygon points="6,2 36,2 30,16 0,16" stroke-width="3.2" stroke-linejoin="round" />
+                  <line x1="3" y1="9" x2="20" y2="9" stroke-width="3.2" stroke-linecap="round" />
+                </svg>
+                <span style="font-weight: 900; font-size: 13px; font-family: monospace; letter-spacing: 2px;">ERCA</span>
+              </div>
+              <span style="font-weight: bold; font-size: 11px; font-family: monospace;">${sale?.mrc || config.machineNo || 'FG10044280'}</span>
             </div>
             Thank you for your business! | Machine ID: ${sale?.mrc || config.machineNo || 'FG10044280'} | Powered by Sharp Plus System
           </div>

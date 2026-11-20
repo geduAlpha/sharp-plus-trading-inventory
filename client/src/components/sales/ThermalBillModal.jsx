@@ -560,10 +560,9 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 <div>{config.phone}</div>
               </div>
 
-              {/* FS No & Date */}
-              <div className="flex justify-between items-center text-[11px] font-bold mt-2 pb-1 text-slate-900">
-                <span>{fsNumber}</span>
-                <span>DATE: {dateStr}</span>
+              {/* Date Header */}
+              <div className="text-right text-[11px] font-bold mt-2 pb-1 text-slate-900">
+                DATE: {dateStr}
               </div>
 
               {/* Invoice Type Divider */}
@@ -578,6 +577,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               {/* Metadata */}
               <div className="text-[11px] space-y-0.5 mb-1.5 text-slate-800">
                 <div>Customer: {customerName}</div>
+                <div>FS No: {fsNumber}</div>
                 <div>Invoice: {invoiceNo}</div>
                 <div>Operator: {config.operator || 'System Operator'}</div>
               </div>
@@ -678,30 +678,27 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                 <span>{processedItems.length}</span>
               </div>
 
-              {/* FS Number & Fiscal Divider */}
-              <div className="border-t border-dashed border-slate-300 my-2 pt-1 text-center font-mono text-[11px] font-bold text-slate-900">
-                {fsNumber}
-              </div>
+              <div className="my-2 border-b border-dashed border-slate-400" />
 
-              {/* Official ERCA Ethiopian Fiscal Machine Stamp */}
+              {/* Official ERCA Ethiopian Fiscal Machine Stamp (Bold with Machine No Underneath) */}
               <div className="my-2.5 flex flex-col items-center justify-center select-none text-slate-950">
-                <div className="flex items-center justify-center gap-2.5">
-                  {/* Stylized Ethiopian ERCA ET Fiscal Mark */}
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  {/* Bold Stylized Ethiopian ERCA ET Fiscal Mark */}
                   <svg
                     viewBox="0 0 38 18"
                     className="w-10 h-5 text-black shrink-0"
                     fill="none"
                     stroke="currentColor"
                   >
-                    <polygon points="6,2 36,2 30,16 0,16" strokeWidth="2.5" strokeLinejoin="round" />
-                    <line x1="3" y1="9" x2="20" y2="9" strokeWidth="2.5" strokeLinecap="round" />
+                    <polygon points="6,2 36,2 30,16 0,16" strokeWidth="3.2" strokeLinejoin="round" />
+                    <line x1="3" y1="9" x2="20" y2="9" strokeWidth="3.2" strokeLinecap="round" />
                   </svg>
-                  <div className="flex flex-col items-center">
-                    <span className="text-[12px] font-black tracking-widest leading-none font-mono">ERCA</span>
-                    <span className="text-[12px] font-bold font-mono tracking-wider mt-0.5 leading-none">
-                      {sale?.mrc || config.machineNo || 'FG10044280'}
-                    </span>
-                  </div>
+                  <span className="text-[13px] font-black tracking-widest leading-none font-mono">
+                    ERCA
+                  </span>
+                </div>
+                <div className="text-[12px] font-bold font-mono tracking-wider text-slate-950 leading-none">
+                  {sale?.mrc || config.machineNo || 'FG10044280'}
                 </div>
               </div>
 
