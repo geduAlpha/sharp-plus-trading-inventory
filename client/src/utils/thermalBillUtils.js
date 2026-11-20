@@ -991,15 +991,6 @@ export const openA4PrintWindow = (sale, config = {}) => {
     ? new Date(sale.createdAt).toLocaleDateString('en-GB')
     : dateStr;
 
-  const checkedByName =
-    sale?.checkedBy?.name ||
-    (typeof sale?.checkedBy === 'string' ? sale.checkedBy : null) ||
-    '—';
-
-  const checkedDate = sale?.checkedAt
-    ? new Date(sale.checkedAt).toLocaleDateString('en-GB')
-    : '';
-
   const approvedByName =
     sale?.approvedBy?.name ||
     sale?.postedBy?.name ||
@@ -1067,19 +1058,29 @@ export const openA4PrintWindow = (sale, config = {}) => {
             line-height: 1.4;
             position: relative;
           }
-          .watermark {
+          .watermark-container {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-40deg);
-            font-size: 100px;
-            font-weight: 800;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+          }
+          .watermark {
+            transform: rotate(-38deg);
+            font-size: 105px;
+            font-weight: 900;
             color: rgba(148, 163, 184, 0.22);
             pointer-events: none;
             user-select: none;
-            z-index: 0;
             white-space: nowrap;
             letter-spacing: 0.04em;
+            font-family: Arial, sans-serif;
           }
           .invoice-box {
             max-width: 800px;
@@ -1193,64 +1194,75 @@ export const openA4PrintWindow = (sale, config = {}) => {
             margin-top: 4px;
           }
           .operators-section {
-            margin-top: 24px;
-            padding-top: 8px;
+            margin-top: 14px;
+            padding-top: 4px;
           }
           .operators-title {
             font-weight: 800;
-            font-size: 12px;
-            color: #020617;
-            margin-bottom: 8px;
-          }
-          .operators-grid {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
             font-size: 11px;
-            margin-bottom: 16px;
+            color: #020617;
+            margin-bottom: 4px;
           }
-          .operator-col {
-            flex: 1;
+          .operators-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 10.5px;
+            padding: 6px 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            margin-bottom: 6px;
+          }
+          .operator-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
           }
           .operator-label {
             color: #64748b;
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 700;
             text-transform: uppercase;
-            margin-bottom: 2px;
+            letter-spacing: 0.03em;
           }
           .operator-name {
             font-weight: 700;
             color: #020617;
           }
           .operator-date {
-            font-size: 10px;
+            font-size: 9.5px;
             color: #64748b;
             font-family: monospace;
           }
           .notice-text {
             text-align: center;
             font-weight: 800;
-            font-size: 11.5px;
+            font-size: 11px;
             color: #020617;
             text-transform: uppercase;
-            margin: 12px 0 6px 0;
+            margin: 8px 0 4px 0;
             letter-spacing: 0.03em;
           }
           .footer-divider {
             border-bottom: 1px solid #020617;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
           }
           .footer-bar {
             display: flex;
             justify-content: space-between;
-            font-size: 10px;
+            font-size: 9.5px;
             color: #64748b;
             font-family: monospace;
           }
           @media print {
             body { padding: 0; }
             .no-print { display: none !important; }
+            .watermark-container {
+              display: flex !important;
+            }
             .watermark {
               display: block !important;
               color: rgba(148, 163, 184, 0.25) !important;
@@ -1263,7 +1275,9 @@ export const openA4PrintWindow = (sale, config = {}) => {
         </style>
       </head>
       <body>
-        <div class="watermark">Attachment</div>
+        <div class="watermark-container">
+          <div class="watermark">Attachment</div>
+        </div>
         <div class="no-print print-bar">
           <button class="print-btn" onclick="window.print()">🖨️ Print A4 Invoice</button>
         </div>
@@ -1368,29 +1382,24 @@ export const openA4PrintWindow = (sale, config = {}) => {
             ` : ''}
           </div>
 
-          <!-- Voucher Operators (Workflow) -->
+          <!-- Voucher Operators (Workflow) - Compact & Space-Optimized -->
           <div class="operators-section">
             <div class="operators-title">Voucher Operators</div>
-            <div class="operators-grid">
-              <div class="operator-col">
-                <div class="operator-label">Prepared by</div>
-                <div class="operator-name">${preparedByName}</div>
-                <div class="operator-date">on ${preparedDate}</div>
+            <div class="operators-row">
+              <div class="operator-item">
+                <span class="operator-label">Prepared by:</span>
+                <span class="operator-name">${preparedByName}</span>
+                <span class="operator-date">on ${preparedDate}</span>
               </div>
-              <div class="operator-col">
-                <div class="operator-label">Checked by</div>
-                <div class="operator-name">${checkedByName}</div>
-                ${checkedDate ? `<div class="operator-date">on ${checkedDate}</div>` : ''}
+              <div class="operator-item">
+                <span class="operator-label">Approved by:</span>
+                <span class="operator-name">${approvedByName !== '—' ? approvedByName : 'System / Manager'}</span>
+                <span class="operator-date">${approvedDate ? `on ${approvedDate}` : (sale?.status === 'approved' || sale?.approvedBy ? 'Approved' : 'Pending')}</span>
               </div>
-              <div class="operator-col">
-                <div class="operator-label">Approved by</div>
-                <div class="operator-name">${approvedByName}</div>
-                ${approvedDate ? `<div class="operator-date">on ${approvedDate}</div>` : ''}
-              </div>
-              <div class="operator-col">
-                <div class="operator-label">Received by (Customer)</div>
-                <div class="operator-name">${customerName}</div>
-                <div class="operator-date">Customer Acceptance</div>
+              <div class="operator-item">
+                <span class="operator-label">Received by:</span>
+                <span class="operator-name">${customerName}</span>
+                <span class="operator-date">(Customer Acceptance)</span>
               </div>
             </div>
 

@@ -194,15 +194,6 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     ? new Date(sale.createdAt).toLocaleDateString('en-GB')
     : dateStr;
 
-  const checkedByName =
-    sale?.checkedBy?.name ||
-    (typeof sale?.checkedBy === 'string' ? sale.checkedBy : null) ||
-    '—';
-
-  const checkedDate = sale?.checkedAt
-    ? new Date(sale.checkedAt).toLocaleDateString('en-GB')
-    : '';
-
   const approvedByName =
     sale?.approvedBy?.name ||
     sale?.postedBy?.name ||
@@ -747,22 +738,22 @@ export default function ThermalBillModal({ open, onClose, sale }) {
           {/* ────── MODE B: A4 Standard Invoice Document ────── */}
           {viewMode === 'a4' && (
             <div
-              className="relative w-full max-w-3xl bg-white text-slate-900 rounded-xl shadow-2xl p-6 sm:p-10 border border-slate-300 select-text my-2 overflow-hidden"
-              style={{ minHeight: '880px', fontFamily: '"Segoe UI", Arial, sans-serif' }}
+              className="relative w-full max-w-3xl bg-white text-slate-900 rounded-xl shadow-2xl p-5 sm:p-7 border border-slate-300 select-text my-2 overflow-hidden"
+              style={{ fontFamily: '"Segoe UI", Arial, sans-serif' }}
             >
               {/* Semi-transparent Diagonal Watermark: "Attachment" */}
               <div
-                className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0"
-                style={{ overflow: 'hidden' }}
+                className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden"
               >
                 <span
                   style={{
-                    transform: 'rotate(-40deg)',
-                    fontSize: '92px',
-                    fontWeight: '800',
+                    transform: 'rotate(-38deg)',
+                    fontSize: '105px',
+                    fontWeight: '900',
                     color: 'rgba(148, 163, 184, 0.22)',
                     letterSpacing: '0.04em',
                     whiteSpace: 'nowrap',
+                    fontFamily: 'Arial, sans-serif',
                   }}
                 >
                   Attachment
@@ -770,7 +761,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               </div>
 
               {/* Document Content Layer */}
-              <div className="relative z-10 flex flex-col justify-between" style={{ minHeight: '820px' }}>
+              <div className="relative z-10 flex flex-col justify-between">
                 <div>
                   {/* Top Header Grid */}
                   <div className="flex flex-col sm:flex-row items-start justify-between gap-6 pb-2">
@@ -822,7 +813,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   </div>
 
                   {/* Two Metadata Boxes */}
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 my-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 my-3">
                     {/* Left Box: Customer Info */}
                     <div className="sm:col-span-7 border border-slate-800 rounded p-2.5 text-xs space-y-1 bg-white">
                       <div>
@@ -873,16 +864,16 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   </div>
 
                   {/* Line Items Table */}
-                  <div className="border border-slate-800 rounded overflow-hidden my-4">
+                  <div className="border border-slate-800 rounded overflow-hidden my-3">
                     <table className="w-full text-xs text-left border-collapse">
                       <thead className="bg-slate-100 text-slate-950 font-bold border-b border-slate-800">
                         <tr>
-                          <th className="py-2 px-2.5 w-10 text-center border-r border-slate-300">SN</th>
-                          <th className="py-2 px-2.5 w-28 border-r border-slate-300">Item Id</th>
-                          <th className="py-2 px-2.5 border-r border-slate-300">Description</th>
-                          <th className="py-2 px-2.5 w-16 text-center border-r border-slate-300">Qty</th>
-                          <th className="py-2 px-2.5 w-24 text-right border-r border-slate-300">Price</th>
-                          <th className="py-2 px-2.5 w-28 text-right">Amount (ETB)</th>
+                          <th className="py-1.5 px-2.5 w-10 text-center border-r border-slate-300">SN</th>
+                          <th className="py-1.5 px-2.5 w-28 border-r border-slate-300">Item Id</th>
+                          <th className="py-1.5 px-2.5 border-r border-slate-300">Description</th>
+                          <th className="py-1.5 px-2.5 w-16 text-center border-r border-slate-300">Qty</th>
+                          <th className="py-1.5 px-2.5 w-24 text-right border-r border-slate-300">Price</th>
+                          <th className="py-1.5 px-2.5 w-28 text-right">Amount (ETB)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 text-slate-900">
@@ -891,14 +882,14 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                           const itemId = rawItem.code || rawItem.material?.code || it.code || `IT-${String(idx + 1).padStart(5, '0')}`;
                           return (
                             <tr key={idx}>
-                              <td className="py-2 px-2.5 text-center font-mono border-r border-slate-200">{idx + 1}</td>
-                              <td className="py-2 px-2.5 font-mono text-slate-700 border-r border-slate-200">{itemId}</td>
-                              <td className="py-2 px-2.5 font-semibold border-r border-slate-200">
+                              <td className="py-1.5 px-2.5 text-center font-mono border-r border-slate-200">{idx + 1}</td>
+                              <td className="py-1.5 px-2.5 font-mono text-slate-700 border-r border-slate-200">{itemId}</td>
+                              <td className="py-1.5 px-2.5 font-semibold border-r border-slate-200">
                                 {it.desc} {it.uom ? `[${it.uom}]` : ''}
                               </td>
-                              <td className="py-2 px-2.5 text-center font-mono font-bold border-r border-slate-200">{it.qty}</td>
-                              <td className="py-2 px-2.5 text-right font-mono border-r border-slate-200">{formatNumber(it.price, 2)}</td>
-                              <td className="py-2 px-2.5 text-right font-mono font-bold">{formatNumber(it.amount, 2)}</td>
+                              <td className="py-1.5 px-2.5 text-center font-mono font-bold border-r border-slate-200">{it.qty}</td>
+                              <td className="py-1.5 px-2.5 text-right font-mono border-r border-slate-200">{formatNumber(it.price, 2)}</td>
+                              <td className="py-1.5 px-2.5 text-right font-mono font-bold">{formatNumber(it.amount, 2)}</td>
                             </tr>
                           );
                         })}
@@ -907,8 +898,8 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   </div>
 
                   {/* Totals Summary */}
-                  <div className="flex justify-end my-3">
-                    <div className="w-72 border border-slate-800 rounded p-2.5 text-xs space-y-1 bg-white">
+                  <div className="flex justify-end my-2">
+                    <div className="w-72 border border-slate-800 rounded p-2 text-xs space-y-1 bg-white">
                       <div className="flex justify-between text-slate-700">
                         <span>Taxable Amount (TXBL1):</span>
                         <span className="font-mono font-medium">ETB {formatNumber(taxable, 2)}</span>
@@ -937,64 +928,34 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   </div>
                 </div>
 
-                {/* Bottom Workflow Signatures, Notice, and Footer */}
-                <div className="mt-8 pt-4">
+                {/* Bottom Workflow Operators, Notice, and Footer (Compact & Space-Optimized) */}
+                <div className="mt-4 pt-2">
                   {/* Voucher Operators Section */}
-                  <div className="font-bold text-slate-950 text-xs mb-2 tracking-tight">
+                  <div className="font-bold text-slate-950 text-xs mb-1.5 tracking-tight">
                     Voucher Operators
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs pt-1 pb-4">
-                    <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
-                        Prepared by
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs py-2 px-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Prepared by:</span>
+                      <span className="font-bold text-slate-950">{preparedByName}</span>
+                      <span className="text-slate-500 font-mono text-[10px]">on {preparedDate}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Approved by:</span>
+                      <span className="font-bold text-slate-950">
+                        {approvedByName !== '—' ? approvedByName : 'System / Manager'}
                       </span>
-                      <span className="font-bold text-slate-950 block truncate">
-                        {preparedByName}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono block">
-                        on {preparedDate}
+                      <span className="text-slate-500 font-mono text-[10px]">
+                        {approvedDate ? `on ${approvedDate}` : (sale?.status === 'approved' || sale?.approvedBy ? 'Approved' : 'Pending')}
                       </span>
                     </div>
 
-                    <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
-                        Checked by
-                      </span>
-                      <span className="font-bold text-slate-950 block truncate">
-                        {checkedByName}
-                      </span>
-                      {checkedDate && (
-                        <span className="text-[10px] text-slate-500 font-mono block">
-                          on {checkedDate}
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
-                        Approved by
-                      </span>
-                      <span className="font-bold text-slate-950 block truncate">
-                        {approvedByName}
-                      </span>
-                      {approvedDate && (
-                        <span className="text-[10px] text-slate-500 font-mono block">
-                          on {approvedDate}
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
-                        Received by (Customer)
-                      </span>
-                      <span className="font-bold text-slate-950 block truncate">
-                        {customerName}
-                      </span>
-                      <span className="text-[10px] text-slate-500 block">
-                        Customer Acceptance
-                      </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Received by:</span>
+                      <span className="font-bold text-slate-950">{customerName}</span>
+                      <span className="text-slate-500 text-[10px] font-medium">(Customer Acceptance)</span>
                     </div>
                   </div>
 
@@ -1004,10 +965,10 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                   </div>
 
                   {/* Bottom Divider Line */}
-                  <div className="border-b border-slate-900 my-1" />
+                  <div className="border-b border-slate-900 my-0.5" />
 
                   {/* Bottom Footer Bar */}
-                  <div className="flex justify-between items-center text-[10px] text-slate-600 font-mono pt-1">
+                  <div className="flex justify-between items-center text-[10px] text-slate-600 font-mono pt-0.5">
                     <span>
                       ERP System Made By {companyInfo?.companyName || 'Sharp Plus Trading PLC'} System
                     </span>
