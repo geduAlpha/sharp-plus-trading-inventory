@@ -931,11 +931,11 @@ export default function StockTransactions({ defaultVoucher } = {}) {
       if (editingTxn) {
         const res = await api.put(`/transactions/${editingTxn._id}`, payload);
         savedDoc = res.data;
-        setFormSuccess(`Voucher ${savedDoc.voucherNo || 'Prepared'} updated successfully!`);
+        setFormSuccess(`Voucher ${savedDoc.voucherNo || 'Prepared'} updated successfully! Stock effect performed immediately for ${savedDoc.items?.length || 1} individual item(s).`);
       } else {
         const res = await api.post('/transactions', payload);
         savedDoc = res.data;
-        setFormSuccess(`Voucher ${savedDoc.voucherNo || 'Prepared'} saved successfully as Draft / Prepared.`);
+        setFormSuccess(`Voucher ${savedDoc.voucherNo || 'Prepared'} saved successfully! Stock effect performed immediately in real balance for ${savedDoc.items?.length || 1} individual item(s).`);
       }
       loadTransactions();
       loadMasterData();
@@ -1387,7 +1387,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
               onClick={handleFormSave}
               disabled={submitting}
               className="flex flex-col items-center justify-center min-w-[76px] py-2 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 shadow-xs transition active:scale-95 group"
-              title="Save voucher as Draft / Prepared (no stock impact yet)"
+              title="Save voucher (stock effect performed immediately in real balance at preparation time)"
             >
               <Save size={20} className="text-blue-700 group-hover:scale-110 mb-0.5" />
               <span className="text-xs font-medium">{submitting ? 'Saving...' : 'Save'}</span>
@@ -2136,6 +2136,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-sky-200/90 text-sky-950 font-bold border-b border-sky-300">
+                  <th className="py-2.5 px-2.5 w-10 text-center">#</th>
                   <th className="py-2.5 px-3">Art. Code</th>
                   <th className="py-2.5 px-3">Art. Name</th>
                   {isAdjustmentVoucher && (
@@ -2162,14 +2163,15 @@ export default function StockTransactions({ defaultVoucher } = {}) {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {form.items.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdjustmentVoucher ? 9 : 8} className="py-8 text-center text-slate-400">
+                    <td colSpan={isAdjustmentVoucher ? 10 : 9} className="py-8 text-center text-slate-400">
                       <Package size={28} className="mx-auto mb-1 text-slate-300" />
-                      <span>No data. Fill Article details above and click <strong>Add</strong>, <strong>Import</strong>, or <strong>Smart Reconcile</strong>.</span>
+                      <span>No items added yet. Fill Article details above and click <strong>Add</strong> to add items individually.</span>
                     </td>
                   </tr>
                 ) : (
                   form.items.map((it, idx) => (
                     <tr key={idx} className="hover:bg-sky-50/50 transition">
+                      <td className="py-2 px-2.5 text-center font-mono text-slate-400 font-bold text-[11px]">{idx + 1}</td>
                       <td className="py-2 px-3 font-mono font-medium text-slate-700">{it.code || '—'}</td>
                       <td className="py-2 px-3 font-medium text-slate-800">
                         {it.name}
@@ -2229,9 +2231,11 @@ export default function StockTransactions({ defaultVoucher } = {}) {
           {/* 1H. Bottom Totals & Calculation Summary */}
           <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
             <div className="flex flex-wrap items-center gap-4 text-xs">
-              <div className="text-slate-600">
-                <span>Items Count: </span>
-                <strong className="text-slate-800">{form.items.length}</strong>
+              <div className="text-slate-600 flex items-center gap-1.5">
+                <span>Individual Items Count: </span>
+                <strong className="text-blue-900 bg-blue-100/80 px-2 py-0.5 rounded border border-blue-200">
+                  {form.items.length} line{form.items.length !== 1 ? 's' : ''} ({form.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0).toLocaleString()} units)
+                </strong>
               </div>
               <div className="text-slate-600">
                 <span>Store: </span>
@@ -2240,7 +2244,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
               <div className="text-slate-600">
                 <span>Status: </span>
                 <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                  {editingTxn?.stateLabel || 'Prepared (Draft)'}
+                  {editingTxn?.stateLabel || 'Prepared (Stock Effect Applied)'}
                 </span>
               </div>
             </div>
@@ -2565,6 +2569,7 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                       />
                     </th>
                     <th className="py-2.5 px-3">Code</th>
+                    <th className="py-2.5 px-3">Items (Count)</th>
                     <th className="py-2.5 px-3">Party / Employee / Supplier</th>
                     <th className="py-2.5 px-3">TIN / Code</th>
                     <th className="py-2.5 px-3">Issued Date (h:m:s)</th>
@@ -2581,14 +2586,14 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
                     <tr>
-                      <td colSpan={13} className="py-12 text-center text-slate-400">
+                      <td colSpan={14} className="py-12 text-center text-slate-400">
                         <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-blue-500" />
                         <span>Loading vouchers...</span>
                       </td>
                     </tr>
                   ) : paginatedTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="py-12 text-center text-slate-400">
+                      <td colSpan={14} className="py-12 text-center text-slate-400">
                         <Package size={28} className="mx-auto mb-2 text-slate-300" />
                         <span>No vouchers found matching criteria. Click <strong>New</strong> to prepare one.</span>
                       </td>
@@ -2625,6 +2630,18 @@ export default function StockTransactions({ defaultVoucher } = {}) {
                             />
                           </td>
                           <td className="py-2 px-3 font-mono font-bold text-blue-700">{t.voucherNo || '—'}</td>
+                          <td className="py-2 px-3">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-[11px] inline-block w-fit">
+                                {t.items?.length || 1} item{(t.items?.length || 1) !== 1 ? 's' : ''} ({Number(t.items?.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || t.quantity || 0).toLocaleString()} units)
+                              </span>
+                              {Array.isArray(t.items) && t.items.length > 0 && (
+                                <span className="text-[10.5px] text-slate-500 truncate max-w-[200px]" title={t.items.map(i => `${i.material?.code ? `[${i.material.code}] ` : ''}${i.material?.name || 'Item'} (${i.quantity} ${i.uom || ''})`).join('; ')}>
+                                  {t.items.slice(0, 2).map(i => `${i.material?.name || 'Item'} (${i.quantity})`).join(', ')}{t.items.length > 2 ? ` +${t.items.length - 2} more` : ''}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-2 px-3 font-semibold text-slate-800">{partyName}</td>
                           <td className="py-2 px-3 font-mono text-slate-600">{partyCode}</td>
                           <td className="py-2 px-3 whitespace-nowrap text-slate-600 font-mono text-xs">

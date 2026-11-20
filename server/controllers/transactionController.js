@@ -599,7 +599,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     paymentStatus: assignedPaymentStatus,
     amountPaid: initialAmountPaid,
     dueDate: dueDate ? new Date(dueDate) : null,
-    stockApplied: false, // Sales now require formal review & approval before inventory deduction
+    stockApplied: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'neg_adjustment', 'psav', 'nsav'].includes(canonicalVoucherType),
     status: 'pending',
     postedBy: undefined,
     postedAt: undefined,
@@ -610,6 +610,8 @@ const createTransaction = asyncHandler(async (req, res) => {
       byRole: req.user.role,
       note: isSale
         ? `${voucherType === 'credit_sale' ? 'Credit' : 'Cash'} sale recorded (awaiting review & approval before posting)`
+        : ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'neg_adjustment', 'psav', 'nsav'].includes(canonicalVoucherType)
+        ? `Voucher prepared and stock effect performed immediately in real balance for ${resolvedItems.length} individual item(s).`
         : 'Voucher prepared (awaiting approval before stock balance update)',
     }],
   };
@@ -624,10 +626,22 @@ const createTransaction = asyncHandler(async (req, res) => {
 
   let transaction;
   try {
+    const shouldApplyStockOnPrepare = ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'neg_adjustment', 'psav', 'nsav'].includes(canonicalVoucherType);
+    if (shouldApplyStockOnPrepare) {
+      if (direction === 'out') {
+        const val = await validateStockForReduction(resolvedItems, assignedStoreLocation, session);
+        if (!val.valid) {
+          throw new Error(val.error);
+        }
+      }
+      await applyStockMovement(resolvedItems, direction, session, {
+        defaultStore: assignedStoreLocation,
+        updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'psav'].includes(canonicalVoucherType),
+      });
+    }
+
     const [createdTxn] = await StockTransaction.create([txnData], session ? { session } : {});
     transaction = createdTxn;
-
-    // Note: Stock balance is NOT deducted here. Stock balance only updates upon formal approval/posting by an authorized reviewer.
 
     // If this is a direct sale, also create companion SalesRecord
     if (isSale) {
@@ -857,19 +871,20 @@ const updateTransaction = asyncHandler(async (req, res) => {
     }
 
     const isApprovedOrPosted = ['approved', 'posted'].includes(transaction.status);
+    const shouldApplyStockOnPrepare = ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'neg_adjustment', 'psav', 'nsav'].includes(voucherType);
+    const mustApplyStock = shouldApplyStockOnPrepare || isApprovedOrPosted;
 
     // 2. Validate negative stock reduction for new items if stock is to be applied
     const assignedStore = req.body.storeLocation || req.body.consigneeUnit || transaction.storeLocation || 'Main Store';
-    if (isApprovedOrPosted && newDirection === 'out') {
+    if (mustApplyStock && newDirection === 'out') {
       const val = await validateStockForReduction(resolvedItems, assignedStore, session);
       if (!val.valid) {
         throw new Error(val.error);
       }
     }
 
-    // 3. Only apply stock movement if the transaction is approved or posted!
-    // GRVs, Adjustments, and non-sale vouchers do NOT affect stock balance while pending/unapproved.
-    if (isApprovedOrPosted) {
+    // 3. Apply stock movement for GRVs & Adjustments immediately at preparation time, or upon approval/posting
+    if (mustApplyStock) {
       await applyStockMovement(resolvedItems, newDirection, session, {
         defaultStore: assignedStore,
         updateWac: ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'psav'].includes(voucherType),
