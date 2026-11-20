@@ -981,6 +981,35 @@ export const openA4PrintWindow = (sale, config = {}) => {
   const customerPhone = sale?.customerPhone || '';
   const operator = config.operator || sale?.performedBy?.name || 'Authorized Cashier';
 
+  const preparedByName =
+    sale?.performedBy?.name ||
+    sale?.createdByName ||
+    sale?.employeeName ||
+    operator;
+
+  const preparedDate = sale?.createdAt
+    ? new Date(sale.createdAt).toLocaleDateString('en-GB')
+    : dateStr;
+
+  const checkedByName =
+    sale?.checkedBy?.name ||
+    (typeof sale?.checkedBy === 'string' ? sale.checkedBy : null) ||
+    '—';
+
+  const checkedDate = sale?.checkedAt
+    ? new Date(sale.checkedAt).toLocaleDateString('en-GB')
+    : '';
+
+  const approvedByName =
+    sale?.approvedBy?.name ||
+    sale?.postedBy?.name ||
+    (typeof sale?.approvedBy === 'string' ? sale.approvedBy : null) ||
+    '—';
+
+  const approvedDate = sale?.approvedAt
+    ? new Date(sale.approvedAt).toLocaleDateString('en-GB')
+    : (sale?.postedAt ? new Date(sale.postedAt).toLocaleDateString('en-GB') : '');
+
   const rawItems = sale?.items || [];
   const items = rawItems.length > 0 ? rawItems : [
     { description: 'Item', quantity: 1, sellingPrice: sale?.totalRevenue || 0, totalRevenue: sale?.totalRevenue || 0 },
@@ -1025,7 +1054,7 @@ export const openA4PrintWindow = (sale, config = {}) => {
         <style>
           @page {
             size: A4 portrait;
-            margin: 14mm 14mm 16mm 14mm;
+            margin: 12mm 14mm 14mm 14mm;
           }
           * { box-sizing: border-box; }
           body {
@@ -1034,145 +1063,343 @@ export const openA4PrintWindow = (sale, config = {}) => {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: #0f172a;
             background: #ffffff;
-            font-size: 13px;
-            line-height: 1.45;
+            font-size: 12px;
+            line-height: 1.4;
+            position: relative;
+          }
+          .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-40deg);
+            font-size: 100px;
+            font-weight: 800;
+            color: rgba(148, 163, 184, 0.22);
+            pointer-events: none;
+            user-select: none;
+            z-index: 0;
+            white-space: nowrap;
+            letter-spacing: 0.04em;
           }
           .invoice-box {
             max-width: 800px;
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
           }
-          .header-table { width: 100%; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 16px; }
-          .company-title { font-size: 20px; font-weight: 800; color: #1e3a8a; letter-spacing: -0.02em; }
-          .invoice-badge { display: inline-block; padding: 4px 10px; background: ${isCredit ? '#eff6ff' : '#ecfdf5'}; color: ${isCredit ? '#1d4ed8' : '#047857'}; border: 1px solid ${isCredit ? '#bfdbfe' : '#a7f3d0'}; border-radius: 6px; font-weight: 800; font-size: 12px; text-transform: uppercase; }
-          .meta-grid { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
-          .meta-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; }
-          .meta-title { font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-          .data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
-          .data-table th { background: #f1f5f9; color: #1e293b; font-weight: 700; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; }
-          .data-table td { padding: 8px 10px; border: 1px solid #e2e8f0; }
+          .header-grid {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 12px;
+          }
+          .company-title {
+            font-size: 22px;
+            font-weight: 900;
+            color: #020617;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+          }
+          .company-underline {
+            width: 100%;
+            max-width: 320px;
+            border-bottom: 2px solid #020617;
+            margin-top: 8px;
+          }
+          .company-box {
+            width: 270px;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 11px;
+            line-height: 1.35;
+            background: #ffffff;
+          }
+          .voucher-title {
+            text-align: right;
+            font-weight: 800;
+            font-size: 14px;
+            color: #020617;
+            margin-top: 6px;
+          }
+          .meta-grid {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            margin: 14px 0;
+          }
+          .meta-box-left {
+            flex: 7;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 11.5px;
+            line-height: 1.45;
+            background: #ffffff;
+          }
+          .meta-box-right {
+            flex: 5;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 11.5px;
+            line-height: 1.45;
+            background: #ffffff;
+          }
+          .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 14px 0;
+            border: 1px solid #1e293b;
+            font-size: 11.5px;
+          }
+          .data-table th {
+            background: #f1f5f9;
+            color: #020617;
+            font-weight: 700;
+            text-align: left;
+            padding: 7px 8px;
+            border: 1px solid #94a3b8;
+          }
+          .data-table td {
+            padding: 6px 8px;
+            border: 1px solid #cbd5e1;
+          }
           .text-right { text-align: right; }
           .text-center { text-align: center; }
-          .summary-box { width: 320px; margin-left: auto; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-top: 12px; }
-          .summary-row { display: flex; justify-content: space-between; padding: 6px 12px; font-size: 12px; border-bottom: 1px solid #f1f5f9; }
-          .summary-total { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 14px; font-weight: 800; background: #f8fafc; color: #0f172a; border-top: 2px solid #2563eb; }
-          .sign-grid { display: flex; justify-content: space-between; margin-top: 48px; padding-top: 12px; font-size: 12px; }
-          .sign-col { width: 28%; text-align: center; border-top: 1px solid #94a3b8; padding-top: 6px; color: #475569; }
-          .footer-note { text-align: center; font-size: 11px; color: #64748b; margin-top: 32px; border-top: 1px dashed #cbd5e1; padding-top: 12px; }
+          .font-mono { font-family: monospace; }
+          .summary-box {
+            width: 270px;
+            margin-left: auto;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 8px 10px;
+            margin-top: 10px;
+            font-size: 11.5px;
+            line-height: 1.45;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+          }
+          .summary-total {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 800;
+            font-size: 13px;
+            border-top: 1px solid #1e293b;
+            padding-top: 4px;
+            margin-top: 4px;
+          }
+          .operators-section {
+            margin-top: 24px;
+            padding-top: 8px;
+          }
+          .operators-title {
+            font-weight: 800;
+            font-size: 12px;
+            color: #020617;
+            margin-bottom: 8px;
+          }
+          .operators-grid {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            font-size: 11px;
+            margin-bottom: 16px;
+          }
+          .operator-col {
+            flex: 1;
+          }
+          .operator-label {
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+          }
+          .operator-name {
+            font-weight: 700;
+            color: #020617;
+          }
+          .operator-date {
+            font-size: 10px;
+            color: #64748b;
+            font-family: monospace;
+          }
+          .notice-text {
+            text-align: center;
+            font-weight: 800;
+            font-size: 11.5px;
+            color: #020617;
+            text-transform: uppercase;
+            margin: 12px 0 6px 0;
+            letter-spacing: 0.03em;
+          }
+          .footer-divider {
+            border-bottom: 1px solid #020617;
+            margin-bottom: 4px;
+          }
+          .footer-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #64748b;
+            font-family: monospace;
+          }
           @media print {
             body { padding: 0; }
             .no-print { display: none !important; }
+            .watermark {
+              display: block !important;
+              color: rgba(148, 163, 184, 0.25) !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
           }
-          .print-bar { text-align: center; margin-bottom: 20px; }
-          .print-btn { padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+          .print-bar { text-align: center; margin-bottom: 16px; }
+          .print-btn { padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; font-family: sans-serif; }
         </style>
       </head>
       <body>
+        <div class="watermark">Attachment</div>
         <div class="no-print print-bar">
           <button class="print-btn" onclick="window.print()">🖨️ Print A4 Invoice</button>
         </div>
         <div class="invoice-box">
-          <table class="header-table">
-            <tr>
-              <td>
-                <div class="company-title">${orgName}</div>
-                <div style="color: #475569; font-size: 12px; margin-top: 2px;">${address} | Tel: ${phone}</div>
-                <div style="font-weight: 700; color: #0f172a; font-size: 12px; margin-top: 3px;">TIN: ${tin}</div>
-              </td>
-              <td class="text-right" style="vertical-align: top;">
-                <span class="invoice-badge">${isCredit ? 'Credit Sales Invoice' : 'Cash Sales Invoice'}</span>
-                <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 6px;">${invoiceNo}</div>
-                <div style="font-size: 11px; color: #64748b; font-weight: 600;">${fsNo}</div>
-              </td>
-            </tr>
-          </table>
-
-          <div class="meta-grid">
-            <div class="meta-card">
-              <div class="meta-title">Billed To (Customer)</div>
-              <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${customerName}</div>
-              ${customerTin ? `<div>TIN: <b>${customerTin}</b></div>` : ''}
-              ${customerPhone ? `<div>Tel: ${customerPhone}</div>` : ''}
-              ${sale?.customerAddress ? `<div>Address: ${sale.customerAddress}</div>` : ''}
+          <!-- Header -->
+          <div class="header-grid">
+            <div style="flex: 1;">
+              <div class="company-title">${orgName}</div>
+              <div class="company-underline"></div>
             </div>
-
-            <div class="meta-card">
-              <div class="meta-title">Invoice Information</div>
-              <div>Date: <b>${dateStr}</b></div>
-              <div>Sales Slip: <b>${fsNo}</b></div>
-              <div>Cashier / Operator: <b>${operator}</b></div>
-              <div>Payment Mode: <b>${isCredit ? 'CREDIT SALE' : 'CASH SALE'}</b></div>
-              ${isCredit && sale?.dueDate ? `<div>Due Date: <b>${new Date(sale.dueDate).toLocaleDateString('en-GB')}</b></div>` : ''}
+            <div>
+              <div class="company-box">
+                <div style="font-weight: 800; text-transform: uppercase;">${orgName}</div>
+                <div>Tel: <span class="font-mono">${phone}</span></div>
+                <div>Fax: <span class="font-mono">—</span></div>
+                <div>Web: <span>—</span></div>
+                <div>Email: <span>—</span></div>
+                <div style="display: flex; justify-content: space-between; font-weight: 700; padding-top: 2px;">
+                  <span>TIN:</span>
+                  <span class="font-mono">${tin}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-weight: 700;">
+                  <span>VAT:</span>
+                  <span class="font-mono">${tin}</span>
+                </div>
+              </div>
+              <div class="voucher-title">${isCredit ? 'Credit Sales Voucher' : 'Cash Sales Voucher'}</div>
             </div>
           </div>
 
+          <!-- Metadata Boxes -->
+          <div class="meta-grid">
+            <div class="meta-box-left">
+              <div><span style="color: #475569; font-weight: 600; display: inline-block; width: 75px;">Customer:</span> <b>${customerName}</b></div>
+              <div><span style="color: #475569; font-weight: 600; display: inline-block; width: 75px;">Tin No.</span> <span class="font-mono">${customerTin || '—'}</span></div>
+              <div><span style="color: #475569; font-weight: 600; display: inline-block; width: 75px;">Address:</span> ${customerAddress || '—'}</div>
+              <div><span style="color: #475569; font-weight: 600; display: inline-block; width: 75px;">FS / MRC:</span> <span class="font-mono">${fsNo}, MRC No. ${sale?.mrc || config.machineNo || 'FG10044280'}</span></div>
+              <div><span style="color: #475569; font-weight: 600; display: inline-block; width: 75px;">Remark:</span> ${sale?.reference || sale?.notes || '—'}</div>
+            </div>
+            <div class="meta-box-right">
+              <div style="display: flex; justify-content: space-between;"><span style="color: #475569; font-weight: 600;">Voucher No:</span> <b class="font-mono">${invoiceNo}</b></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: #475569; font-weight: 600;">Date:</span> <span class="font-mono">${dateStr}</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: #475569; font-weight: 600;">Store:</span> <span>${sale?.storeLocation || sale?.store || 'Main Store'}</span></div>
+            </div>
+          </div>
+
+          <!-- Table -->
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 35px;" class="text-center">#</th>
-                <th>Item Description</th>
-                <th style="width: 55px;" class="text-center">UOM</th>
-                <th style="width: 65px;" class="text-center">Qty</th>
-                <th style="width: 110px;" class="text-right">Unit Price (ETB)</th>
-                <th style="width: 120px;" class="text-right">Amount (ETB)</th>
+                <th style="width: 35px;" class="text-center">SN</th>
+                <th style="width: 105px;">Item Id</th>
+                <th>Description</th>
+                <th style="width: 55px;" class="text-center">Qty</th>
+                <th style="width: 95px;" class="text-right">Price</th>
+                <th style="width: 115px;" class="text-right">Amount (ETB)</th>
               </tr>
             </thead>
             <tbody>
-              ${processed.map((it, idx) => `
-                <tr>
-                  <td class="text-center" style="color: #64748b;">${idx + 1}</td>
-                  <td style="font-weight: 600;">${it.desc}</td>
-                  <td class="text-center">${it.uom}</td>
-                  <td class="text-center" style="font-weight: 700;">${it.qty}</td>
-                  <td class="text-right">${formatNumber(it.price, 2)}</td>
-                  <td class="text-right" style="font-weight: 700;">${formatNumber(it.amount, 2)}</td>
-                </tr>
-              `).join('')}
+              ${processed.map((it, idx) => {
+                const rawItem = (sale?.items && sale.items[idx]) || {};
+                const itemId = rawItem.code || rawItem.material?.code || it.code || `IT-${String(idx + 1).padStart(5, '0')}`;
+                return `
+                  <tr>
+                    <td class="text-center font-mono" style="color: #475569;">${idx + 1}</td>
+                    <td class="font-mono" style="color: #334155;">${itemId}</td>
+                    <td style="font-weight: 600;">${it.desc} ${it.uom ? `[${it.uom}]` : ''}</td>
+                    <td class="text-center font-mono" style="font-weight: 700;">${it.qty}</td>
+                    <td class="text-right font-mono">${formatNumber(it.price, 2)}</td>
+                    <td class="text-right font-mono" style="font-weight: 700;">${formatNumber(it.amount, 2)}</td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
 
+          <!-- Totals -->
           <div class="summary-box">
             <div class="summary-row">
-              <span style="color: #64748b;">Subtotal (TXBL1):</span>
-              <span style="font-weight: 600;">ETB ${formatNumber(taxable, 2)}</span>
+              <span style="color: #475569;">Taxable Amount (TXBL1):</span>
+              <span class="font-mono">ETB ${formatNumber(taxable, 2)}</span>
             </div>
             <div class="summary-row">
-              <span style="color: #64748b;">VAT (${taxRate}%):</span>
-              <span style="font-weight: 600;">ETB ${formatNumber(taxAmount, 2)}</span>
+              <span style="color: #475569;">VAT (${taxRate}%):</span>
+              <span class="font-mono">ETB ${formatNumber(taxAmount, 2)}</span>
             </div>
             <div class="summary-total">
-              <span>Grand Total:</span>
-              <span>ETB ${formatNumber(subtotal, 2)}</span>
+              <span>Total (ETB):</span>
+              <span class="font-mono">ETB ${formatNumber(subtotal, 2)}</span>
             </div>
             ${isCredit ? `
-              <div class="summary-row" style="background: #f8fafc;">
-                <span style="color: #64748b;">Advanced Paid:</span>
-                <span style="font-weight: 600; color: #047857;">ETB ${formatNumber(sale?.amountPaid || 0, 2)}</span>
-              </div>
-              <div class="summary-row" style="background: #f8fafc; font-weight: 700;">
-                <span style="color: #b91c1c;">Balance Due:</span>
-                <span style="color: #b91c1c;">ETB ${formatNumber(Math.max(0, subtotal - (Number(sale?.amountPaid) || 0)), 2)}</span>
+              <div style="border-top: 1px dashed #cbd5e1; margin-top: 4px; padding-top: 4px; font-size: 11px;">
+                <div class="summary-row" style="color: #047857;">
+                  <span>Amount Paid:</span>
+                  <span class="font-mono">ETB ${formatNumber(sale?.amountPaid || 0, 2)}</span>
+                </div>
+                <div class="summary-row" style="color: #b91c1c; font-weight: 700;">
+                  <span>Balance Due:</span>
+                  <span class="font-mono">ETB ${formatNumber(Math.max(0, subtotal - (Number(sale?.amountPaid) || 0)), 2)}</span>
+                </div>
               </div>
             ` : ''}
           </div>
 
-          <div class="sign-grid">
-            <div class="sign-col">Prepared By / Cashier</div>
-            <div class="sign-col">Checked &amp; Approved</div>
-            <div class="sign-col">Customer Acceptance</div>
-          </div>
-
-          <div class="footer-note">
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; margin-bottom: 8px;">
-              <div style="display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
-                <svg viewBox="0 0 38 18" style="width: 36px; height: 17px;" fill="none" stroke="#000">
-                  <polygon points="6,2 36,2 30,16 0,16" stroke-width="3.2" stroke-linejoin="round" />
-                  <line x1="3" y1="9" x2="20" y2="9" stroke-width="3.2" stroke-linecap="round" />
-                </svg>
-                <span style="font-weight: 900; font-size: 13px; font-family: monospace; letter-spacing: 2px;">ERCA</span>
+          <!-- Voucher Operators (Workflow) -->
+          <div class="operators-section">
+            <div class="operators-title">Voucher Operators</div>
+            <div class="operators-grid">
+              <div class="operator-col">
+                <div class="operator-label">Prepared by</div>
+                <div class="operator-name">${preparedByName}</div>
+                <div class="operator-date">on ${preparedDate}</div>
               </div>
-              <span style="font-weight: bold; font-size: 11px; font-family: monospace;">${sale?.mrc || config.machineNo || 'FG10044280'}</span>
+              <div class="operator-col">
+                <div class="operator-label">Checked by</div>
+                <div class="operator-name">${checkedByName}</div>
+                ${checkedDate ? `<div class="operator-date">on ${checkedDate}</div>` : ''}
+              </div>
+              <div class="operator-col">
+                <div class="operator-label">Approved by</div>
+                <div class="operator-name">${approvedByName}</div>
+                ${approvedDate ? `<div class="operator-date">on ${approvedDate}</div>` : ''}
+              </div>
+              <div class="operator-col">
+                <div class="operator-label">Received by (Customer)</div>
+                <div class="operator-name">${customerName}</div>
+                <div class="operator-date">Customer Acceptance</div>
+              </div>
             </div>
-            Thank you for your business! | Machine ID: ${sale?.mrc || config.machineNo || 'FG10044280'} | Powered by Sharp Plus System
+
+            <div class="notice-text">INVALID WITHOUT FISCAL OR Refund ATTACHED</div>
+            <div class="footer-divider"></div>
+            <div class="footer-bar">
+              <span>ERP System Made By ${orgName} System</span>
+              <span>1/1</span>
+            </div>
           </div>
         </div>
         <script>

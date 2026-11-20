@@ -181,6 +181,38 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     };
   }, [items, sale, config.taxRate]);
 
+  // Workflow Participant Details
+  const preparedByName =
+    sale?.performedBy?.name ||
+    sale?.createdByName ||
+    sale?.employeeName ||
+    config.operator ||
+    user?.name ||
+    'System Operator';
+
+  const preparedDate = sale?.createdAt
+    ? new Date(sale.createdAt).toLocaleDateString('en-GB')
+    : dateStr;
+
+  const checkedByName =
+    sale?.checkedBy?.name ||
+    (typeof sale?.checkedBy === 'string' ? sale.checkedBy : null) ||
+    '—';
+
+  const checkedDate = sale?.checkedAt
+    ? new Date(sale.checkedAt).toLocaleDateString('en-GB')
+    : '';
+
+  const approvedByName =
+    sale?.approvedBy?.name ||
+    sale?.postedBy?.name ||
+    (typeof sale?.approvedBy === 'string' ? sale.approvedBy : null) ||
+    '—';
+
+  const approvedDate = sale?.approvedAt
+    ? new Date(sale.approvedAt).toLocaleDateString('en-GB')
+    : (sale?.postedAt ? new Date(sale.postedAt).toLocaleDateString('en-GB') : '');
+
   const receiptText = sale
     ? generateThermalReceiptText(sale, {
         ...config,
@@ -715,178 +747,273 @@ export default function ThermalBillModal({ open, onClose, sale }) {
           {/* ────── MODE B: A4 Standard Invoice Document ────── */}
           {viewMode === 'a4' && (
             <div
-              className="w-full max-w-3xl bg-white text-slate-900 rounded-xl shadow-2xl p-6 sm:p-10 border border-slate-200 select-text my-2"
-              style={{ minHeight: '800px' }}
+              className="relative w-full max-w-3xl bg-white text-slate-900 rounded-xl shadow-2xl p-6 sm:p-10 border border-slate-300 select-text my-2 overflow-hidden"
+              style={{ minHeight: '880px', fontFamily: '"Segoe UI", Arial, sans-serif' }}
             >
-              {/* Corporate Invoice Header */}
-              <div className="flex flex-col sm:flex-row items-start justify-between pb-6 border-b-2 border-blue-600 gap-4">
+              {/* Semi-transparent Diagonal Watermark: "Attachment" */}
+              <div
+                className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0"
+                style={{ overflow: 'hidden' }}
+              >
+                <span
+                  style={{
+                    transform: 'rotate(-40deg)',
+                    fontSize: '92px',
+                    fontWeight: '800',
+                    color: 'rgba(148, 163, 184, 0.22)',
+                    letterSpacing: '0.04em',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Attachment
+                </span>
+              </div>
+
+              {/* Document Content Layer */}
+              <div className="relative z-10 flex flex-col justify-between" style={{ minHeight: '820px' }}>
                 <div>
-                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                    {(config.companyLines || []).join(' ') || 'Sharp Plus Trading PLC'}
-                  </h1>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {config.addressLine1}{config.addressLine2 ? ` • ${config.addressLine2}` : ''}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {config.phone}
-                  </p>
-                  <p className="text-xs font-bold text-slate-800 mt-1">
-                    TIN: <span className="font-mono">{config.tinNumber || '0089234125'}</span>
-                  </p>
-                </div>
-
-                <div className="sm:text-right">
-                  <span
-                    className={`inline-block px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
-                      isZeroing
-                        ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                        : isCredit
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                    }`}
-                  >
-                    {isZeroing ? 'Zeroing Voucher' : (isCredit ? 'Credit Sales Invoice' : 'Cash Sales Invoice')}
-                  </span>
-                  <div className="text-lg font-black font-mono text-slate-900 mt-2">
-                    {invoiceNo}
-                  </div>
-                  <div className="text-xs font-mono font-semibold text-slate-500">
-                    {fsNumber}
-                  </div>
-                </div>
-              </div>
-
-              {/* Invoice & Customer Meta Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-6">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5 pb-1 border-b border-slate-200">
-                    Billed To (Customer)
-                  </div>
-                  <div className="text-sm font-bold text-slate-900">{customerName}</div>
-                  {customerTin && (
-                    <div className="text-slate-600">
-                      TIN: <span className="font-mono font-semibold text-slate-800">{customerTin}</span>
-                    </div>
-                  )}
-                  {customerPhone && (
-                    <div className="text-slate-600">Tel: {customerPhone}</div>
-                  )}
-                  {customerAddress && (
-                    <div className="text-slate-600">Address: {customerAddress}</div>
-                  )}
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5 pb-1 border-b border-slate-200">
-                    Invoice Details
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Issue Date:</span>
-                    <span className="font-medium text-slate-900">{dateStr}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Payment Term:</span>
-                    <span className="font-bold text-slate-900">{isCredit ? 'Credit Sale' : 'Cash'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Sales Operator:</span>
-                    <span className="font-medium text-slate-900">{config.operator || 'System Operator'}</span>
-                  </div>
-                  {isCredit && sale?.dueDate && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Due Date:</span>
-                      <span className="font-bold text-amber-700">{new Date(sale.dueDate).toLocaleDateString('en-GB')}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Data Table */}
-              <div className="overflow-x-auto my-6 border border-slate-200 rounded-xl">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3 w-8 text-center">#</th>
-                      <th className="py-2.5 px-3">Item Description</th>
-                      <th className="py-2.5 px-3 w-16 text-center">UOM</th>
-                      <th className="py-2.5 px-3 w-16 text-center">Qty</th>
-                      <th className="py-2.5 px-3 w-28 text-right">Unit Price (ETB)</th>
-                      <th className="py-2.5 px-3 w-32 text-right">Amount (ETB)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {processedItems.map((it, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50">
-                        <td className="py-2.5 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-900">{it.desc}</td>
-                        <td className="py-2.5 px-3 text-center text-slate-600">{it.uom}</td>
-                        <td className="py-2.5 px-3 text-center font-bold text-slate-900 font-mono">{it.qty}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-slate-800">{formatNumber(it.price, 2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatNumber(it.amount, 2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Totals Summary Card */}
-              <div className="flex justify-end my-6">
-                <div className="w-full sm:w-80 rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2 text-xs">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Taxable Base (TXBL1):</span>
-                    <span className="font-mono font-medium">ETB {formatNumber(taxable, 2)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>VAT (TAX1 {config.taxRate}%):</span>
-                    <span className="font-mono font-medium">ETB {formatNumber(taxAmount, 2)}</span>
-                  </div>
-                  <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">
-                    <span>Grand Total:</span>
-                    <span className="font-mono text-blue-700">ETB {formatNumber(totalRevenue, 2)}</span>
-                  </div>
-                  {isCredit && (
-                    <div className="pt-2 border-t border-slate-200 space-y-1">
-                      <div className="flex justify-between text-emerald-700 font-medium">
-                        <span>Advanced Paid:</span>
-                        <span className="font-mono">ETB {formatNumber(sale?.amountPaid || 0, 2)}</span>
+                  {/* Top Header Grid */}
+                  <div className="flex flex-col sm:flex-row items-start justify-between gap-6 pb-2">
+                    {/* Top Left: Company Name & Line */}
+                    <div className="flex-1 min-w-0 pr-4">
+                      <div className="text-2xl font-black text-slate-950 tracking-wide uppercase">
+                        {(config.companyLines || []).join(' ') || companyInfo?.companyName || 'Sharp Plus Trading PLC'}
                       </div>
-                      <div className="flex justify-between text-rose-700 font-bold">
-                        <span>Balance Due:</span>
-                        <span className="font-mono">ETB {formatNumber(Math.max(0, totalRevenue - (Number(sale?.amountPaid) || 0)), 2)}</span>
+                      <div className="w-full max-w-sm mt-3 border-b-2 border-slate-900" />
+                    </div>
+
+                    {/* Top Right: Company Credentials Box */}
+                    <div className="w-full sm:w-72 shrink-0">
+                      <div className="border border-slate-800 rounded p-2 text-[11px] leading-tight space-y-0.5 bg-white">
+                        <div className="font-bold text-slate-950 uppercase">
+                          {(config.companyLines || []).join(' ') || companyInfo?.companyName || 'Sharp Plus Trading PLC'}
+                        </div>
+                        <div className="text-slate-800">
+                          <span className="font-semibold">Tel:</span>{' '}
+                          <span className="font-mono">{config.phone || companyInfo?.phone || '091-1227125'}</span>
+                        </div>
+                        <div className="text-slate-800">
+                          <span className="font-semibold">Fax:</span>{' '}
+                          <span className="font-mono">{companyInfo?.fax || '—'}</span>
+                        </div>
+                        <div className="text-slate-800">
+                          <span className="font-semibold">Web:</span>{' '}
+                          <span>{companyInfo?.website || '—'}</span>
+                        </div>
+                        <div className="text-slate-800">
+                          <span className="font-semibold">Email:</span>{' '}
+                          <span>{companyInfo?.email || '—'}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-slate-950 pt-0.5">
+                          <span>TIN:</span>
+                          <span className="font-mono">{config.tinNumber || companyInfo?.tinNumber || '0002032519'}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-slate-950">
+                          <span>VAT:</span>
+                          <span className="font-mono">{companyInfo?.vatNumber || companyInfo?.vat || config.tinNumber || '1023580012'}</span>
+                        </div>
+                      </div>
+
+                      {/* Right-aligned Voucher Title */}
+                      <div className="text-right mt-1.5 font-bold text-sm text-slate-950 tracking-tight">
+                        {isCredit ? 'Credit Sales Voucher' : 'Cash Sales Voucher'}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              {/* Signatures & Fiscal Mark */}
-              <div className="grid grid-cols-3 gap-6 pt-10 mt-8 border-t border-slate-200 text-center text-xs text-slate-500">
-                <div>
-                  <div className="h-10 border-b border-slate-300 mb-1.5" />
-                  <span className="font-semibold text-slate-700">Prepared By</span>
-                </div>
-                <div>
-                  <div className="h-10 border-b border-slate-300 mb-1.5" />
-                  <span className="font-semibold text-slate-700">Checked &amp; Approved</span>
-                </div>
-                <div>
-                  <div className="h-10 border-b border-slate-300 mb-1.5" />
-                  <span className="font-semibold text-slate-700">Customer Received</span>
-                </div>
-              </div>
+                  {/* Two Metadata Boxes */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 my-4">
+                    {/* Left Box: Customer Info */}
+                    <div className="sm:col-span-7 border border-slate-800 rounded p-2.5 text-xs space-y-1 bg-white">
+                      <div>
+                        <span className="text-slate-600 font-semibold inline-block w-20">Customer:</span>
+                        <span className="font-bold text-slate-950">{customerName}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 font-semibold inline-block w-20">Tin No.</span>
+                        <span className="font-mono font-semibold text-slate-900">{customerTin || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 font-semibold inline-block w-20">Address:</span>
+                        <span className="text-slate-800">{customerAddress || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 font-semibold inline-block w-20">FS / MRC:</span>
+                        <span className="font-mono text-slate-900">
+                          {fsNumber}, MRC No. {sale?.mrc || config.machineNo || 'FG10044280'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 font-semibold inline-block w-20">Remark:</span>
+                        <span className="text-slate-800">{sale?.reference || sale?.notes || sale?.remark || '—'}</span>
+                      </div>
+                    </div>
 
-              {/* Footer */}
-              <div className="text-center text-[10px] text-slate-500 mt-10 pt-4 border-t border-dashed border-slate-200">
-                <div className="flex items-center justify-center gap-2 mb-1.5 select-none">
-                  <svg viewBox="0 0 38 18" className="w-8 h-4 text-slate-800 shrink-0" fill="none" stroke="currentColor">
-                    <polygon points="6,2 36,2 30,16 0,16" strokeWidth="2.5" strokeLinejoin="round" />
-                    <line x1="3" y1="9" x2="20" y2="9" strokeWidth="2.5" strokeLinecap="round" />
-                  </svg>
-                  <span className="font-mono font-black text-slate-800 text-[11px] tracking-wider">
-                    ERCA {sale?.mrc || config.machineNo || 'FG10044280'}
-                  </span>
+                    {/* Right Box: Voucher Details */}
+                    <div className="sm:col-span-5 border border-slate-800 rounded p-2.5 text-xs space-y-1 bg-white">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600 font-semibold">Voucher No:</span>
+                        <span className="font-mono font-bold text-slate-950">{invoiceNo}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600 font-semibold">Date:</span>
+                        <span className="font-mono text-slate-900">{dateStr}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600 font-semibold">Store:</span>
+                        <span className="text-slate-900 font-medium">{sale?.storeLocation || sale?.store || 'Main Store'}</span>
+                      </div>
+                      {isCredit && (
+                        <div className="flex justify-between text-amber-800 font-semibold pt-0.5 border-t border-slate-200">
+                          <span>Term:</span>
+                          <span>Credit Sale</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Line Items Table */}
+                  <div className="border border-slate-800 rounded overflow-hidden my-4">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead className="bg-slate-100 text-slate-950 font-bold border-b border-slate-800">
+                        <tr>
+                          <th className="py-2 px-2.5 w-10 text-center border-r border-slate-300">SN</th>
+                          <th className="py-2 px-2.5 w-28 border-r border-slate-300">Item Id</th>
+                          <th className="py-2 px-2.5 border-r border-slate-300">Description</th>
+                          <th className="py-2 px-2.5 w-16 text-center border-r border-slate-300">Qty</th>
+                          <th className="py-2 px-2.5 w-24 text-right border-r border-slate-300">Price</th>
+                          <th className="py-2 px-2.5 w-28 text-right">Amount (ETB)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-slate-900">
+                        {processedItems.map((it, idx) => {
+                          const rawItem = (sale?.items && sale.items[idx]) || {};
+                          const itemId = rawItem.code || rawItem.material?.code || it.code || `IT-${String(idx + 1).padStart(5, '0')}`;
+                          return (
+                            <tr key={idx}>
+                              <td className="py-2 px-2.5 text-center font-mono border-r border-slate-200">{idx + 1}</td>
+                              <td className="py-2 px-2.5 font-mono text-slate-700 border-r border-slate-200">{itemId}</td>
+                              <td className="py-2 px-2.5 font-semibold border-r border-slate-200">
+                                {it.desc} {it.uom ? `[${it.uom}]` : ''}
+                              </td>
+                              <td className="py-2 px-2.5 text-center font-mono font-bold border-r border-slate-200">{it.qty}</td>
+                              <td className="py-2 px-2.5 text-right font-mono border-r border-slate-200">{formatNumber(it.price, 2)}</td>
+                              <td className="py-2 px-2.5 text-right font-mono font-bold">{formatNumber(it.amount, 2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Totals Summary */}
+                  <div className="flex justify-end my-3">
+                    <div className="w-72 border border-slate-800 rounded p-2.5 text-xs space-y-1 bg-white">
+                      <div className="flex justify-between text-slate-700">
+                        <span>Taxable Amount (TXBL1):</span>
+                        <span className="font-mono font-medium">ETB {formatNumber(taxable, 2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-700">
+                        <span>VAT (TAX1 {config.taxRate}%):</span>
+                        <span className="font-mono font-medium">ETB {formatNumber(taxAmount, 2)}</span>
+                      </div>
+                      <div className="flex justify-between font-black text-slate-950 text-sm pt-1 border-t border-slate-300">
+                        <span>Total (ETB):</span>
+                        <span className="font-mono">ETB {formatNumber(totalRevenue, 2)}</span>
+                      </div>
+                      {isCredit && (
+                        <div className="pt-1 border-t border-slate-200 space-y-0.5 text-[11px]">
+                          <div className="flex justify-between text-emerald-800 font-semibold">
+                            <span>Amount Paid:</span>
+                            <span className="font-mono">ETB {formatNumber(sale?.amountPaid || 0, 2)}</span>
+                          </div>
+                          <div className="flex justify-between text-rose-800 font-bold">
+                            <span>Balance Due:</span>
+                            <span className="font-mono">ETB {formatNumber(Math.max(0, totalRevenue - (Number(sale?.amountPaid) || 0)), 2)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                {fsNumber} • MACHINE: {sale?.mrc || config.machineNo || 'FG10044280'} • Powered by Sharp Plus System
+
+                {/* Bottom Workflow Signatures, Notice, and Footer */}
+                <div className="mt-8 pt-4">
+                  {/* Voucher Operators Section */}
+                  <div className="font-bold text-slate-950 text-xs mb-2 tracking-tight">
+                    Voucher Operators
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs pt-1 pb-4">
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
+                        Prepared by
+                      </span>
+                      <span className="font-bold text-slate-950 block truncate">
+                        {preparedByName}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono block">
+                        on {preparedDate}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
+                        Checked by
+                      </span>
+                      <span className="font-bold text-slate-950 block truncate">
+                        {checkedByName}
+                      </span>
+                      {checkedDate && (
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          on {checkedDate}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
+                        Approved by
+                      </span>
+                      <span className="font-bold text-slate-950 block truncate">
+                        {approvedByName}
+                      </span>
+                      {approvedDate && (
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          on {approvedDate}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
+                        Received by (Customer)
+                      </span>
+                      <span className="font-bold text-slate-950 block truncate">
+                        {customerName}
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Customer Acceptance
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Centered Notice */}
+                  <div className="text-center font-bold text-slate-900 text-xs tracking-wide py-1.5 uppercase">
+                    INVALID WITHOUT FISCAL OR Refund ATTACHED
+                  </div>
+
+                  {/* Bottom Divider Line */}
+                  <div className="border-b border-slate-900 my-1" />
+
+                  {/* Bottom Footer Bar */}
+                  <div className="flex justify-between items-center text-[10px] text-slate-600 font-mono pt-1">
+                    <span>
+                      ERP System Made By {companyInfo?.companyName || 'Sharp Plus Trading PLC'} System
+                    </span>
+                    <span>1/1</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
