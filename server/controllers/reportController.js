@@ -19,13 +19,13 @@ const rangeFilter = (from, to, req) => buildRangeFilter(from, to, req);
 
 const populateTxn = (q) =>
   q.populate('items.material', 'name unit unitCost')
-   .populate('material', 'name unit')
-   .populate('supplier', 'name')
-   .populate('performedBy', 'name role')
-   .populate('checkedBy', 'name role')
-   .populate('approvedBy', 'name role')
-   .populate('postedBy', 'name role')
-   .sort({ date: -1, createdAt: -1 });
+    .populate('material', 'name unit')
+    .populate('supplier', 'name')
+    .populate('performedBy', 'name role')
+    .populate('checkedBy', 'name role')
+    .populate('approvedBy', 'name role')
+    .populate('postedBy', 'name role')
+    .sort({ date: -1, createdAt: -1 });
 
 const canonicalVt = (t) => {
   const vt = t?.voucherType || (t?.type === 'in' ? 'pos_adjustment' : 'neg_adjustment');
@@ -46,7 +46,7 @@ const getDailyReport = asyncHandler(async (req, res) => {
     .populate('supplier', 'name')
     .populate('items.material', 'name unit');
 
-  const stockIn  = transactions.filter(t => t.type === 'in').reduce((s, t) => s + (t.quantity || 0), 0);
+  const stockIn = transactions.filter(t => t.type === 'in').reduce((s, t) => s + (t.quantity || 0), 0);
   const stockOut = transactions.filter(t => t.type === 'out').reduce((s, t) => s + (t.quantity || 0), 0);
   const purchaseTotal = purchases.reduce((s, p) => s + p.totalAmount, 0);
 
@@ -77,7 +77,7 @@ const getVoucherReport = asyncHandler(async (req, res) => {
   const transactions = await populateTxn(StockTransaction.find(filter));
 
   const totalAmount = transactions.reduce((s, t) => s + (t.totalAmount || 0), 0);
-  const totalQty    = transactions.reduce((s, t) => s + (t.quantity   || 0), 0);
+  const totalQty = transactions.reduce((s, t) => s + (t.quantity || 0), 0);
 
   // Item-level breakdown: which materials were moved
   const materialMap = {};
@@ -87,7 +87,7 @@ const getVoucherReport = asyncHandler(async (req, res) => {
       if (!li.material) continue;
       const id = li.material._id?.toString() ?? li.material.toString();
       if (!materialMap[id]) materialMap[id] = { name: li.material.name ?? '—', unit: li.material.unit ?? '', totalQty: 0, totalCost: 0 };
-      materialMap[id].totalQty  += li.quantity  || 0;
+      materialMap[id].totalQty += li.quantity || 0;
       materialMap[id].totalCost += li.totalCost || 0;
     }
   }
@@ -95,7 +95,7 @@ const getVoucherReport = asyncHandler(async (req, res) => {
   res.json({
     voucherType: voucherType || 'all',
     from: from || null,
-    to:   to   || null,
+    to: to || null,
     count: transactions.length,
     totalAmount,
     totalQty,
@@ -175,8 +175,8 @@ const getSummaryReport = asyncHandler(async (req, res) => {
     { $match: match },
     {
       $group: {
-        _id:         '$voucherType',
-        count:       { $sum: 1 },
+        _id: '$voucherType',
+        count: { $sum: 1 },
         totalAmount: { $sum: '$totalAmount' },
       },
     },
@@ -184,12 +184,12 @@ const getSummaryReport = asyncHandler(async (req, res) => {
   ]);
 
   const labels = {
-    cash_grv:       'Cash GRV',
-    credit_grv:     'Credit GRV',
-    disposal:       'Goods Disposal',
+    cash_grv: 'Cash GRV',
+    credit_grv: 'Credit GRV',
+    disposal: 'Goods Disposal',
     neg_adjustment: 'Negative Adjustment',
     pos_adjustment: 'Positive Adjustment',
-    fresh_bazaar:   'Fresh Bazaar GRV',
+    fresh_bazaar: 'Fresh Bazaar GRV',
   };
 
   const result = agg.map(r => ({ ...r, label: labels[r._id] ?? r._id }));
@@ -366,11 +366,11 @@ const getStockBalanceReport = asyncHandler(async (req, res) => {
     const items = txn.items && txn.items.length > 0
       ? txn.items
       : [{
-          material: txn.material,
-          quantity: txn.quantity,
-          unitCost: txn.unitCost || 0,
-          totalCost: txn.totalAmount || ((txn.unitCost || 0) * (txn.quantity || 0)),
-        }];
+        material: txn.material,
+        quantity: txn.quantity,
+        unitCost: txn.unitCost || 0,
+        totalCost: txn.totalAmount || ((txn.unitCost || 0) * (txn.quantity || 0)),
+      }];
 
     for (const item of items) {
       if (!item.material) continue;
@@ -850,11 +850,11 @@ const getMonthlyClosingReport = asyncHandler(async (req, res) => {
     const items = txn.items && txn.items.length > 0
       ? txn.items
       : [{
-          material: txn.material,
-          quantity: txn.quantity,
-          unitCost: txn.unitCost || 0,
-          totalCost: txn.totalAmount || ((txn.unitCost || 0) * (txn.quantity || 0)),
-        }];
+        material: txn.material,
+        quantity: txn.quantity,
+        unitCost: txn.unitCost || 0,
+        totalCost: txn.totalAmount || ((txn.unitCost || 0) * (txn.quantity || 0)),
+      }];
 
     if (txnYear === targetYear) {
       const bucket = monthData[txnMonth];
@@ -1125,12 +1125,12 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
     const items = txn.items && txn.items.length > 0
       ? txn.items
       : [{
-          material: txn.material,
-          quantity: txn.quantity,
-          unitCost: txn.unitCost || 0,
-          totalCost: txn.totalAmount || ((txn.unitCost || 0) * (txn.quantity || 0)),
-          serialNumber: txn.reference || '',
-        }];
+        material: txn.material,
+        quantity: txn.quantity,
+        unitCost: txn.unitCost || 0,
+        totalCost: txn.totalAmount || ((txn.unitCost || 0) * (txn.quantity || 0)),
+        serialNumber: txn.reference || '',
+      }];
 
     for (const item of items) {
       if (!item.material) continue;

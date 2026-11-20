@@ -589,15 +589,13 @@ const Items = () => {
         <button
           onClick={(e) => canEdit && handleToggleStatus(r, e)}
           disabled={!canEdit}
-          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-            r.isActive ? 'bg-emerald-600' : 'bg-slate-300'
-          } ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${r.isActive ? 'bg-emerald-600' : 'bg-slate-300'
+            } ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
           title={r.isActive ? 'Active (click to deactivate)' : 'Inactive (click to activate)'}
         >
           <span
-            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-              r.isActive ? 'translate-x-4' : 'translate-x-0'
-            }`}
+            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${r.isActive ? 'translate-x-4' : 'translate-x-0'
+              }`}
           />
         </button>
       ),
@@ -1532,7 +1530,7 @@ const Items = () => {
                         <td className="px-3 py-2 font-medium text-slate-800">{t.voucherLabel || t.voucherType}</td>
                         <td className="px-2 py-2 text-center">
                           <span className={`inline-flex items-center gap-1 font-bold text-[10px] ${isIn ? 'text-emerald-700' : 'text-red-700'}`}>
-                            {isIn ? <CircleArrowDown size={12}/> : <CircleArrowUp size={12}/>}
+                            {isIn ? <CircleArrowDown size={12} /> : <CircleArrowUp size={12} />}
                             {isIn ? 'IN' : 'OUT'}
                           </span>
                         </td>
@@ -1549,13 +1547,12 @@ const Items = () => {
                           {t.date ? new Date(t.date).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                            t.status === 'posted' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border ${t.status === 'posted' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
                             t.status === 'approved' ? 'bg-purple-100 text-purple-800 border-purple-300' :
-                            t.status === 'checked' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                            t.status === 'voided' ? 'bg-red-100 text-red-800 border-red-300' :
-                            'bg-amber-100 text-amber-800 border-amber-300'
-                          }`}>
+                              t.status === 'checked' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                t.status === 'voided' ? 'bg-red-100 text-red-800 border-red-300' :
+                                  'bg-amber-100 text-amber-800 border-amber-300'
+                            }`}>
                             {statusStr}
                           </span>
                         </td>

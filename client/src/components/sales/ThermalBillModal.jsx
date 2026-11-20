@@ -58,7 +58,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
     addressLine1: companyInfo?.address || 'ADDIS ABABA, BOLE MEDHANIALEM',
     addressLine2: companyInfo?.city ? `${companyInfo.city}, ${companyInfo.country || 'Ethiopia'}` : 'COMMERCIAL CENTER 4TH FLOOR',
     phone: companyInfo?.phone || 'TEL-+251 91 100 0111',
-    machineNo: 'SPM00000189',
+    machineNo: companyInfo?.machineNo || companyInfo?.mrc || 'FG10044280',
     poweredBy: `${companyInfo?.companyName || 'Sharp Plus'} System`,
     operator: user?.name || (companyInfo?.ownerName ? `${companyInfo.ownerName} (Admin)` : 'System Operator'),
     taxRate: sale?.taxRate !== undefined ? Number(sale.taxRate) : (companyInfo?.taxRate || 15),
@@ -399,7 +399,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                         addressLine1: companyInfo?.address || 'ADDIS ABABA, BOLE',
                         addressLine2: companyInfo?.city || 'COMMERCIAL CENTER',
                         phone: companyInfo?.phone || '+251 91 100 0111',
-                        machineNo: 'SPM00000189',
+                        machineNo: 'FG10044280',
                         poweredBy: 'Sharp Plus System',
                         operator: user?.name || 'Operator',
                         taxRate: sale?.taxRate !== undefined ? Number(sale.taxRate) : 15,
@@ -441,7 +441,7 @@ export default function ThermalBillModal({ open, onClose, sale }) {
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-400 block mb-0.5">Machine No</label>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">ERCA Machine / MRC No</label>
                       <input
                         type="text"
                         value={config.machineNo}
@@ -673,19 +673,40 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               </div>
 
               {/* Items count */}
-              <div className="flex justify-between text-[11px] pt-1 text-slate-800">
+              <div className="flex justify-between text-[11px] pt-1 text-slate-800 font-mono">
                 <span>ITEM#</span>
-                <span className="font-mono">{processedItems.length}</span>
+                <span>{processedItems.length}</span>
               </div>
 
-              {/* Fiscal Machine Mark */}
-              <div className="text-center mt-3 space-y-0.5 text-[11px] font-bold text-slate-900">
-                <div>{fsNumber}</div>
-                <div>MACHINE: {config.machineNo || 'SPM00000189'}</div>
+              {/* FS Number & Fiscal Divider */}
+              <div className="border-t border-dashed border-slate-300 my-2 pt-1 text-center font-mono text-[11px] font-bold text-slate-900">
+                {fsNumber}
+              </div>
+
+              {/* Official ERCA Ethiopian Fiscal Machine Stamp */}
+              <div className="my-2.5 flex flex-col items-center justify-center select-none text-slate-950">
+                <div className="flex items-center justify-center gap-2.5">
+                  {/* Stylized Ethiopian ERCA ET Fiscal Mark */}
+                  <svg
+                    viewBox="0 0 38 18"
+                    className="w-10 h-5 text-black shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <polygon points="6,2 36,2 30,16 0,16" strokeWidth="2.5" strokeLinejoin="round" />
+                    <line x1="3" y1="9" x2="20" y2="9" strokeWidth="2.5" strokeLinecap="round" />
+                  </svg>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[12px] font-black tracking-widest leading-none font-mono">ERCA</span>
+                    <span className="text-[12px] font-bold font-mono tracking-wider mt-0.5 leading-none">
+                      {sale?.mrc || config.machineNo || 'FG10044280'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Footer */}
-              <div className="text-center mt-2.5 text-[10px] tracking-wide text-slate-500">
+              <div className="text-center mt-2 pt-1 border-t border-dashed border-slate-300 text-[10px] tracking-wide text-slate-500 font-mono">
                 Powered By {config.poweredBy || 'Sharp Plus System'}
               </div>
             </div>
@@ -855,8 +876,17 @@ export default function ThermalBillModal({ open, onClose, sale }) {
               </div>
 
               {/* Footer */}
-              <div className="text-center text-[10px] text-slate-400 mt-10 pt-4 border-t border-dashed border-slate-200">
-                {fsNumber} • MACHINE: {config.machineNo || 'SPM00000189'} • Powered by Sharp Plus System
+              <div className="text-center text-[10px] text-slate-500 mt-10 pt-4 border-t border-dashed border-slate-200">
+                <div className="flex items-center justify-center gap-2 mb-1.5 select-none">
+                  <svg viewBox="0 0 38 18" className="w-8 h-4 text-slate-800 shrink-0" fill="none" stroke="currentColor">
+                    <polygon points="6,2 36,2 30,16 0,16" strokeWidth="2.5" strokeLinejoin="round" />
+                    <line x1="3" y1="9" x2="20" y2="9" strokeWidth="2.5" strokeLinecap="round" />
+                  </svg>
+                  <span className="font-mono font-black text-slate-800 text-[11px] tracking-wider">
+                    ERCA {sale?.mrc || config.machineNo || 'FG10044280'}
+                  </span>
+                </div>
+                {fsNumber} • MACHINE: {sale?.mrc || config.machineNo || 'FG10044280'} • Powered by Sharp Plus System
               </div>
             </div>
           )}
