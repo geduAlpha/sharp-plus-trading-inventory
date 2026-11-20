@@ -12,6 +12,7 @@ const {
   getNextVoucherNo,
   getReconciliationSummary,
   advanceTransaction,
+  checkSalesStock,
   importSales,
   recordSalePayment,
 } = require('../controllers/transactionController');
@@ -25,6 +26,7 @@ router.get('/reconciliation', authorizePermission('stockMovements', 'view'), get
 router.get('/summary', authorizePermission('stockMovements', 'view'), getVoucherSummary);
 router.get('/', authorizePermission('stockMovements', 'view'), getTransactions);
 router.post('/', authorizePermission('stockMovements', 'create'), createTransaction);
+router.post('/check-sales-stock', checkModuleEnabled('salesMarketing'), authorizePermission('stockMovements', 'view'), checkSalesStock);
 router.post('/import-sales', checkModuleEnabled('salesMarketing'), authorizePermission('stockMovements', 'create'), importSales);
 router.post('/parse-image-sales', checkModuleEnabled('salesMarketing'), authorizePermission('stockMovements', 'create'), require('../controllers/transactionController').parseImageSales);
 router.delete('/bulk', authorizePermission('voidTransactions'), bulkDeleteTransactions);

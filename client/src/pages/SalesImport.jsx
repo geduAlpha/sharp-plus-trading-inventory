@@ -7,6 +7,7 @@ import {
   UploadCloud, CheckCircle, AlertTriangle, ArrowRight, XCircle,
   TrendingUp, Search, Download, FileSpreadsheet, Scale, X,
   ChevronDown, ChevronUp, Zap, PenLine, Plus, Trash2, Camera, ScanLine,
+  Store, Boxes, RefreshCw, CheckCircle2, ShieldAlert
 } from 'lucide-react';
 
 /* ── empty manual sale row ── */
@@ -111,6 +112,12 @@ export default function SalesImport() {
   const [revenueCol,     setRevenueCol]     = useState('');
   const [dateCol,        setDateCol]        = useState('');
 
+  // Store & Real Stock Interlink State
+  const [selectedStore,    setSelectedStore]    = useState('Main Store');
+  const [configuredStores, setConfiguredStores] = useState(['Main Store']);
+  const [stockCheckData,   setStockCheckData]   = useState(null);
+  const [stockCheckLoading, setStockCheckLoading] = useState(false);
+
   const [loading,  setLoading]  = useState(false);
   const [result,   setResult]   = useState(null);
 
@@ -141,12 +148,64 @@ export default function SalesImport() {
   const fmt = (n) =>
     Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Load products for manual entry dropdown
+  // Load products & stores on mount
   useEffect(() => {
     api.get('/products')
       .then(r => setProducts(Array.isArray(r.data) ? r.data : []))
       .catch(() => setProducts([]));
+
+    api.get('/inventory-count/stores')
+      .then(r => {
+        const list = r.data?.stores || [];
+        const merged = Array.from(new Set(['Main Store', ...list])).filter(Boolean);
+        setConfiguredStores(merged);
+      })
+      .catch(() => setConfiguredStores(['Main Store']));
   }, []);
+
+  /* ── Interlink: check stock balances automatically against store ── */
+  const runStockCheck = async (salesRows, storeName) => {
+    if (!salesRows || !salesRows.length) {
+      setStockCheckData(null);
+      return;
+    }
+    const store = storeName || selectedStore || 'Main Store';
+    setStockCheckLoading(true);
+    try {
+      const res = await api.post('/transactions/check-sales-stock', {
+        sales: salesRows.map(r => ({
+          productCode: r.productCode || r.code || '',
+          productName: r.productName || r.name || '',
+          quantity: Number(r.quantity || r.qty) || 1,
+          revenue: Number(r.revenue || r.totalAmt || r.total) || 0,
+          unitPrice: Number(r.unitPrice || r.avgAmt || r.price) || 0,
+        })),
+        storeLocation: store,
+      });
+      setStockCheckData(res.data);
+    } catch (err) {
+      console.error('Stock balance check failed:', err);
+      setStockCheckData(null);
+    } finally {
+      setStockCheckLoading(false);
+    }
+  };
+
+  const handleStoreChange = (newStore) => {
+    setSelectedStore(newStore);
+    if (isCnetFmt && parsed?.rows?.length) {
+      runStockCheck(parsed.rows, newStore);
+    } else if (fileData && (productCol || productCodeCol)) {
+      const mapped = fileData.map(r => ({
+        productName: productCol ? String(r[productCol] || '').trim() : '',
+        productCode: productCodeCol ? String(r[productCodeCol] || '').trim() : '',
+        quantity: qtyCol ? (Number(r[qtyCol]) || 1) : 1,
+        revenue: revenueCol ? (Number(r[revenueCol]) || 0) : 0,
+        unitPrice: revenueCol ? (Number(r[revenueCol]) || 0) : 0,
+      })).filter(s => s.productName || s.productCode);
+      runStockCheck(mapped, newStore);
+    }
+  };
 
   /* ── manual row helpers ── */
   const updateManualRow = (id, field, value) => {
@@ -230,10 +289,11 @@ export default function SalesImport() {
     setManualLoading(true); setManualError('');
     try {
       const res = await api.post('/transactions/import-sales', {
-        sales:     salesData,
-        notes:     `Manual Sales Entry${manualRef ? ' — ' + manualRef : ''}`,
-        reference: manualRef || `Manual Entry — ${new Date().toLocaleDateString()}`,
-        saleDate:  manualDate,
+        sales:         salesData,
+        storeLocation: selectedStore,
+        notes:         `Manual Sales Entry${manualRef ? ' — ' + manualRef : ''}`,
+        reference:     manualRef || `Manual Entry — ${new Date().toLocaleDateString()}`,
+        saleDate:      manualDate,
       });
       setManualOpen(false);
       setResult({ success: true, data: res.data });
@@ -259,6 +319,7 @@ export default function SalesImport() {
         setIsCnetFmt(true);
         setParsed(cnetResult);
         setFileData(rawRows);
+        runStockCheck(cnetResult.rows, selectedStore);
         return;
       }
 
@@ -280,6 +341,17 @@ export default function SalesImport() {
         const dCol = cols.find(c => /date|time/i.test(c)) || '';
         setProductCol(pCol); setProductCodeCol(cCol);
         setQtyCol(qCol); setRevenueCol(rCol); setDateCol(dCol);
+
+        if (pCol || cCol) {
+          const genericRows = rawRows.slice(0, 100).map(r => ({
+            productName: pCol ? String(r[pCol] || '').trim() : '',
+            productCode: cCol ? String(r[cCol] || '').trim() : '',
+            quantity: qCol ? (Number(r[qCol]) || 1) : 1,
+            revenue: rCol ? (Number(r[rCol]) || 0) : 0,
+            unitPrice: rCol ? (Number(r[rCol]) || 0) : 0,
+          })).filter(s => s.productName || s.productCode);
+          runStockCheck(genericRows, selectedStore);
+        }
       }
     };
     reader.readAsBinaryString(file);
@@ -300,12 +372,13 @@ export default function SalesImport() {
     setLoading(true); setResult(null);
     try {
       const res = await api.post('/transactions/import-sales', {
-        sales:     salesData,
-        notes:     'Imported via POS Sales Report (CNET format)',
-        reference: `POS Import — ${new Date().toLocaleDateString()}`,
+        sales:         salesData,
+        storeLocation: selectedStore,
+        notes:         `Imported via POS Sales Report (CNET format) — ${selectedStore}`,
+        reference:     `POS Import — ${new Date().toLocaleDateString()}`,
       });
       setResult({ success: true, data: res.data });
-      setFileData(null); setParsed(null);
+      setFileData(null); setParsed(null); setStockCheckData(null);
     } catch (err) {
       setResult({
         success:   false,
@@ -332,12 +405,13 @@ export default function SalesImport() {
     setLoading(true); setResult(null);
     try {
       const res = await api.post('/transactions/import-sales', {
-        sales:     salesData,
-        notes:     'Imported via POS/Excel Report',
-        reference: `POS Import — ${new Date().toLocaleDateString()}`,
+        sales:         salesData,
+        storeLocation: selectedStore,
+        notes:         `Imported via POS/Excel Report — ${selectedStore}`,
+        reference:     `POS Import — ${new Date().toLocaleDateString()}`,
       });
       setResult({ success: true, data: res.data });
-      setFileData(null);
+      setFileData(null); setStockCheckData(null);
     } catch (err) {
       setResult({
         success:   false,
@@ -390,6 +464,7 @@ export default function SalesImport() {
     setIsCnetFmt(false); setColumns([]);
     setImageOcrOpen(false); setOcrRows([]); setOcrRawText('');
     setOcrImagePreview(null); setOcrError('');
+    setStockCheckData(null);
   };
 
   /* ── Image OCR handler ── */
@@ -416,10 +491,13 @@ export default function SalesImport() {
           imageBase64: base64,
           mimeType:    mime,
         });
-        setOcrRows(res.data.rows || []);
+        const rows = res.data.rows || [];
+        setOcrRows(rows);
         setOcrRawText(res.data.rawText || '');
-        if (!res.data.rows?.length) {
+        if (!rows.length) {
           setOcrError(res.data.message || 'No product lines detected.');
+        } else {
+          runStockCheck(rows, selectedStore);
         }
       } catch (err) {
         setOcrError(err.response?.data?.message || 'OCR failed. Please try a clearer image.');
@@ -462,12 +540,14 @@ export default function SalesImport() {
     setLoading(true); setResult(null); setOcrError('');
     try {
       const res = await api.post('/transactions/import-sales', {
-        sales:     salesData,
-        notes:     'Imported via POS Photo / Image OCR',
-        reference: `POS Image Import — ${new Date().toLocaleDateString()}`,
+        sales:         salesData,
+        storeLocation: selectedStore,
+        notes:         `Imported via POS Photo / Image OCR — ${selectedStore}`,
+        reference:     `POS Image Import — ${new Date().toLocaleDateString()}`,
       });
       setResult({ success: true, data: res.data });
       setImageOcrOpen(false);
+      setStockCheckData(null);
     } catch (err) {
       setOcrError(err.response?.data?.message || 'Import failed.');
     } finally { setLoading(false); }
@@ -569,7 +649,7 @@ export default function SalesImport() {
         {/* ── 2a. CNET Auto-detected Preview ── */}
         {fileData && parsed && isCnetFmt && !result?.success && (
           <div className="space-y-5">
-            <div className="flex items-center justify-between border-b border-ink-100 pb-4">
+            <div className="flex flex-wrap items-center justify-between border-b border-ink-100 pb-4 gap-3">
               <div className="flex items-center gap-2.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-300">
                   <Zap size={12} /> CNET POS Format Auto-Detected
@@ -583,37 +663,141 @@ export default function SalesImport() {
               </button>
             </div>
 
-            {/* Parsed preview table */}
-            <div className="overflow-x-auto rounded-xl border border-ink-200 shadow-xs max-h-72">
+            {/* Store & Real Stock Interlink Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50 rounded-xl border border-blue-200 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Store className="w-4 h-4 text-blue-700" />
+                <span className="text-xs font-bold text-slate-900">Deduct Real Stock From:</span>
+                <select
+                  value={selectedStore}
+                  onChange={e => handleStoreChange(e.target.value)}
+                  className="text-xs font-bold px-3 py-1 rounded-lg border border-blue-300 bg-white text-blue-950 shadow-2xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  {configuredStores.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+                {stockCheckLoading && (
+                  <span className="text-[11px] text-blue-600 font-medium animate-pulse flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Checking real balance…
+                  </span>
+                )}
+              </div>
+
+              {stockCheckData && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px]">
+                    <CheckCircle2 className="w-3 h-3" /> {stockCheckData.inStockCount} In Stock
+                  </span>
+                  {stockCheckData.insufficientCount > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-200 text-[11px]">
+                      <AlertTriangle className="w-3 h-3" /> {stockCheckData.insufficientCount} Insufficient
+                    </span>
+                  )}
+                  {stockCheckData.unmatchedCount > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200 text-[11px]">
+                      {stockCheckData.unmatchedCount} Unmatched
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Parsed preview table with real stock balance columns */}
+            <div className="overflow-x-auto rounded-xl border border-ink-200 shadow-xs max-h-80">
               <table className="min-w-full text-xs divide-y divide-ink-100">
-                <thead className="bg-ink-100/80 sticky top-0">
+                <thead className="bg-ink-100/90 sticky top-0 z-10 font-bold text-ink-700">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold text-ink-700">#</th>
-                    <th className="px-3 py-2 text-left font-bold text-ink-700">Article Code</th>
-                    <th className="px-3 py-2 text-left font-bold text-ink-700">Article Name</th>
-                    <th className="px-3 py-2 text-right font-bold text-ink-700">Qty</th>
-                    <th className="px-3 py-2 text-right font-bold text-ink-700">Avg Amount (ETB)</th>
-                    <th className="px-3 py-2 text-right font-bold text-ink-700">Total Amount (ETB)</th>
+                    <th className="px-3 py-2 text-left">#</th>
+                    <th className="px-3 py-2 text-left">Article Code</th>
+                    <th className="px-3 py-2 text-left">Article Name</th>
+                    <th className="px-3 py-2 text-left">Matched Item in Stock</th>
+                    <th className="px-3 py-2 text-right">Available Stock</th>
+                    <th className="px-3 py-2 text-right">Qty Sold</th>
+                    <th className="px-3 py-2 text-right">Remaining Balance</th>
+                    <th className="px-3 py-2 text-center">Stock Status</th>
+                    <th className="px-3 py-2 text-right">Avg Price (ETB)</th>
+                    <th className="px-3 py-2 text-right">Total Amount (ETB)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ink-50 text-ink-700">
-                  {parsed.rows.map((row, i) => (
-                    <tr key={i} className="hover:bg-blue-50/20">
-                      <td className="px-3 py-1.5 text-ink-400 font-mono text-[11px]">{i + 1}</td>
-                      <td className="px-3 py-1.5 font-mono text-blue-700 font-semibold">{row.code || '—'}</td>
-                      <td className="px-3 py-1.5 font-semibold text-ink-900">{row.name}</td>
-                      <td className="px-3 py-1.5 text-right tabular">{row.qty}</td>
-                      <td className="px-3 py-1.5 text-right tabular text-ink-600">{row.avgAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-3 py-1.5 text-right tabular font-semibold text-blue-700">{row.totalAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-ink-50 text-ink-700 bg-white">
+                  {parsed.rows.map((row, i) => {
+                    const stock = stockCheckData?.lines?.[i]?.stock;
+                    return (
+                      <tr key={i} className="hover:bg-blue-50/20">
+                        <td className="px-3 py-1.5 text-ink-400 font-mono text-[11px]">{i + 1}</td>
+                        <td className="px-3 py-1.5 font-mono text-blue-700 font-bold">{row.code || '—'}</td>
+                        <td className="px-3 py-1.5 font-semibold text-ink-900">{row.name}</td>
+                        <td className="px-3 py-1.5 text-ink-700">
+                          {stock?.isMatched ? (
+                            <div>
+                              <span className="font-semibold text-slate-900">{stock.matchedItemName}</span>
+                              {stock.matchedItemCode && (
+                                <span className="ml-1 text-[10px] font-mono text-slate-500">[{stock.matchedItemCode}]</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">No catalog match</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono font-medium">
+                          {stock?.isMatched ? (
+                            stock.matchType === 'recipe_product' ? (
+                              <span className="text-indigo-700 font-sans text-[11px]">Recipe ({stock.ingredients?.length || 0} ing.)</span>
+                            ) : (
+                              <span className={stock.availableStock > 0 ? 'text-slate-900 font-bold' : 'text-rose-600 font-bold'}>
+                                {fmt(stock.availableStock)} {stock.unit}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular font-bold text-slate-900">{row.qty}</td>
+                        <td className="px-3 py-1.5 text-right font-mono font-bold">
+                          {stock?.isMatched && stock.matchType === 'direct_material' ? (
+                            <span className={stock.remainingStock >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                              {fmt(stock.remainingStock)} {stock.unit}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-center whitespace-nowrap">
+                          {stock?.status === 'in_stock' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              ✓ In Stock
+                            </span>
+                          )}
+                          {stock?.status === 'low_stock' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              ⚠ Low Stock
+                            </span>
+                          )}
+                          {stock?.status === 'insufficient' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                              ✕ Insufficient
+                            </span>
+                          )}
+                          {(!stock || stock?.status === 'unmatched') && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
+                              Unmatched
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular text-ink-600">{row.avgAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-1.5 text-right tabular font-semibold text-blue-700">{row.totalAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot className="bg-ink-50 font-bold text-xs border-t border-ink-200">
                   <tr>
-                    <td colSpan={3} className="px-3 py-2 text-ink-700 font-bold">Total ({parsed.rows.length} items)</td>
+                    <td colSpan={5} className="px-3 py-2 text-ink-700 font-bold">Total ({parsed.rows.length} items)</td>
                     <td className="px-3 py-2 text-right tabular text-ink-900">
                       {parsed.rows.reduce((s, r) => s + r.qty, 0).toLocaleString()}
                     </td>
+                    <td colSpan={2} />
                     <td className="px-3 py-2 text-right text-ink-400">—</td>
                     <td className="px-3 py-2 text-right tabular text-blue-900">
                       ETB {parsed.rows.reduce((s, r) => s + r.totalAmt, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -627,12 +811,12 @@ export default function SalesImport() {
             <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-blue-950">How this import works</p>
+                <p className="font-bold text-blue-950">How stock balance communication works</p>
                 <ul className="mt-1 space-y-0.5 text-blue-800 list-disc pl-4">
-                  <li><strong>Article Code</strong> is matched against your Product codes first, then by name.</li>
-                  <li>Matched products with recipes → ingredients deducted from stock automatically.</li>
-                  <li><strong>Total Amount</strong> is used as the line revenue; <strong>Avg Amount</strong> as the unit selling price.</li>
-                  <li>Unmatched items are recorded but don't affect stock.</li>
+                  <li><strong>Article Code &amp; Name</strong> automatically communicate with your inventory and recipe catalog.</li>
+                  <li>Available stock is verified against <strong>{selectedStore}</strong> in real time.</li>
+                  <li>On confirm, the real stock balances are atomically deducted and recorded in the Stock Ledger.</li>
+                  <li>Matched recipe products automatically deduct ingredient stocks. Direct catalog items deduct their current balance.</li>
                 </ul>
               </div>
             </div>
@@ -643,7 +827,7 @@ export default function SalesImport() {
                 disabled={loading}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 shadow-md flex items-center gap-2"
               >
-                {loading ? 'Processing…' : `Confirm & Import ${parsed.rows.length} Items`}
+                {loading ? 'Processing…' : `Confirm & Deduct Stock for ${parsed.rows.length} Items`}
                 <ArrowRight size={16} />
               </Button>
             </div>
@@ -684,6 +868,20 @@ export default function SalesImport() {
                   </select>
                 </div>
               ))}
+              <div>
+                <label className="block text-xs font-bold text-ink-700 mb-1">
+                  Deduct from Store Location
+                </label>
+                <select
+                  value={selectedStore}
+                  onChange={e => setSelectedStore(e.target.value)}
+                  className="w-full rounded-xl border border-ink-200 py-2 px-3 text-xs outline-none focus:border-blue-500 bg-white font-medium"
+                >
+                  {configuredStores.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Preview */}
@@ -728,9 +926,19 @@ export default function SalesImport() {
                   <CheckCircle size={28} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-emerald-950">POS Sales Imported Successfully</h2>
-                  <p className="text-xs text-emerald-700 mt-0.5">
-                    {result.data?.summary?.totalSoldProducts || result.data?.items?.length || 0} items processed · Stock deducted and P&amp;L updated.
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-bold text-emerald-950">POS Sales Imported Successfully</h2>
+                    {result.data?.voucherNo && (
+                      <span className="font-mono text-xs bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-md">
+                        Voucher: {result.data.voucherNo}
+                      </span>
+                    )}
+                    <span className="text-xs bg-white text-emerald-800 font-semibold px-2 py-0.5 rounded-md border border-emerald-300">
+                      Store: {result.data?.storeLocation || selectedStore}
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    {result.data?.summary?.totalSoldProducts || result.data?.items?.length || 0} items processed · Stock deducted in real balance and P&amp;L updated.
                   </p>
                 </div>
               </div>
@@ -761,6 +969,69 @@ export default function SalesImport() {
                     <p className="text-[11px] text-ink-400 mt-0.5">{sub}</p>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Real Stock Balance Deductions Applied to Ledger */}
+            {result.data?.deductedStockDetails?.length > 0 && (
+              <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-indigo-950 flex items-center gap-2">
+                      <Scale className="h-4 w-4 text-indigo-600" />
+                      Real Stock Balance Deductions Applied to Ledger ({result.data.deductedStockDetails.length} items)
+                    </h3>
+                    <p className="text-xs text-indigo-700">
+                      Real balances in <strong>{result.data?.storeLocation || selectedStore}</strong> were automatically updated and recorded in voucher {result.data?.voucherNo || 'Stock Out'}.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                    ✓ Real Balance Deducted
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-indigo-200 bg-white">
+                  <table className="min-w-full text-xs divide-y divide-indigo-100">
+                    <thead className="bg-indigo-100/70 font-bold text-indigo-900">
+                      <tr>
+                        <th className="px-3 py-2 text-left">#</th>
+                        <th className="px-3 py-2 text-left">Stock Item Name</th>
+                        <th className="px-3 py-2 text-left">Item Code</th>
+                        <th className="px-3 py-2 text-left">Store Location</th>
+                        <th className="px-3 py-2 text-right">Stock Before</th>
+                        <th className="px-3 py-2 text-right">Deducted Qty (Sold)</th>
+                        <th className="px-3 py-2 text-right">Remaining Balance</th>
+                        <th className="px-3 py-2 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-indigo-50 text-slate-800">
+                      {result.data.deductedStockDetails.map((det, dIdx) => (
+                        <tr key={dIdx} className="hover:bg-indigo-50/30">
+                          <td className="px-3 py-1.5 text-slate-400 font-mono text-[11px]">{dIdx + 1}</td>
+                          <td className="px-3 py-1.5 font-bold text-slate-900">{det.materialName}</td>
+                          <td className="px-3 py-1.5 font-mono text-slate-600">{det.materialCode || '—'}</td>
+                          <td className="px-3 py-1.5 text-indigo-800 font-semibold">{det.storeLocation}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-medium text-slate-700">
+                            {fmt(det.initialStock)} {det.unit}
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold text-rose-600">
+                            −{fmt(det.quantityDeducted)} {det.unit}
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">
+                            <span className={det.finalStock >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                              {fmt(det.finalStock)} {det.unit}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 text-center">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              Deducted
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
@@ -1046,11 +1317,30 @@ export default function SalesImport() {
                 </div>
               )}
 
+              {/* Target Store Location */}
+              {!ocrLoading && (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-violet-50/60 border border-violet-200">
+                  <div className="text-xs">
+                    <span className="font-bold text-violet-950">Deduct Stock From Store:</span>
+                    <span className="ml-1 text-violet-700">Real balance will be checked and deducted from this store</span>
+                  </div>
+                  <select
+                    value={selectedStore}
+                    onChange={e => setSelectedStore(e.target.value)}
+                    className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-900 outline-none focus:border-violet-500 shadow-xs"
+                  >
+                    {configuredStores.map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Info */}
               {!ocrLoading && ocrRows.length > 0 && (
                 <div className="rounded-lg bg-violet-50 border border-violet-200 px-4 py-2.5 text-xs text-violet-800 flex items-start gap-2">
                   <AlertTriangle size={13} className="shrink-0 mt-0.5 text-violet-500" />
-                  <span>Review the detected rows carefully. OCR may misread unclear text. Correct any errors before importing.</span>
+                  <span>Review the detected rows carefully. OCR may misread unclear text. Correct any errors before importing. Real inventory balances in <strong>{selectedStore}</strong> will be deducted on import.</span>
                 </div>
               )}
             </div>
@@ -1096,8 +1386,8 @@ export default function SalesImport() {
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
 
-              {/* Date + Reference */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Date + Reference + Store */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-ink-700 mb-1">Sale Date *</label>
                   <input type="date" value={manualDate}
@@ -1109,6 +1399,18 @@ export default function SalesImport() {
                   <input type="text" value={manualRef} placeholder="e.g. Morning Shift, Table 5…"
                     onChange={e => setManualRef(e.target.value)}
                     className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">Deduct From Store *</label>
+                  <select
+                    value={selectedStore}
+                    onChange={e => setSelectedStore(e.target.value)}
+                    className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white font-medium"
+                  >
+                    {configuredStores.map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

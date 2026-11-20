@@ -1360,24 +1360,285 @@ const advanceTransaction = asyncHandler(async (req, res) => {
 });
 
 
+// ── HELPER: Match imported sales item to Product (with recipe) or RawMaterial (direct item) ──
+const findMatchingStockItem = async (codeStr, nameStr) => {
+  const Product = require('../models/Product');
+  const RawMaterial = require('../models/RawMaterial');
+  const escapeRegex = (s) => (s ? String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '');
+
+  const normCode = (codeStr || '').trim().replace(/-+$/, '');
+  const normName = (nameStr || '').trim();
+
+  // 1. Check Product by code or name
+  let product = null;
+  if (normCode) {
+    const escapedCode = escapeRegex(normCode);
+    product = await Product.findOne({
+      isActive: true,
+      deletedAt: null,
+      code: { $regex: `^${escapedCode}-*$`, $options: 'i' },
+    }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
+  }
+  if (!product && normName) {
+    product = await Product.findOne({
+      isActive: true,
+      deletedAt: null,
+      name: new RegExp(`^${escapeRegex(normName)}$`, 'i'),
+    }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
+  }
+  if (!product && (normCode || normName)) {
+    const term = escapeRegex(normCode || normName);
+    product = await Product.findOne({
+      isActive: true,
+      deletedAt: null,
+      $or: [
+        { code: { $regex: `^${term}-*$`, $options: 'i' } },
+        { name: { $regex: `^${term}$`, $options: 'i' } },
+      ],
+    }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
+  }
+
+  // If Product exists and has recipe ingredients
+  if (product && Array.isArray(product.ingredients) && product.ingredients.length > 0) {
+    return {
+      type: 'recipe_product',
+      product,
+      material: null,
+      ingredients: product.ingredients,
+    };
+  }
+
+  // 2. Check RawMaterial (inventory / stock catalog) directly by code or name
+  let material = null;
+  if (normCode) {
+    const escapedCode = escapeRegex(normCode);
+    material = await RawMaterial.findOne({
+      deletedAt: null,
+      code: { $regex: `^${escapedCode}-*$`, $options: 'i' },
+    });
+  }
+  if (!material && normName) {
+    material = await RawMaterial.findOne({
+      deletedAt: null,
+      name: new RegExp(`^${escapeRegex(normName)}$`, 'i'),
+    });
+  }
+  if (!material && (normCode || normName)) {
+    const term = escapeRegex(normName || normCode);
+    material = await RawMaterial.findOne({
+      deletedAt: null,
+      $or: [
+        { code: new RegExp(`^${term}$`, 'i') },
+        { name: new RegExp(`^${term}$`, 'i') },
+      ],
+    });
+  }
+
+  if (material) {
+    return {
+      type: 'direct_material',
+      product: product || null,
+      material,
+      ingredients: [],
+    };
+  }
+
+  if (product) {
+    return {
+      type: 'product_no_recipe',
+      product,
+      material: null,
+      ingredients: [],
+    };
+  }
+
+  return {
+    type: 'unmatched',
+    product: null,
+    material: null,
+    ingredients: [],
+  };
+};
+
+// ── POST /api/transactions/check-sales-stock ─────────────────────────
+// Pre-checks imported sales lines against real stock balances by item code and name
+const checkSalesStock = asyncHandler(async (req, res) => {
+  const { sales, storeLocation = 'Main Store' } = req.body;
+  if (!sales || !Array.isArray(sales)) {
+    res.status(400);
+    throw new Error('No sales lines provided for stock balance check');
+  }
+
+  const RawMaterial = require('../models/RawMaterial');
+  const { getStoreStock, normalizeStore, isNegativeStockAllowed } = require('../utils/stockBalanceHelper');
+  const targetStore = normalizeStore(storeLocation);
+  const allowNegative = await isNegativeStockAllowed();
+
+  let matchedCount = 0;
+  let unmatchedCount = 0;
+  let inStockCount = 0;
+  let insufficientCount = 0;
+
+  const checkedLines = [];
+
+  for (let i = 0; i < sales.length; i++) {
+    const sale = sales[i];
+    const codeStr = (sale.productCode || sale.code || '').trim();
+    const nameStr = (sale.productName || sale.name || '').trim();
+    const qty = Math.max(0.001, Number(sale.quantity || sale.qty) || 1);
+    const revenue = Number(sale.revenue || sale.totalAmt || sale.total) || 0;
+    const unitPrice = Number(sale.unitPrice || sale.avgAmt || sale.price) || 0;
+
+    if (!codeStr && !nameStr) continue;
+
+    const match = await findMatchingStockItem(codeStr, nameStr);
+
+    let stockInfo = {
+      isMatched: false,
+      matchType: match.type,
+      matchedItemId: null,
+      matchedItemCode: null,
+      matchedItemName: null,
+      unit: 'Pcs',
+      unitCost: 0,
+      availableStock: 0,
+      deductQuantity: qty,
+      remainingStock: 0,
+      isSufficient: false,
+      status: 'unmatched',
+      ingredients: [],
+    };
+
+    if (match.type === 'direct_material' && match.material) {
+      const mat = match.material;
+      const available = getStoreStock(mat, targetStore);
+      const remaining = Math.round((available - qty) * 10000) / 10000;
+      const isSufficient = available >= qty;
+
+      matchedCount++;
+      if (isSufficient) {
+        inStockCount++;
+      } else {
+        insufficientCount++;
+      }
+
+      stockInfo = {
+        isMatched: true,
+        matchType: 'direct_material',
+        matchedItemId: mat._id,
+        matchedItemCode: mat.code,
+        matchedItemName: mat.name,
+        unit: mat.unit || 'pcs',
+        unitCost: mat.unitCost || 0,
+        availableStock: available,
+        deductQuantity: qty,
+        remainingStock: remaining,
+        isSufficient,
+        status: isSufficient
+          ? (remaining <= (mat.reorderLevel || 10) ? 'low_stock' : 'in_stock')
+          : 'insufficient',
+        ingredients: [],
+      };
+    } else if (match.type === 'recipe_product' && match.product) {
+      const prod = match.product;
+      const ingResults = [];
+      let allIngSufficient = true;
+
+      for (const ing of match.ingredients) {
+        let mat = ing.material;
+        if (!mat && ing._doc?.material) {
+          mat = await RawMaterial.findById(ing._doc.material).lean();
+        }
+        if (!mat) continue;
+
+        const reqQty = Math.round(ing.quantity * qty * 10000) / 10000;
+        const available = getStoreStock(mat, targetStore);
+        const remaining = Math.round((available - reqQty) * 10000) / 10000;
+        const ingSufficient = available >= reqQty;
+        if (!ingSufficient) allIngSufficient = false;
+
+        ingResults.push({
+          materialId: mat._id,
+          code: mat.code,
+          name: mat.name,
+          unit: mat.unit,
+          unitCost: mat.unitCost || 0,
+          requiredQuantity: reqQty,
+          availableStock: available,
+          remainingStock: remaining,
+          isSufficient: ingSufficient,
+        });
+      }
+
+      matchedCount++;
+      if (allIngSufficient) {
+        inStockCount++;
+      } else {
+        insufficientCount++;
+      }
+
+      stockInfo = {
+        isMatched: true,
+        matchType: 'recipe_product',
+        matchedItemId: prod._id,
+        matchedItemCode: prod.code,
+        matchedItemName: prod.name,
+        unit: prod.uom || 'Pcs',
+        unitCost: prod.sellingPrice || 0,
+        availableStock: null,
+        deductQuantity: qty,
+        remainingStock: null,
+        isSufficient: allIngSufficient,
+        status: allIngSufficient ? 'in_stock' : 'insufficient',
+        ingredients: ingResults,
+      };
+    } else {
+      unmatchedCount++;
+    }
+
+    checkedLines.push({
+      lineIndex: i,
+      productCode: codeStr,
+      productName: nameStr,
+      quantity: qty,
+      revenue,
+      unitPrice,
+      stock: stockInfo,
+    });
+  }
+
+  res.json({
+    totalLines: checkedLines.length,
+    storeLocation: targetStore,
+    matchedCount,
+    unmatchedCount,
+    inStockCount,
+    insufficientCount,
+    allowNegativeStock: allowNegative,
+    lines: checkedLines,
+  });
+});
+
 // ── POST /api/transactions/import-sales ──────────────────────────────
-// Enhanced: matches by product code OR name, deducts stock if matched, records complete sold POS products list
+// Interlinks imported sales transactions with real stock balance, automatically
+// communicating with item code & name to deduct from real stock balances in real-time.
 const importSales = asyncHandler(async (req, res) => {
-  const { sales, notes, reference, saleDate } = req.body;
+  const { sales, notes, reference, saleDate, storeLocation = 'Main Store' } = req.body;
   if (!sales || !sales.length) {
     res.status(400);
     throw new Error('No sales data provided');
   }
 
-  const Product     = require('../models/Product');
+  const Product = require('../models/Product');
+  const RawMaterial = require('../models/RawMaterial');
   const SalesRecord = require('../models/SalesRecord');
-
-  const escapeRegex = (s) => (s ? String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '');
+  const { getStoreStock, normalizeStore } = require('../utils/stockBalanceHelper');
+  const targetStore = normalizeStore(storeLocation);
 
   const materialDeductions = {};
   const saleLines = [];
   const allSoldProducts = [];
-  const notFound  = [];
+  const notFound = [];
 
   for (const sale of sales) {
     const { productName, productCode, quantity, revenue, unitPrice } = sale;
@@ -1391,62 +1652,35 @@ const importSales = asyncHandler(async (req, res) => {
     const price = Number(unitPrice) || 0;
     const lineIngredients = [];
 
-    // 1. Try to find in Product by code or name (isActive only)
-    let product = null;
-    if (codeStr) {
-      // Match exact code OR code with trailing dashes (e.g. stored as "P-0001-")
-      const escapedCode = escapeRegex(codeStr);
-      product = await Product.findOne({
-        isActive: true,
-        code: { $regex: `^${escapedCode}-*$`, $options: 'i' },
-      }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
-    }
-    if (!product && nameStr) {
-      product = await Product.findOne({
-        isActive: true,
-        name: new RegExp(`^${escapeRegex(nameStr)}$`, 'i'),
-      }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
-    }
-    // Fallback: partial match — code contains the term or name contains the term
-    if (!product && (codeStr || nameStr)) {
-      const term = escapeRegex(codeStr || nameStr);
-      product = await Product.findOne({
-        isActive: true,
-        $or: [
-          { code: { $regex: `^${term}-*$`, $options: 'i' } },
-          { name: { $regex: `^${term}$`,   $options: 'i' } },
-        ],
-      }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
-    }
+    const match = await findMatchingStockItem(codeStr, nameStr);
 
-    if (product) {
+    if (match.type === 'recipe_product' && match.product) {
+      const product = match.product;
       let cogs = 0;
-      // Re-fetch ingredients with explicit populate to ensure materials load
-      // even if the shorthand populate silently missed them
-      const ingList = product.ingredients || [];
-      const hasRecipe = ingList.length > 0;
-      if (hasRecipe) {
-        for (const ing of ingList) {
-          // ing.material is populated; if null, fetch manually by ID
-          let mat = ing.material;
-          if (!mat && ing._doc?.material) {
-            mat = await RawMaterial.findById(ing._doc.material).lean();
-          }
-          if (!mat) continue;
-          const matId     = mat._id.toString();
-          const deductQty = ing.quantity * qty;
-          const ingCost   = (mat.unitCost || 0) * deductQty;
-          cogs += ingCost;
-          materialDeductions[matId] = (materialDeductions[matId] || 0) + deductQty;
-          lineIngredients.push({
-            materialId:   mat._id,
-            materialName: mat.name,
-            unit:         mat.unit,
-            quantityUsed: deductQty,
-            unitCost:     mat.unitCost || 0,
-            totalCost:    ingCost,
-          });
+
+      for (const ing of match.ingredients) {
+        let mat = ing.material;
+        if (!mat && ing._doc?.material) {
+          mat = await RawMaterial.findById(ing._doc.material).lean();
         }
+        if (!mat) continue;
+
+        const matId = mat._id.toString();
+        const deductQty = ing.quantity * qty;
+        const ingCost = (mat.unitCost || 0) * deductQty;
+        cogs += ingCost;
+
+        materialDeductions[matId] = (materialDeductions[matId] || 0) + deductQty;
+        lineIngredients.push({
+          materialId: mat._id,
+          materialName: mat.name,
+          unit: mat.unit,
+          quantityUsed: deductQty,
+          unitCost: mat.unitCost || 0,
+          totalCost: ingCost,
+          storeLocation: targetStore,
+          availableStock: getStoreStock(mat, targetStore),
+        });
       }
 
       let lineRev = rev;
@@ -1457,19 +1691,20 @@ const importSales = asyncHandler(async (req, res) => {
       const lineSellingPrice = qty > 0 ? (lineRev / qty) : (product.sellingPrice || 0);
 
       const recordLine = {
-        productName:     product.name || nameStr,
-        productCode:     product.code || codeStr,
-        productId:       product._id,
-        category:        product.category || 'General',
-        parentCategory:  product.parentCategory || 'FOOD',
-        uom:             product.uom || 'Pcs',
-        quantitySold:    qty,
-        sellingPrice:    lineSellingPrice,
-        revenue:         lineRev,
+        productName: product.name || nameStr,
+        productCode: product.code || codeStr,
+        productId: product._id,
+        category: product.category || 'General',
+        parentCategory: product.parentCategory || 'FOOD',
+        uom: product.uom || 'Pcs',
+        quantitySold: qty,
+        sellingPrice: lineSellingPrice,
+        revenue: lineRev,
         cogs,
-        grossProfit:     lineRev - cogs,
-        matchStatus:     (hasRecipe && lineIngredients.length > 0) ? 'recipe_deducted' : (hasRecipe ? 'no_recipe' : 'no_recipe'),
+        grossProfit: lineRev - cogs,
+        matchStatus: lineIngredients.length > 0 ? 'recipe_deducted' : 'no_recipe',
         ingredientsUsed: lineIngredients,
+        storeLocation: targetStore,
       };
 
       saleLines.push(recordLine);
@@ -1477,35 +1712,23 @@ const importSales = asyncHandler(async (req, res) => {
       continue;
     }
 
-    // 2. Try RawMaterial directly
-    let material = null;
-    if (codeStr) {
-      material = await RawMaterial.findOne({ code: new RegExp(`^${escapeRegex(codeStr)}$`, 'i') });
-    }
-    if (!material && nameStr) {
-      material = await RawMaterial.findOne({ name: new RegExp(`^${escapeRegex(nameStr)}$`, 'i') });
-    }
-    if (!material && (codeStr || nameStr)) {
-      const term = (nameStr || codeStr);
-      material = await RawMaterial.findOne({
-        $or: [
-          { code: new RegExp(`^${escapeRegex(term)}$`, 'i') },
-          { name: new RegExp(`^${escapeRegex(term)}$`, 'i') },
-        ]
-      });
-    }
-
-    if (material) {
-      const matId   = material._id.toString();
+    if (match.type === 'direct_material' && match.material) {
+      const material = match.material;
+      const matId = material._id.toString();
       const ingCost = (material.unitCost || 0) * qty;
+      const available = getStoreStock(material, targetStore);
+
       materialDeductions[matId] = (materialDeductions[matId] || 0) + qty;
       lineIngredients.push({
-        materialId:   material._id,
+        materialId: material._id,
         materialName: material.name,
-        unit:         material.unit,
+        unit: material.unit,
         quantityUsed: qty,
-        unitCost:     material.unitCost || 0,
-        totalCost:    ingCost,
+        unitCost: material.unitCost || 0,
+        totalCost: ingCost,
+        storeLocation: targetStore,
+        availableStock: available,
+        remainingStock: Math.round((available - qty) * 10000) / 10000,
       });
 
       let lineRev = rev;
@@ -1516,19 +1739,23 @@ const importSales = asyncHandler(async (req, res) => {
       const lineSellingPrice = qty > 0 ? (lineRev / qty) : 0;
 
       const recordLine = {
-        productName:     material.name || nameStr,
-        productCode:     material.code || codeStr,
-        productId:       null,
-        category:        material.category || 'General',
-        parentCategory:  'RAW',
-        uom:             material.unit || 'Pcs',
-        quantitySold:    qty,
-        sellingPrice:    lineSellingPrice,
-        revenue:         lineRev,
-        cogs:            ingCost,
-        grossProfit:     lineRev - ingCost,
-        matchStatus:     'direct_material',
+        productName: material.name || nameStr,
+        productCode: material.code || codeStr,
+        productId: match.product?._id || null,
+        materialId: material._id,
+        category: material.category || 'General',
+        parentCategory: 'RAW',
+        uom: material.unit || 'Pcs',
+        quantitySold: qty,
+        sellingPrice: lineSellingPrice,
+        revenue: lineRev,
+        cogs: ingCost,
+        grossProfit: lineRev - ingCost,
+        matchStatus: 'direct_material',
         ingredientsUsed: lineIngredients,
+        availableStock: available,
+        remainingStock: Math.round((available - qty) * 10000) / 10000,
+        storeLocation: targetStore,
       };
 
       saleLines.push(recordLine);
@@ -1536,7 +1763,7 @@ const importSales = asyncHandler(async (req, res) => {
       continue;
     }
 
-    // 3. Unmatched product
+    // Unmatched product
     const identifier = nameStr || codeStr;
     notFound.push(identifier);
 
@@ -1545,87 +1772,136 @@ const importSales = asyncHandler(async (req, res) => {
     const lineSellingPrice = qty > 0 ? (lineRev / qty) : price;
 
     const unmatchedLine = {
-      productName:     nameStr || codeStr,
-      productCode:     codeStr,
-      productId:       null,
-      category:        'Unmatched',
-      parentCategory:  '—',
-      uom:             'Pcs',
-      quantitySold:    qty,
-      sellingPrice:    lineSellingPrice,
-      revenue:         lineRev,
-      cogs:            0,
-      grossProfit:     lineRev,
-      matchStatus:     'unmatched',
+      productName: nameStr || codeStr,
+      productCode: codeStr,
+      productId: null,
+      category: 'Unmatched',
+      parentCategory: '—',
+      uom: 'Pcs',
+      quantitySold: qty,
+      sellingPrice: lineSellingPrice,
+      revenue: lineRev,
+      cogs: 0,
+      grossProfit: lineRev,
+      matchStatus: 'unmatched',
       ingredientsUsed: [],
+      availableStock: 0,
+      remainingStock: 0,
+      storeLocation: targetStore,
     };
     allSoldProducts.push(unmatchedLine);
   }
 
   // Aggregate totals
-  const totalRevenue = saleLines.reduce((s, l) => s + (l.revenue     || 0), 0);
-  const totalCOGS    = saleLines.reduce((s, l) => s + (l.cogs        || 0), 0);
-  const grossProfit  = totalRevenue - totalCOGS;
+  const totalRevenue = saleLines.reduce((s, l) => s + (l.revenue || 0), 0);
+  const totalCOGS = saleLines.reduce((s, l) => s + (l.cogs || 0), 0);
+  const grossProfit = totalRevenue - totalCOGS;
   const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
   // Create SalesRecord
   const salesRecord = await SalesRecord.create({
-    saleDate:    saleDate ? new Date(saleDate) : new Date(),
-    reference:   reference || '',
-    notes:       notes || 'Imported from POS/Excel report',
-    source:      'excel_import',
-    lines:       saleLines,
+    saleDate: saleDate ? new Date(saleDate) : new Date(),
+    reference: reference || '',
+    notes: notes || `Imported sales — deducted from ${targetStore}`,
+    source: 'excel_import',
+    lines: saleLines,
     totalRevenue,
     totalCOGS,
     grossProfit,
     profitMargin,
-    importedBy:  req.user._id,
+    importedBy: req.user._id,
   });
 
-  // Create stock transaction if there are materials to deduct
+  // Create stock transaction and deduct from real balance
   let transaction = null;
   const resolvedItems = [];
   for (const [matId, qty] of Object.entries(materialDeductions)) {
     if (qty <= 0) continue;
     const mat = await RawMaterial.findById(matId);
-    if (mat) resolvedItems.push({ material: mat._id, quantity: qty, unitCost: mat.unitCost || 0, totalCost: (mat.unitCost || 0) * qty, _doc: mat });
+    if (mat) {
+      const avail = getStoreStock(mat, targetStore);
+      resolvedItems.push({
+        material: mat._id,
+        materialName: mat.name,
+        materialCode: mat.code,
+        quantity: qty,
+        unit: mat.unit || 'Pcs',
+        unitCost: mat.unitCost || 0,
+        totalCost: (mat.unitCost || 0) * qty,
+        storeLocation: targetStore,
+        initialStock: avail,
+        finalStock: Math.round((avail - qty) * 10000) / 10000,
+        _doc: mat,
+      });
+    }
   }
 
   if (resolvedItems.length > 0) {
     const totalAmount = resolvedItems.reduce((s, i) => s + i.totalCost, 0);
     transaction = await StockTransaction.create({
       voucherType: 'sales_import',
-      voucherNo:   await generateVoucherNo('sales_import'),
-      type:        'out',
-      items:       resolvedItems.map(({ material, quantity, unitCost, totalCost }) => ({ material, quantity, unitCost, totalCost })),
-      material:    resolvedItems[0].material,
-      quantity:    resolvedItems[0].quantity,
-      unitCost:    resolvedItems[0].unitCost,
-      reason:      'Sales Report Import',
-      reference:   reference || '',
-      notes:       notes || 'Automated stock deduction from sales report',
-      date:        saleDate ? new Date(saleDate) : new Date(),
+      voucherNo: await generateVoucherNo('sales_import'),
+      type: 'out',
+      items: resolvedItems.map(({ material, quantity, unitCost, totalCost, storeLocation: itemStore }) => ({
+        material,
+        quantity,
+        unitCost,
+        totalCost,
+        storeLocation: itemStore || targetStore,
+      })),
+      material: resolvedItems[0].material,
+      quantity: resolvedItems[0].quantity,
+      unitCost: resolvedItems[0].unitCost,
+      storeLocation: targetStore,
+      reason: 'Sales Report Import - Stock Balance Deduction',
+      reference: reference || '',
+      notes: notes || `Automated real stock deduction from sales import (${targetStore})`,
+      date: saleDate ? new Date(saleDate) : new Date(),
       performedBy: req.user._id,
       totalAmount,
       stockApplied: true,
-      status:      'posted',
-      trail: [{ action: 'posted', by: req.user._id, byName: req.user.name, byRole: req.user.role, note: 'Sales import posted & stock deducted' }],
+      status: 'posted',
+      trail: [
+        {
+          action: 'posted',
+          by: req.user._id,
+          byName: req.user.name,
+          byRole: req.user.role,
+          note: `Sales import posted & deducted from ${targetStore} real balance`,
+        },
+      ],
     });
 
     salesRecord.stockTransaction = transaction._id;
     await salesRecord.save();
 
+    // DEDUCT FROM REAL BALANCE
     await applyStockMovement(resolvedItems, 'out', null, {
-      defaultStore: 'Main Store',
+      defaultStore: targetStore,
     });
   }
 
   invalidateDashboardCache();
 
   res.status(201).json({
-    message: 'Sales imported. Stock deducted and P&L recorded.',
+    message: resolvedItems.length > 0
+      ? `Sales imported. Deducted real stock balance for ${resolvedItems.length} inventory item(s) in "${targetStore}".`
+      : 'Sales imported. Recorded revenue and P&L (no deductible items matched).',
     salesRecord,
     transactionId: transaction?._id,
+    voucherNo: transaction?.voucherNo,
+    storeLocation: targetStore,
+    deductedItemsCount: resolvedItems.length,
+    deductedStockDetails: resolvedItems.map(r => ({
+      materialName: r.materialName || r._doc?.name,
+      materialCode: r.materialCode || r._doc?.code,
+      unit: r.unit || r._doc?.unit || 'Pcs',
+      quantityDeducted: r.quantity,
+      initialStock: r.initialStock,
+      finalStock: r.finalStock,
+      storeLocation: r.storeLocation,
+      totalCost: r.totalCost,
+    })),
     summary: {
       totalRevenue,
       totalCOGS,
@@ -1634,6 +1910,7 @@ const importSales = asyncHandler(async (req, res) => {
       totalSoldProducts: allSoldProducts.length,
       matchedCount: saleLines.length,
       unmatchedCount: notFound.length,
+      deductedStockItems: resolvedItems.length,
     },
     items: allSoldProducts,
     unmatchedProducts: notFound,
@@ -1902,6 +2179,7 @@ module.exports = {
   getNextVoucherNo,
   getReconciliationSummary,
   advanceTransaction,
+  checkSalesStock,
   importSales,
   parseImageSales,
   recordSalePayment,
