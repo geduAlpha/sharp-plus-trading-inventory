@@ -566,8 +566,9 @@ const exportMaterialsExcel = asyncHandler(async (req, res) => {
   res.send(buf);
 });
 
-// POST /api/materials/import/excel
-const importMaterialsExcel = asyncHandler(async (req, res) => {
+// POST /api/materials/import/validate
+// Validates Excel rows before importing, detecting duplicate/existing item codes
+const validateMaterialsExcel = asyncHandler(async (req, res) => {
   if (!req.file) {
     res.status(400);
     throw new Error('No file uploaded');
@@ -577,15 +578,137 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws);
 
-  let created = 0;
-  let updated = 0;
-  const processedIds = new Set();
+  const newItems = [];
+  const existingItems = [];
+  const fileCodesMap = new Map();
 
-  for (const row of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     const name = String(row['Name'] || row['Item Name'] || '').trim();
-    const code = String(row['Code'] || row['Item Code'] || '').trim().replace(/-+$/, '');
+    const rawCode = String(row['Code'] || row['Item Code'] || '').trim();
+    const code = rawCode.replace(/-+$/, '');
     if (!name) continue;
 
+    const rowNumber = i + 2;
+    const category = String(row['Category'] || 'General').trim();
+    const itemType = String(row['Item Type'] || row['Type'] || 'Raw Material').trim();
+    const unit = String(row['Unit'] || 'pcs').trim();
+    const currentStock = Number(row['Current Stock'] || row['Stock']) || 0;
+    const unitCost = Number(row['Unit Cost'] || row['Unit Cost (ETB)']) || 0;
+    const storeLocation = String(row['Store Location'] || 'Main Store').trim();
+
+    const itemData = {
+      rowNumber,
+      code,
+      name,
+      category,
+      itemType,
+      unit,
+      description: String(row['Description'] || '').trim(),
+      barcode: String(row['Barcode'] || '').trim(),
+      currentStock,
+      minStock: Number(row['Min Stock']) || 0,
+      maxStock: Number(row['Max Stock']) || 0,
+      reorderLevel: Number(row['Reorder Level']) || 10,
+      unitCost,
+      storeLocation,
+      isActive: true,
+    };
+
+    // Check 1: Duplicate within uploaded file
+    if (code && fileCodesMap.has(code.toLowerCase())) {
+      existingItems.push({
+        ...itemData,
+        duplicateType: 'file_duplicate',
+        reason: `Item code "${code}" is repeated in uploaded file (Row ${fileCodesMap.get(code.toLowerCase())})`,
+        existingCode: code,
+        existingName: name,
+      });
+      continue;
+    }
+    if (code) {
+      fileCodesMap.set(code.toLowerCase(), rowNumber);
+    }
+
+    // Check 2: Existing in database by Code
+    let dbExisting = null;
+    if (code) {
+      const escapedCode = escapeRegex(code);
+      dbExisting = await RawMaterial.findOne({
+        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
+        deletedAt: null,
+      }).lean();
+    }
+
+    // Check 3: Existing in database by exact Name (if no code match)
+    if (!dbExisting) {
+      const escapedName = escapeRegex(name);
+      dbExisting = await RawMaterial.findOne({
+        name: { $regex: `^${escapedName}$`, $options: 'i' },
+        deletedAt: null,
+      }).lean();
+    }
+
+    if (dbExisting) {
+      existingItems.push({
+        ...itemData,
+        duplicateType: 'database_match',
+        reason: (code && dbExisting.code && dbExisting.code.toLowerCase().startsWith(code.toLowerCase()))
+          ? `Item code "${code}" already exists in system`
+          : `Item name "${name}" matches existing item (${dbExisting.code})`,
+        existingId: dbExisting._id,
+        existingCode: dbExisting.code,
+        existingName: dbExisting.name,
+        existingStock: dbExisting.currentStock,
+        existingCost: dbExisting.unitCost,
+        existingCategory: dbExisting.category,
+      });
+    } else {
+      newItems.push(itemData);
+    }
+  }
+
+  const total = newItems.length + existingItems.length;
+  res.json({
+    total,
+    hasDuplicates: existingItems.length > 0,
+    newCount: newItems.length,
+    existingCount: existingItems.length,
+    existingItems,
+    newItemsSummary: newItems.slice(0, 50),
+    message: existingItems.length > 0
+      ? `Authentication alert: ${existingItems.length} existing/duplicate item code(s) detected out of ${total} items.`
+      : `Authentication verified: All ${total} items are new and ready to import.`,
+  });
+});
+
+// POST /api/materials/import/excel
+const importMaterialsExcel = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    res.status(400);
+    throw new Error('No file uploaded');
+  }
+
+  const mode = req.body.mode || req.query.mode || 'default';
+  const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws);
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  const processedIds = new Set();
+  const fileCodesMap = new Map();
+  const skippedItems = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const name = String(row['Name'] || row['Item Name'] || '').trim();
+    const rawCode = String(row['Code'] || row['Item Code'] || '').trim();
+    const code = rawCode.replace(/-+$/, '');
+    if (!name) continue;
+
+    const rowNumber = i + 2;
     const data = {
       code,
       name,
@@ -603,18 +726,45 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
       isActive: true,
     };
 
+    // Detect duplicate code in file
+    let isFileDuplicate = false;
+    if (code && fileCodesMap.has(code.toLowerCase())) {
+      isFileDuplicate = true;
+    } else if (code) {
+      fileCodesMap.set(code.toLowerCase(), rowNumber);
+    }
+
     let existing = null;
     if (code) {
       const escapedCode = escapeRegex(code);
-      existing = await RawMaterial.findOne({ code: { $regex: `^${escapedCode}-?$`, $options: 'i' } });
+      existing = await RawMaterial.findOne({ code: { $regex: `^${escapedCode}-?$`, $options: 'i' }, deletedAt: null });
       if (existing && processedIds.has(existing._id.toString())) existing = null;
     }
     if (!existing) {
       const escapedName = escapeRegex(name);
-      const byName = await RawMaterial.findOne({ name: { $regex: `^${escapedName}$`, $options: 'i' } });
+      const byName = await RawMaterial.findOne({ name: { $regex: `^${escapedName}$`, $options: 'i' }, deletedAt: null });
       if (byName && !processedIds.has(byName._id.toString())) existing = byName;
     }
 
+    // Handle skip duplicates mode
+    if (mode === 'skip_duplicates') {
+      if (existing || isFileDuplicate) {
+        skipped++;
+        skippedItems.push({
+          code: code || existing?.code || `Row ${rowNumber}`,
+          name,
+          reason: isFileDuplicate ? 'Duplicate code in Excel' : `Existing item code (${existing?.code || code}) in system`,
+        });
+        continue;
+      }
+
+      const created_ = await RawMaterial.create(data);
+      processedIds.add(created_._id.toString());
+      created++;
+      continue;
+    }
+
+    // Default or update_all mode
     if (existing) {
       Object.assign(existing, data);
       await existing.save();
@@ -628,7 +778,22 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
   }
 
   invalidateDashboardCache();
-  res.json({ message: `Import completed: ${created} items created, ${updated} items updated.` });
+
+  let message = '';
+  if (mode === 'skip_duplicates') {
+    message = `Import completed: ${created} new items pushed to system. ${skipped} existing item codes skipped.`;
+  } else {
+    message = `Import completed: ${created} items created, ${updated} items updated.`;
+  }
+
+  res.json({
+    message,
+    created,
+    updated,
+    skipped,
+    skippedItems,
+    skippedCodes: skippedItems.map(it => it.code),
+  });
 });
 
 module.exports = {
@@ -643,5 +808,6 @@ module.exports = {
   restoreMaterial,
   permanentDeleteMaterial,
   exportMaterialsExcel,
+  validateMaterialsExcel,
   importMaterialsExcel,
 };

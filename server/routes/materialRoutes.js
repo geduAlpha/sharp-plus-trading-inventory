@@ -13,6 +13,7 @@ const {
   restoreMaterial,
   permanentDeleteMaterial,
   exportMaterialsExcel,
+  validateMaterialsExcel,
   importMaterialsExcel,
 } = require('../controllers/materialController');
 const { protect, authorize, authorizePermission } = require('../middleware/authMiddleware');
@@ -23,6 +24,7 @@ router.use(protect);
 
 // Excel import/export (before /:id to avoid conflict)
 router.get('/export/excel', authorizePermission('items', 'view'), exportMaterialsExcel);
+router.post('/import/validate', authorizePermission('items', 'create'), upload.single('file'), validateMaterialsExcel);
 router.post('/import/excel', authorizePermission('items', 'create'), upload.single('file'), importMaterialsExcel);
 
 // Next sequential code generation (before /:id)

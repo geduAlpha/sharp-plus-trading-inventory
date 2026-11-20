@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ExportDropdown from '../components/ui/ExportDropdown';
 import Pagination from '../components/ui/Pagination';
+import ItemImportValidationModal from '../components/common/ItemImportValidationModal';
 
 const emptyForm = {
   code: '',
@@ -35,6 +36,10 @@ const Products = () => {
   const [saving, setSaving] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [importProgress, setImportProgress] = useState(null); // { percent, current, total, created, updated, skipped }
+  const [importValidationData, setImportValidationData] = useState(null);
+  const [importValidationOpen, setImportValidationOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState(null);
+  const [showSkippedCodes, setShowSkippedCodes] = useState(false);
   const [recipeImportResult, setRecipeImportResult] = useState(null);
   const [recipeImportProgress, setRecipeImportProgress] = useState(null);
   const importRef = useRef();
@@ -215,19 +220,51 @@ const Products = () => {
     const file = e.target.files[0];
     if (!file) return;
     e.target.value = '';
+    setPendingImportFile(file);
 
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      // Step 1: Authenticate and validate items from Excel before committing
+      const valRes = await api.post('/products/import/validate', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (valRes.data?.hasDuplicates) {
+        // Step 2: Existing item codes detected — prompt user with validation modal
+        setImportValidationData(valRes.data);
+        setImportValidationOpen(true);
+      } else {
+        // No duplicate codes: directly push all items
+        await executeImport(file, 'skip_duplicates');
+      }
+    } catch (err) {
+      setImportResult({
+        message: err.response?.data?.message ?? 'Validation failed. Please verify the Excel structure.',
+        errors: [],
+      });
+    }
+  };
+
+  const executeImport = async (fileToImport, mode = 'skip_duplicates') => {
+    const file = fileToImport || pendingImportFile;
+    if (!file) return;
+
+    setImportValidationOpen(false);
     setImportResult(null);
     setImportProgress({ percent: 0, current: 0, total: 0, created: 0, updated: 0, skipped: 0, running: true });
 
     const fd = new FormData();
     fd.append('file', file);
+    fd.append('mode', mode);
 
     // Get the auth token from localStorage
     const stored = localStorage.getItem('companyStockAuth');
     const token = stored ? JSON.parse(stored).token : '';
     const baseURL = getApiBaseUrl();
     try {
-      const response = await fetch(`${baseURL}/products/import/excel`, {
+      const response = await fetch(`${baseURL}/products/import/excel?mode=${mode}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
@@ -265,9 +302,12 @@ const Products = () => {
             } else if (msg.type === 'done') {
               setImportProgress(null);
               setImportResult({
-                message: `Import complete — ${msg.created} created, ${msg.updated} updated, ${msg.skipped} skipped out of ${msg.total} rows`,
+                message: msg.message || `Import complete — ${msg.created} created, ${msg.updated} updated, ${msg.skipped} skipped out of ${msg.total} rows`,
                 errors: msg.errors || [],
+                skippedCodes: msg.skippedCodes || [],
               });
+              setPendingImportFile(null);
+              setImportValidationData(null);
               load();
             }
           } catch { /* skip malformed line */ }
@@ -522,16 +562,49 @@ const Products = () => {
 
       {/* Import result */}
       {importResult && (
-        <div className="flex items-start justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          <div>
-            <p className="font-semibold">{importResult.message}</p>
-            {importResult.errors?.length > 0 && (
-              <ul className="mt-1 list-disc pl-4 text-xs text-red-600 max-h-24 overflow-y-auto">
-                {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
-              </ul>
-            )}
+        <div className="flex flex-col gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-semibold">{importResult.message}</p>
+              {importResult.errors?.length > 0 && (
+                <ul className="mt-1 list-disc pl-4 text-xs text-red-600 max-h-24 overflow-y-auto">
+                  {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              )}
+            </div>
+            <button onClick={() => setImportResult(null)} className="ml-4 text-blue-400 hover:text-blue-700">
+              <X size={16} />
+            </button>
           </div>
-          <button onClick={() => setImportResult(null)} className="ml-4 text-blue-400 hover:text-blue-700"><X size={16} /></button>
+
+          {importResult.skippedCodes?.length > 0 && (
+            <div className="mt-1 pt-2 border-t border-blue-200 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-blue-950">
+                  Skipped Existing Item Codes ({importResult.skippedCodes.length}):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSkippedCodes((s) => !s)}
+                  className="text-[11px] underline font-medium text-blue-800 hover:text-blue-950"
+                >
+                  {showSkippedCodes ? 'Hide Codes' : 'Show Codes'}
+                </button>
+              </div>
+              {showSkippedCodes && (
+                <div className="mt-1.5 p-2 bg-white/80 rounded-lg border border-blue-200 font-mono text-[11px] flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                  {importResult.skippedCodes.map((c, i) => (
+                    <span
+                      key={i}
+                      className="px-1.5 py-0.5 bg-blue-100 text-blue-900 rounded border border-blue-300 font-bold"
+                    >
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -907,6 +980,20 @@ const Products = () => {
           </div>
         )}
       </Modal>
+
+      {/* ── Product / Article Import Validation Modal ── */}
+      <ItemImportValidationModal
+        open={importValidationOpen}
+        onClose={() => {
+          setImportValidationOpen(false);
+          setPendingImportFile(null);
+        }}
+        validationData={importValidationData}
+        onConfirmPushNewOnly={() => executeImport(pendingImportFile, 'skip_duplicates')}
+        onConfirmPushAll={() => executeImport(pendingImportFile, 'update_all')}
+        loading={Boolean(importProgress?.running)}
+        title="Authenticate & Validate Products / Articles Import"
+      />
     </div>
   );
 };

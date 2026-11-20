@@ -283,12 +283,113 @@ const exportProductsExcel = asyncHandler(async (req, res) => {
   res.send(buf);
 });
 
+// POST /api/products/import/validate
+// Validates Products/Articles Excel rows before importing, detecting duplicate/existing item codes
+const validateProductsExcel = asyncHandler(async (req, res) => {
+  if (!req.file) { res.status(400); throw new Error('No file uploaded'); }
+
+  const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+  const validRows = rows.filter(row => {
+    const name = String(row['Name'] || row['Product Name'] || '').trim();
+    if (!name) return false;
+    if (/^Count:/i.test(name)) return false;
+    if (name.toLowerCase() === 'name') return false;
+    return true;
+  });
+
+  const newItems = [];
+  const existingItems = [];
+  const fileCodesMap = new Map();
+
+  for (let i = 0; i < validRows.length; i++) {
+    const row = validRows[i];
+    const name = String(row['Name'] || row['Product Name'] || '').trim();
+    const rawCode = String(row['Code'] || '').trim();
+    const code = rawCode.replace(/-+$/, '');
+    const rowNumber = i + 2;
+
+    const itemData = {
+      rowNumber,
+      code,
+      name,
+      uom: String(row['UOM'] || 'Pcs').trim(),
+      category: String(row['Child Category'] || row['Category'] || 'General').trim(),
+      parentCategory: String(row['Parent Category'] || 'FOOD').trim(),
+      sellingPrice: Number(row['Default Value'] ?? row['Selling Price'] ?? 0) || 0,
+      description: String(row['Description'] || '').trim(),
+    };
+
+    // Check duplicate in file
+    if (code && fileCodesMap.has(code.toLowerCase())) {
+      existingItems.push({
+        ...itemData,
+        duplicateType: 'file_duplicate',
+        reason: `Product code "${code}" is repeated in uploaded file (Row ${fileCodesMap.get(code.toLowerCase())})`,
+        existingCode: code,
+        existingName: name,
+      });
+      continue;
+    }
+    if (code) {
+      fileCodesMap.set(code.toLowerCase(), rowNumber);
+    }
+
+    // Check existing in DB
+    let dbExisting = null;
+    if (code) {
+      const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      dbExisting = await Product.findOne({
+        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
+      }).lean();
+    }
+
+    if (!dbExisting) {
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      dbExisting = await Product.findOne({ name: { $regex: `^${escapedName}$`, $options: 'i' } }).lean();
+    }
+
+    if (dbExisting) {
+      existingItems.push({
+        ...itemData,
+        duplicateType: 'database_match',
+        reason: (code && dbExisting.code && dbExisting.code.toLowerCase().startsWith(code.toLowerCase()))
+          ? `Product code "${code}" already exists in system`
+          : `Product name "${name}" matches existing product (${dbExisting.code})`,
+        existingId: dbExisting._id,
+        existingCode: dbExisting.code,
+        existingName: dbExisting.name,
+        existingPrice: dbExisting.sellingPrice,
+        existingCategory: dbExisting.category,
+      });
+    } else {
+      newItems.push(itemData);
+    }
+  }
+
+  const total = newItems.length + existingItems.length;
+  res.json({
+    total,
+    hasDuplicates: existingItems.length > 0,
+    newCount: newItems.length,
+    existingCount: existingItems.length,
+    existingItems,
+    newItemsSummary: newItems.slice(0, 50),
+    message: existingItems.length > 0
+      ? `Authentication alert: ${existingItems.length} existing/duplicate product code(s) detected out of ${total} items.`
+      : `Authentication verified: All ${total} products are new and ready to import.`,
+  });
+});
+
 // POST /api/products/import/excel
 // Accepts the Sharp Plus format:
 // Code | Name | UOM | Child Category | Parent Category | Default Value | Default Tax | Created On | State
 const importProductsExcel = asyncHandler(async (req, res) => {
   if (!req.file) { res.status(400); throw new Error('No file uploaded'); }
 
+  const mode = req.body?.mode || req.query?.mode || 'default';
   const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
@@ -309,6 +410,7 @@ const importProductsExcel = asyncHandler(async (req, res) => {
   let updated = 0;
   let skipped = 0;
   const errors = [];
+  const skippedItems = [];
 
   // Use SSE (Server-Sent Events) to stream progress back to client
   res.setHeader('Content-Type', 'text/event-stream');
@@ -323,6 +425,7 @@ const importProductsExcel = asyncHandler(async (req, res) => {
   // Track which DB _ids have already been updated in THIS import run.
   // If the same _id is matched again (duplicate row in Excel), we create a NEW product.
   const processedIds = new Set();
+  const fileCodesMap = new Map();
 
   for (let i = 0; i < validRows.length; i++) {
     const row = validRows[i];
@@ -330,6 +433,7 @@ const importProductsExcel = asyncHandler(async (req, res) => {
     const name = String(row['Name'] || row['Product Name'] || '').trim();
     // Normalize code — strip trailing dashes/spaces (source system quirk)
     const code = String(row['Code'] || '').trim().replace(/-+$/, '');
+    const rowNumber = i + 2;
 
     const data = {
       name,
@@ -341,19 +445,24 @@ const importProductsExcel = asyncHandler(async (req, res) => {
       description: String(row['Description'] || '').trim(),
     };
 
+    let isFileDuplicate = false;
+    if (code && fileCodesMap.has(code.toLowerCase())) {
+      isFileDuplicate = true;
+    } else if (code) {
+      fileCodesMap.set(code.toLowerCase(), rowNumber);
+    }
+
     try {
       let existing = null;
 
       // 1️⃣ Match by normalized Code (exact, case-insensitive)
       if (code) {
         const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Also try matching the code with trailing dash (stored format)
         existing = await Product.findOne({
           code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
         });
-        // Only use this match if it hasn't been processed already
         if (existing && processedIds.has(existing._id.toString())) {
-          existing = null; // Force create — this DB record was already updated this run
+          existing = null;
         }
       }
 
@@ -361,13 +470,27 @@ const importProductsExcel = asyncHandler(async (req, res) => {
       if (!existing) {
         const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const byName = await Product.findOne({ name: { $regex: `^${escapedName}$`, $options: 'i' } });
-        // Only use name match if this record hasn't been updated yet this run
         if (byName && !processedIds.has(byName._id.toString())) {
           existing = byName;
         }
       }
 
-      if (existing) {
+      // If mode is skip_duplicates, skip existing items or file duplicates!
+      if (mode === 'skip_duplicates') {
+        if (existing || isFileDuplicate) {
+          skipped++;
+          skippedItems.push({
+            code: code || existing?.code || `Row ${rowNumber}`,
+            name,
+            reason: isFileDuplicate ? 'Duplicate code in Excel' : `Existing product code (${existing?.code || code}) in system`,
+          });
+          continue;
+        }
+
+        const created_ = await Product.create({ ...data, ingredients: [] });
+        processedIds.add(created_._id.toString());
+        created++;
+      } else if (existing) {
         // Update existing record — preserve ingredients
         existing.name = data.name;
         existing.code = data.code || existing.code;
@@ -378,10 +501,9 @@ const importProductsExcel = asyncHandler(async (req, res) => {
         existing.description = data.description || existing.description;
         existing.isActive = true;
         await existing.save();
-        processedIds.add(existing._id.toString()); // Mark as processed
+        processedIds.add(existing._id.toString());
         updated++;
       } else {
-        // No match found (or already updated this run) — create a brand-new product
         const created_ = await Product.create({ ...data, ingredients: [] });
         processedIds.add(created_._id.toString());
         created++;
@@ -404,7 +526,19 @@ const importProductsExcel = asyncHandler(async (req, res) => {
   }
 
   invalidateDashboardCache();
-  send({ type: 'done', created, updated, skipped, errors, total });
+  send({
+    type: 'done',
+    created,
+    updated,
+    skipped,
+    errors,
+    total,
+    skippedItems,
+    skippedCodes: skippedItems.map(it => it.code),
+    message: mode === 'skip_duplicates'
+      ? `Import complete: ${created} new products pushed to system. ${skipped} existing codes skipped.`
+      : `Import complete: ${created} created, ${updated} updated, ${skipped} skipped.`,
+  });
   res.end();
 });
 
@@ -596,4 +730,18 @@ const importRecipesExcel = asyncHandler(async (req, res) => {
 });
 
 
-module.exports = { getProducts, getProductById, createProduct, updateProduct, deleteProduct, bulkDeleteProducts, restoreProduct, permanentDeleteProduct, exportProductsExcel, importProductsExcel, exportRecipeTemplate, importRecipesExcel };
+module.exports = {
+  getProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  bulkDeleteProducts,
+  restoreProduct,
+  permanentDeleteProduct,
+  exportProductsExcel,
+  validateProductsExcel,
+  importProductsExcel,
+  exportRecipeTemplate,
+  importRecipesExcel,
+};

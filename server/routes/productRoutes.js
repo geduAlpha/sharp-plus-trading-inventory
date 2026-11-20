@@ -11,6 +11,7 @@ const {
   restoreProduct,
   permanentDeleteProduct,
   exportProductsExcel,
+  validateProductsExcel,
   importProductsExcel,
   exportRecipeTemplate,
   importRecipesExcel,
@@ -23,6 +24,7 @@ router.use(protect);
 
 // Excel import/export — must be before /:id
 router.get('/export/excel',           authorizePermission('products', 'view'), exportProductsExcel);
+router.post('/import/validate',       authorizePermission('products', 'create'), upload.single('file'), validateProductsExcel);
 router.post('/import/excel',          authorizePermission('products', 'create'), upload.single('file'), importProductsExcel);
 router.get('/export/recipe-template', authorizePermission('products', 'view'), exportRecipeTemplate);
 router.post('/import/recipes',        authorizePermission('products', 'create'), upload.single('file'), importRecipesExcel);

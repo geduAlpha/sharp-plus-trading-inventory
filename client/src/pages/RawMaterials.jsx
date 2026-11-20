@@ -14,6 +14,7 @@ import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ExportDropdown from '../components/ui/ExportDropdown';
 import Pagination from '../components/ui/Pagination';
+import ItemImportValidationModal from '../components/common/ItemImportValidationModal';
 
 const ITEM_TYPES = ['Raw Material', 'Finished Product', 'Trading Item'];
 
@@ -102,6 +103,11 @@ const Items = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [importResult, setImportResult] = useState(null);
+  const [importValidationData, setImportValidationData] = useState(null);
+  const [importValidationOpen, setImportValidationOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [showSkippedCodes, setShowSkippedCodes] = useState(false);
   const importRef = useRef();
   const { hasRole, can, isDeveloper } = useAuth();
   const canView = isDeveloper || can('items', 'view');
@@ -442,19 +448,64 @@ const Items = () => {
   const handleImport = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    e.target.value = '';
+    setPendingImportFile(file);
+    setImportLoading(true);
+
     const formData = new FormData();
     formData.append('file', file);
+
+    try {
+      // Step 1: Authenticate and validate items from Excel before committing
+      const valRes = await api.post('/materials/import/validate', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (valRes.data?.hasDuplicates) {
+        // Step 2: Existing item codes detected — prompt user with validation modal
+        setImportValidationData(valRes.data);
+        setImportValidationOpen(true);
+      } else {
+        // No duplicate codes: directly push all items
+        await executeImport(file, 'skip_duplicates');
+      }
+    } catch (err) {
+      setImportResult({
+        message: err.response?.data?.message ?? 'Validation failed. Please verify the Excel structure.',
+        isError: true,
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const executeImport = async (fileToImport, mode = 'skip_duplicates') => {
+    const file = fileToImport || pendingImportFile;
+    if (!file) return;
+    setImportLoading(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', mode);
+
     try {
       const res = await api.post('/materials/import/excel', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setImportResult(res.data);
+      setImportValidationOpen(false);
+      setPendingImportFile(null);
+      setImportValidationData(null);
       loadMaterials();
       loadCategories();
     } catch (err) {
-      setImportResult({ message: err.response?.data?.message ?? 'Import failed' });
+      setImportResult({
+        message: err.response?.data?.message ?? 'Import execution failed',
+        isError: true,
+      });
+    } finally {
+      setImportLoading(false);
     }
-    e.target.value = '';
   };
 
   const openHistory = async (m) => {
@@ -865,11 +916,58 @@ const Items = () => {
       )}
 
       {importResult && (
-        <div className="flex items-start justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm">
-          <p className="font-medium">{importResult.message}</p>
-          <button onClick={() => setImportResult(null)} className="ml-4 text-blue-500 hover:text-blue-700">
-            <X size={16} />
-          </button>
+        <div
+          className={`flex flex-col gap-2 rounded-xl border p-4 text-sm shadow-sm transition ${
+            importResult.isError
+              ? 'border-red-200 bg-red-50 text-red-900'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2
+                className={`w-5 h-5 ${
+                  importResult.isError ? 'text-red-600' : 'text-emerald-600'
+                }`}
+              />
+              <p className="font-semibold">{importResult.message}</p>
+            </div>
+            <button
+              onClick={() => setImportResult(null)}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {importResult.skippedCodes?.length > 0 && (
+            <div className="mt-1 pt-2 border-t border-emerald-200/60 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-900">
+                  Skipped Existing Item Codes ({importResult.skippedCodes.length}):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSkippedCodes((s) => !s)}
+                  className="text-[11px] underline font-medium text-emerald-800 hover:text-emerald-950"
+                >
+                  {showSkippedCodes ? 'Hide Codes' : 'Show Codes'}
+                </button>
+              </div>
+              {showSkippedCodes && (
+                <div className="mt-1.5 p-2 bg-white/80 rounded-lg border border-emerald-200 font-mono text-[11px] flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                  {importResult.skippedCodes.map((c, i) => (
+                    <span
+                      key={i}
+                      className="px-1.5 py-0.5 bg-emerald-100/70 text-emerald-900 rounded border border-emerald-300 font-bold"
+                    >
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1569,6 +1667,20 @@ const Items = () => {
           </div>
         </div>
       </Modal>
+
+      {/* ── Item Code Authentication & Validation Modal ── */}
+      <ItemImportValidationModal
+        open={importValidationOpen}
+        onClose={() => {
+          setImportValidationOpen(false);
+          setPendingImportFile(null);
+        }}
+        validationData={importValidationData}
+        onConfirmPushNewOnly={() => executeImport(pendingImportFile, 'skip_duplicates')}
+        onConfirmPushAll={() => executeImport(pendingImportFile, 'update_all')}
+        loading={importLoading}
+        title="Authenticate & Validate Items Import"
+      />
     </div>
   );
 };
