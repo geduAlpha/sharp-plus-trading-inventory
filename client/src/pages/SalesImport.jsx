@@ -667,7 +667,7 @@ export default function SalesImport() {
             <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50 rounded-xl border border-blue-200 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Store className="w-4 h-4 text-blue-700" />
-                <span className="text-xs font-bold text-slate-900">Deduct Real Stock From:</span>
+                <span className="text-xs font-bold text-slate-900">Deduct Stock From Store:</span>
                 <select
                   value={selectedStore}
                   onChange={e => handleStoreChange(e.target.value)}
@@ -679,28 +679,33 @@ export default function SalesImport() {
                 </select>
                 {stockCheckLoading && (
                   <span className="text-[11px] text-blue-600 font-medium animate-pulse flex items-center gap-1">
-                    <RefreshCw className="w-3 h-3 animate-spin" /> Checking real balance…
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Checking opening balance…
                   </span>
                 )}
               </div>
 
-              {stockCheckData && (
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px]">
-                    <CheckCircle2 className="w-3 h-3" /> {stockCheckData.inStockCount} In Stock
-                  </span>
-                  {stockCheckData.insufficientCount > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-200 text-[11px]">
-                      <AlertTriangle className="w-3 h-3" /> {stockCheckData.insufficientCount} Insufficient
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-blue-100 text-blue-900 border border-blue-300 text-[11px]">
+                  Formula: Stock Balance = Opening Balance − Items Sold Out
+                </span>
+                {stockCheckData && (
+                  <>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px]">
+                      <CheckCircle2 className="w-3 h-3" /> {stockCheckData.inStockCount} In Stock
                     </span>
-                  )}
-                  {stockCheckData.unmatchedCount > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200 text-[11px]">
-                      {stockCheckData.unmatchedCount} Unmatched
-                    </span>
-                  )}
-                </div>
-              )}
+                    {stockCheckData.insufficientCount > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-200 text-[11px]">
+                        <AlertTriangle className="w-3 h-3" /> {stockCheckData.insufficientCount} Insufficient
+                      </span>
+                    )}
+                    {stockCheckData.unmatchedCount > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200 text-[11px]">
+                        {stockCheckData.unmatchedCount} Unmatched
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Parsed preview table with real stock balance columns */}
@@ -712,9 +717,9 @@ export default function SalesImport() {
                     <th className="px-3 py-2 text-left">Article Code</th>
                     <th className="px-3 py-2 text-left">Article Name</th>
                     <th className="px-3 py-2 text-left">Matched Item in Stock</th>
-                    <th className="px-3 py-2 text-right">Available Stock</th>
-                    <th className="px-3 py-2 text-right">Qty Sold</th>
-                    <th className="px-3 py-2 text-right">Remaining Balance</th>
+                    <th className="px-3 py-2 text-right">Opening Balance</th>
+                    <th className="px-3 py-2 text-right">Items Sold Out</th>
+                    <th className="px-3 py-2 text-right">Stock Balance</th>
                     <th className="px-3 py-2 text-center">Stock Status</th>
                     <th className="px-3 py-2 text-right">Avg Price (ETB)</th>
                     <th className="px-3 py-2 text-right">Total Amount (ETB)</th>
@@ -723,6 +728,8 @@ export default function SalesImport() {
                 <tbody className="divide-y divide-ink-50 text-ink-700 bg-white">
                   {parsed.rows.map((row, i) => {
                     const stock = stockCheckData?.lines?.[i]?.stock;
+                    const openBal = stock?.openingBalance ?? stock?.availableStock;
+                    const stockBal = stock?.stockBalance ?? stock?.remainingStock;
                     return (
                       <tr key={i} className="hover:bg-blue-50/20">
                         <td className="px-3 py-1.5 text-ink-400 font-mono text-[11px]">{i + 1}</td>
@@ -745,20 +752,29 @@ export default function SalesImport() {
                             stock.matchType === 'recipe_product' ? (
                               <span className="text-indigo-700 font-sans text-[11px]">Recipe ({stock.ingredients?.length || 0} ing.)</span>
                             ) : (
-                              <span className={stock.availableStock > 0 ? 'text-slate-900 font-bold' : 'text-rose-600 font-bold'}>
-                                {fmt(stock.availableStock)} {stock.unit}
+                              <span className={openBal > 0 ? 'text-slate-900 font-bold' : 'text-rose-600 font-bold'}>
+                                {fmt(openBal)} {stock.unit}
                               </span>
                             )
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-right tabular font-bold text-slate-900">{row.qty}</td>
+                        <td className="px-3 py-1.5 text-right tabular font-bold text-rose-600">
+                          −{row.qty} {stock?.unit || ''}
+                        </td>
                         <td className="px-3 py-1.5 text-right font-mono font-bold">
                           {stock?.isMatched && stock.matchType === 'direct_material' ? (
-                            <span className={stock.remainingStock >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                              {fmt(stock.remainingStock)} {stock.unit}
-                            </span>
+                            <div>
+                              <span className={stockBal >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                                {fmt(stockBal)} {stock.unit}
+                              </span>
+                              {openBal !== null && openBal !== undefined && (
+                                <span className="block text-[9.5px] font-normal text-slate-400">
+                                  ({fmt(openBal)} − {row.qty})
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
@@ -794,8 +810,8 @@ export default function SalesImport() {
                 <tfoot className="bg-ink-50 font-bold text-xs border-t border-ink-200">
                   <tr>
                     <td colSpan={5} className="px-3 py-2 text-ink-700 font-bold">Total ({parsed.rows.length} items)</td>
-                    <td className="px-3 py-2 text-right tabular text-ink-900">
-                      {parsed.rows.reduce((s, r) => s + r.qty, 0).toLocaleString()}
+                    <td className="px-3 py-2 text-right tabular text-rose-700 font-bold">
+                      −{parsed.rows.reduce((s, r) => s + r.qty, 0).toLocaleString()}
                     </td>
                     <td colSpan={2} />
                     <td className="px-3 py-2 text-right text-ink-400">—</td>
@@ -811,12 +827,12 @@ export default function SalesImport() {
             <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-blue-950">How stock balance communication works</p>
+                <p className="font-bold text-blue-950">How stock balance calculation &amp; deduction works</p>
                 <ul className="mt-1 space-y-0.5 text-blue-800 list-disc pl-4">
-                  <li><strong>Article Code &amp; Name</strong> automatically communicate with your inventory and recipe catalog.</li>
-                  <li>Available stock is verified against <strong>{selectedStore}</strong> in real time.</li>
-                  <li>On confirm, the real stock balances are atomically deducted and recorded in the Stock Ledger.</li>
-                  <li>Matched recipe products automatically deduct ingredient stocks. Direct catalog items deduct their current balance.</li>
+                  <li><strong>Article Code</strong> matches your registered inventory articles directly, with fallback to article name.</li>
+                  <li><strong>Opening Balance</strong> is retrieved in real-time from store: <strong>{selectedStore}</strong>.</li>
+                  <li><strong>Stock Balance</strong> is calculated as: <code>Stock Balance = Opening Balance − Items Sold Out</code>.</li>
+                  <li>On confirm, the sold out quantities are atomically deducted from real balance and recorded in the Stock Ledger.</li>
                 </ul>
               </div>
             </div>
@@ -996,11 +1012,11 @@ export default function SalesImport() {
                       <tr>
                         <th className="px-3 py-2 text-left">#</th>
                         <th className="px-3 py-2 text-left">Stock Item Name</th>
-                        <th className="px-3 py-2 text-left">Item Code</th>
+                        <th className="px-3 py-2 text-left">Article Code</th>
                         <th className="px-3 py-2 text-left">Store Location</th>
-                        <th className="px-3 py-2 text-right">Stock Before</th>
-                        <th className="px-3 py-2 text-right">Deducted Qty (Sold)</th>
-                        <th className="px-3 py-2 text-right">Remaining Balance</th>
+                        <th className="px-3 py-2 text-right">Opening Balance</th>
+                        <th className="px-3 py-2 text-right">Items Sold Out</th>
+                        <th className="px-3 py-2 text-right">Stock Balance</th>
                         <th className="px-3 py-2 text-center">Status</th>
                       </tr>
                     </thead>
@@ -1012,14 +1028,17 @@ export default function SalesImport() {
                           <td className="px-3 py-1.5 font-mono text-slate-600">{det.materialCode || '—'}</td>
                           <td className="px-3 py-1.5 text-indigo-800 font-semibold">{det.storeLocation}</td>
                           <td className="px-3 py-1.5 text-right font-mono font-medium text-slate-700">
-                            {fmt(det.initialStock)} {det.unit}
+                            {fmt(det.openingBalance ?? det.initialStock)} {det.unit}
                           </td>
                           <td className="px-3 py-1.5 text-right font-mono font-bold text-rose-600">
-                            −{fmt(det.quantityDeducted)} {det.unit}
+                            −{fmt(det.itemsSoldOut ?? det.quantityDeducted)} {det.unit}
                           </td>
                           <td className="px-3 py-1.5 text-right font-mono font-bold">
-                            <span className={det.finalStock >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                              {fmt(det.finalStock)} {det.unit}
+                            <span className={(det.stockBalance ?? det.finalStock) >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                              {fmt(det.stockBalance ?? det.finalStock)} {det.unit}
+                            </span>
+                            <span className="block text-[9.5px] font-normal text-slate-400">
+                              ({fmt(det.openingBalance ?? det.initialStock)} − {fmt(det.itemsSoldOut ?? det.quantityDeducted)})
                             </span>
                           </td>
                           <td className="px-3 py-1.5 text-center">

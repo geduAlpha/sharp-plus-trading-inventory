@@ -593,10 +593,15 @@ const Items = () => {
     },
     {
       key: 'currentStock',
-      header: 'In Stock',
+      header: 'Stock Balance',
       render: (r) => (
         <div className="tabular font-bold text-ink-900">
           {r.currentStock} <span className="font-normal text-xs text-ink-500">{r.unit}</span>
+          {r.openingBalance !== undefined && r.openingBalance !== null && (
+            <span className="block text-[10.5px] text-ink-400 font-normal">
+              Opening: {r.openingBalance} {r.unit}
+            </span>
+          )}
           {r.storeStock !== undefined && selectedStore !== 'all' && (
             <span className="block text-[11px] text-blue-600 font-medium">
               In store: {r.storeStock} {r.unit}
@@ -1562,16 +1567,29 @@ const Items = () => {
       >
         <div className="space-y-4 text-xs">
           {historyMat && (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
               <div>
                 <span className="font-bold text-slate-800 text-sm">{historyMat.name}</span>
-                <span className="font-mono text-xs text-slate-500 ml-2">[{historyMat.code || 'NO-CODE'}]</span>
+                <span className="font-mono text-xs text-blue-700 font-bold ml-2">[{historyMat.code || 'NO-CODE'}]</span>
                 <p className="text-slate-500 text-[11px] mt-0.5">Category: {historyMat.category} · Store Location: {historyMat.storeLocation}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Current Stock</span>
-                  <span className="text-sm font-black text-slate-900">{historyMat.currentStock} {historyMat.unit}</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Opening Balance</span>
+                  <span className="text-sm font-bold text-slate-800">{historyMat.openingBalance ?? historyMat.currentStock} {historyMat.unit}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-rose-600 block">Total Sold Out</span>
+                  <span className="text-sm font-bold text-rose-700">
+                    −{historyList.filter(t => t.type === 'out').reduce((sum, t) => {
+                      const it = t.items?.find(i => (i.material?._id || i.material) === historyMat?._id);
+                      return sum + (it ? it.quantity : (t.quantity || 0));
+                    }, 0)} {historyMat.unit}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Current Stock Balance</span>
+                  <span className="text-sm font-black text-emerald-700">{historyMat.currentStock} {historyMat.unit}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] uppercase font-bold text-slate-400 block">Weighted Unit Cost</span>

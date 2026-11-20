@@ -1366,39 +1366,35 @@ const findMatchingStockItem = async (codeStr, nameStr) => {
   const RawMaterial = require('../models/RawMaterial');
   const escapeRegex = (s) => (s ? String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '');
 
-  const normCode = (codeStr || '').trim().replace(/-+$/, '');
+  const normCode = (codeStr || '').trim();
+  const cleanCode = normCode.replace(/[-_\s]+$/, '').trim();
   const normName = (nameStr || '').trim();
 
-  // 1. Check Product by code or name
+  // 1. Check RawMaterial by exact or cleaned article code FIRST (inventory items)
+  let material = null;
+  if (normCode) {
+    const escapedCode = escapeRegex(cleanCode || normCode);
+    material = await RawMaterial.findOne({
+      deletedAt: null,
+      $or: [
+        { code: { $regex: `^${escapedCode}-*$`, $options: 'i' } },
+        { barcode: { $regex: `^${escapedCode}$`, $options: 'i' } },
+      ],
+    });
+  }
+
+  // 2. Check Product by code
   let product = null;
   if (normCode) {
-    const escapedCode = escapeRegex(normCode);
+    const escapedCode = escapeRegex(cleanCode || normCode);
     product = await Product.findOne({
       isActive: true,
       deletedAt: null,
       code: { $regex: `^${escapedCode}-*$`, $options: 'i' },
     }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
   }
-  if (!product && normName) {
-    product = await Product.findOne({
-      isActive: true,
-      deletedAt: null,
-      name: new RegExp(`^${escapeRegex(normName)}$`, 'i'),
-    }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
-  }
-  if (!product && (normCode || normName)) {
-    const term = escapeRegex(normCode || normName);
-    product = await Product.findOne({
-      isActive: true,
-      deletedAt: null,
-      $or: [
-        { code: { $regex: `^${term}-*$`, $options: 'i' } },
-        { name: { $regex: `^${term}$`, $options: 'i' } },
-      ],
-    }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
-  }
 
-  // If Product exists and has recipe ingredients
+  // If Product exists and has recipe ingredients, prioritize recipe product
   if (product && Array.isArray(product.ingredients) && product.ingredients.length > 0) {
     return {
       type: 'recipe_product',
@@ -1408,32 +1404,7 @@ const findMatchingStockItem = async (codeStr, nameStr) => {
     };
   }
 
-  // 2. Check RawMaterial (inventory / stock catalog) directly by code or name
-  let material = null;
-  if (normCode) {
-    const escapedCode = escapeRegex(normCode);
-    material = await RawMaterial.findOne({
-      deletedAt: null,
-      code: { $regex: `^${escapedCode}-*$`, $options: 'i' },
-    });
-  }
-  if (!material && normName) {
-    material = await RawMaterial.findOne({
-      deletedAt: null,
-      name: new RegExp(`^${escapeRegex(normName)}$`, 'i'),
-    });
-  }
-  if (!material && (normCode || normName)) {
-    const term = escapeRegex(normName || normCode);
-    material = await RawMaterial.findOne({
-      deletedAt: null,
-      $or: [
-        { code: new RegExp(`^${term}$`, 'i') },
-        { name: new RegExp(`^${term}$`, 'i') },
-      ],
-    });
-  }
-
+  // If direct material was found by article code, return direct material
   if (material) {
     return {
       type: 'direct_material',
@@ -1441,6 +1412,57 @@ const findMatchingStockItem = async (codeStr, nameStr) => {
       material,
       ingredients: [],
     };
+  }
+
+  // 3. Fallback: Search by item name if not matched by code
+  if (normName) {
+    product = await Product.findOne({
+      isActive: true,
+      deletedAt: null,
+      name: new RegExp(`^${escapeRegex(normName)}$`, 'i'),
+    }).populate({ path: 'ingredients.material', model: 'RawMaterial' });
+
+    if (product && Array.isArray(product.ingredients) && product.ingredients.length > 0) {
+      return {
+        type: 'recipe_product',
+        product,
+        material: null,
+        ingredients: product.ingredients,
+      };
+    }
+
+    material = await RawMaterial.findOne({
+      deletedAt: null,
+      name: new RegExp(`^${escapeRegex(normName)}$`, 'i'),
+    });
+    if (material) {
+      return {
+        type: 'direct_material',
+        product: product || null,
+        material,
+        ingredients: [],
+      };
+    }
+  }
+
+  // 4. Fuzzy fallback by term
+  if (normCode || normName) {
+    const term = escapeRegex(cleanCode || normCode || normName);
+    material = await RawMaterial.findOne({
+      deletedAt: null,
+      $or: [
+        { code: new RegExp(`^${term}`, 'i') },
+        { name: new RegExp(`^${term}`, 'i') },
+      ],
+    });
+    if (material) {
+      return {
+        type: 'direct_material',
+        product: null,
+        material,
+        ingredients: [],
+      };
+    }
   }
 
   if (product) {
@@ -1501,8 +1523,11 @@ const checkSalesStock = asyncHandler(async (req, res) => {
       matchedItemName: null,
       unit: 'Pcs',
       unitCost: 0,
+      openingBalance: 0,
       availableStock: 0,
+      itemsSoldOut: qty,
       deductQuantity: qty,
+      stockBalance: 0,
       remainingStock: 0,
       isSufficient: false,
       status: 'unmatched',
@@ -1530,8 +1555,11 @@ const checkSalesStock = asyncHandler(async (req, res) => {
         matchedItemName: mat.name,
         unit: mat.unit || 'pcs',
         unitCost: mat.unitCost || 0,
+        openingBalance: available,
         availableStock: available,
+        itemsSoldOut: qty,
         deductQuantity: qty,
+        stockBalance: remaining,
         remainingStock: remaining,
         isSufficient,
         status: isSufficient
@@ -1563,8 +1591,11 @@ const checkSalesStock = asyncHandler(async (req, res) => {
           name: mat.name,
           unit: mat.unit,
           unitCost: mat.unitCost || 0,
-          requiredQuantity: reqQty,
+          openingBalance: available,
           availableStock: available,
+          itemsSoldOut: reqQty,
+          requiredQuantity: reqQty,
+          stockBalance: remaining,
           remainingStock: remaining,
           isSufficient: ingSufficient,
         });
@@ -1585,8 +1616,11 @@ const checkSalesStock = asyncHandler(async (req, res) => {
         matchedItemName: prod.name,
         unit: prod.uom || 'Pcs',
         unitCost: prod.sellingPrice || 0,
+        openingBalance: null,
         availableStock: null,
+        itemsSoldOut: qty,
         deductQuantity: qty,
+        stockBalance: null,
         remainingStock: null,
         isSufficient: allIngSufficient,
         status: allIngSufficient ? 'in_stock' : 'insufficient',
@@ -1829,7 +1863,10 @@ const importSales = asyncHandler(async (req, res) => {
         unitCost: mat.unitCost || 0,
         totalCost: (mat.unitCost || 0) * qty,
         storeLocation: targetStore,
+        openingBalance: avail,
         initialStock: avail,
+        itemsSoldOut: qty,
+        stockBalance: Math.round((avail - qty) * 10000) / 10000,
         finalStock: Math.round((avail - qty) * 10000) / 10000,
         _doc: mat,
       });
@@ -1896,7 +1933,10 @@ const importSales = asyncHandler(async (req, res) => {
       materialName: r.materialName || r._doc?.name,
       materialCode: r.materialCode || r._doc?.code,
       unit: r.unit || r._doc?.unit || 'Pcs',
+      openingBalance: r.openingBalance ?? r.initialStock,
+      itemsSoldOut: r.itemsSoldOut ?? r.quantity,
       quantityDeducted: r.quantity,
+      stockBalance: r.stockBalance ?? r.finalStock,
       initialStock: r.initialStock,
       finalStock: r.finalStock,
       storeLocation: r.storeLocation,
