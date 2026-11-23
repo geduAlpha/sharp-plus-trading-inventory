@@ -372,10 +372,11 @@ export default function SalesImport() {
     setLoading(true); setResult(null);
     try {
       const res = await api.post('/transactions/import-sales', {
-        sales:         salesData,
-        storeLocation: selectedStore,
-        notes:         `Imported via POS Sales Report (CNET format) — ${selectedStore}`,
-        reference:     `POS Import — ${new Date().toLocaleDateString()}`,
+        sales:              salesData,
+        storeLocation:      selectedStore,
+        allowNegativeStock: true,
+        notes:              `Imported via POS Sales Report (CNET format) — ${selectedStore} (Negative Stock Approved)`,
+        reference:          `POS Import — ${new Date().toLocaleDateString()}`,
       });
       setResult({ success: true, data: res.data });
       setFileData(null); setParsed(null); setStockCheckData(null);
@@ -405,10 +406,11 @@ export default function SalesImport() {
     setLoading(true); setResult(null);
     try {
       const res = await api.post('/transactions/import-sales', {
-        sales:         salesData,
-        storeLocation: selectedStore,
-        notes:         `Imported via POS/Excel Report — ${selectedStore}`,
-        reference:     `POS Import — ${new Date().toLocaleDateString()}`,
+        sales:              salesData,
+        storeLocation:      selectedStore,
+        allowNegativeStock: true,
+        notes:              `Imported via POS/Excel Report — ${selectedStore} (Negative Stock Approved)`,
+        reference:          `POS Import — ${new Date().toLocaleDateString()}`,
       });
       setResult({ success: true, data: res.data });
       setFileData(null); setStockCheckData(null);
@@ -693,9 +695,9 @@ export default function SalesImport() {
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px]">
                       <CheckCircle2 className="w-3 h-3" /> {stockCheckData.inStockCount} In Stock
                     </span>
-                    {stockCheckData.insufficientCount > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-200 text-[11px]">
-                        <AlertTriangle className="w-3 h-3" /> {stockCheckData.insufficientCount} Insufficient
+                    {(stockCheckData.negativeCount > 0 || stockCheckData.insufficientCount > 0) && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px]">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> {stockCheckData.negativeCount || stockCheckData.insufficientCount} Negative Balance Approved
                       </span>
                     )}
                     {stockCheckData.unmatchedCount > 0 && (
@@ -708,7 +710,45 @@ export default function SalesImport() {
               </div>
             </div>
 
-            {/* Parsed preview table with real stock balance columns */}
+            {/* Quick Metrics Bar: Cost, Revenue & Profit Calculation */}
+            {stockCheckData && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/70">
+                  <span className="block text-[11px] font-semibold text-blue-700 uppercase tracking-wider">Total Revenue</span>
+                  <span className="text-base font-bold font-mono text-blue-950 block mt-0.5">
+                    ETB {Number(stockCheckData.totalRevenue || parsed.rows.reduce((s, r) => s + (r.totalAmt || 0), 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[10px] text-blue-600">Sales amount in report</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/70">
+                  <span className="block text-[11px] font-semibold text-amber-800 uppercase tracking-wider">Total Cost (COGS)</span>
+                  <span className="text-base font-bold font-mono text-amber-950 block mt-0.5">
+                    ETB {Number(stockCheckData.totalCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[10px] text-amber-700">Calculated from item unit cost</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70">
+                  <span className="block text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">Gross Profit</span>
+                  <span className="text-base font-bold font-mono text-emerald-950 block mt-0.5">
+                    ETB {Number(stockCheckData.totalGrossProfit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[10px] text-emerald-700">Margin: {stockCheckData.overallMargin || 0}%</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70">
+                  <span className="block text-[11px] font-semibold text-indigo-800 uppercase tracking-wider">Negative Stock</span>
+                  <span className="text-base font-bold font-mono text-indigo-950 block mt-0.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 inline" />
+                    {stockCheckData.negativeCount || stockCheckData.insufficientCount || 0} Approved
+                  </span>
+                  <span className="text-[10px] text-indigo-600">Deductions allowed on negative balance</span>
+                </div>
+              </div>
+            )}
+
+            {/* Parsed preview table with real stock balance columns & cost calculation */}
             <div className="overflow-x-auto rounded-xl border border-ink-200 shadow-xs max-h-80">
               <table className="min-w-full text-xs divide-y divide-ink-100">
                 <thead className="bg-ink-100/90 sticky top-0 z-10 font-bold text-ink-700">
@@ -721,8 +761,11 @@ export default function SalesImport() {
                     <th className="px-3 py-2 text-right">Items Sold Out</th>
                     <th className="px-3 py-2 text-right">Stock Balance</th>
                     <th className="px-3 py-2 text-center">Stock Status</th>
+                    <th className="px-3 py-2 text-right">Unit Cost (ETB)</th>
+                    <th className="px-3 py-2 text-right">COGS / Cost (ETB)</th>
                     <th className="px-3 py-2 text-right">Avg Price (ETB)</th>
-                    <th className="px-3 py-2 text-right">Total Amount (ETB)</th>
+                    <th className="px-3 py-2 text-right">Total Revenue (ETB)</th>
+                    <th className="px-3 py-2 text-right">Gross Profit (ETB)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-50 text-ink-700 bg-white">
@@ -730,6 +773,12 @@ export default function SalesImport() {
                     const stock = stockCheckData?.lines?.[i]?.stock;
                     const openBal = stock?.openingBalance ?? stock?.availableStock;
                     const stockBal = stock?.stockBalance ?? stock?.remainingStock;
+                    const unitCost = stock?.unitCost || 0;
+                    const lineCost = stock?.totalCost ?? (unitCost ? (row.qty || 0) * unitCost : 0);
+                    const lineRev = row.totalAmt || (row.qty * row.avgAmt) || 0;
+                    const lineProfit = lineRev - lineCost;
+                    const margin = lineRev > 0 ? ((lineProfit / lineRev) * 100).toFixed(1) : '0.0';
+
                     return (
                       <tr key={i} className="hover:bg-blue-50/20">
                         <td className="px-3 py-1.5 text-ink-400 font-mono text-[11px]">{i + 1}</td>
@@ -790,9 +839,10 @@ export default function SalesImport() {
                               ⚠ Low Stock
                             </span>
                           )}
-                          {stock?.status === 'insufficient' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                              ✕ Insufficient
+                          {(stock?.status === 'negative_approved' || stock?.status === 'insufficient' || (stockBal !== null && stockBal < 0)) && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs" title="Negative stock balance is approved and calculated">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                              ✓ Approved (Negative)
                             </span>
                           )}
                           {(!stock || stock?.status === 'unmatched') && (
@@ -801,22 +851,62 @@ export default function SalesImport() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-right tabular text-ink-600">{row.avgAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                        <td className="px-3 py-1.5 text-right tabular font-semibold text-blue-700">{row.totalAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-1.5 text-right tabular text-slate-700 font-mono">
+                          {unitCost > 0 ? unitCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular font-mono text-amber-900 font-medium">
+                          {lineCost > 0 ? lineCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular text-ink-600">{row.avgAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-1.5 text-right tabular font-bold text-blue-700">{row.totalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-1.5 text-right tabular font-mono font-bold">
+                          {unitCost > 0 ? (
+                            <span className={lineProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                              {lineProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <span className="block text-[9.5px] font-normal text-slate-400">
+                                {lineProfit >= 0 ? `+${margin}%` : `${margin}%`}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot className="bg-ink-50 font-bold text-xs border-t border-ink-200">
                   <tr>
-                    <td colSpan={5} className="px-3 py-2 text-ink-700 font-bold">Total ({parsed.rows.length} items)</td>
+                    <td colSpan={4} className="px-3 py-2 text-ink-700 font-bold">Total ({parsed.rows.length} items)</td>
+                    <td className="px-3 py-2 text-right text-slate-400">—</td>
                     <td className="px-3 py-2 text-right tabular text-rose-700 font-bold">
                       −{parsed.rows.reduce((s, r) => s + r.qty, 0).toLocaleString()}
                     </td>
                     <td colSpan={2} />
                     <td className="px-3 py-2 text-right text-ink-400">—</td>
-                    <td className="px-3 py-2 text-right tabular text-blue-900">
-                      ETB {parsed.rows.reduce((s, r) => s + r.totalAmt, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    <td className="px-3 py-2 text-right tabular text-amber-900 font-bold">
+                      ETB {parsed.rows.reduce((s, r, idx) => {
+                        const stock = stockCheckData?.lines?.[idx]?.stock;
+                        const c = stock?.totalCost ?? (stock?.unitCost ? r.qty * stock.unitCost : 0);
+                        return s + c;
+                      }, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-3 py-2 text-right text-ink-400">—</td>
+                    <td className="px-3 py-2 text-right tabular text-blue-900 font-bold">
+                      ETB {parsed.rows.reduce((s, r) => s + (r.totalAmt || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular text-emerald-800 font-bold">
+                      {(() => {
+                        const totRev = parsed.rows.reduce((s, r) => s + (r.totalAmt || 0), 0);
+                        const totCost = parsed.rows.reduce((s, r, idx) => {
+                          const stock = stockCheckData?.lines?.[idx]?.stock;
+                          const c = stock?.totalCost ?? (stock?.unitCost ? r.qty * stock.unitCost : 0);
+                          return s + c;
+                        }, 0);
+                        const totProf = totRev - totCost;
+                        const margin = totRev > 0 ? ((totProf / totRev) * 100).toFixed(1) : '0.0';
+                        return `ETB ${totProf.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${margin}%)`;
+                      })()}
                     </td>
                   </tr>
                 </tfoot>
@@ -827,12 +917,13 @@ export default function SalesImport() {
             <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-blue-950">How stock balance calculation &amp; deduction works</p>
+                <p className="font-bold text-blue-950">How stock balance calculation &amp; negative balance approval work</p>
                 <ul className="mt-1 space-y-0.5 text-blue-800 list-disc pl-4">
-                  <li><strong>Article Code</strong> matches your registered inventory articles directly, with fallback to article name.</li>
-                  <li><strong>Opening Balance</strong> is retrieved in real-time from store: <strong>{selectedStore}</strong>.</li>
-                  <li><strong>Stock Balance</strong> is calculated as: <code>Stock Balance = Opening Balance − Items Sold Out</code>.</li>
-                  <li>On confirm, the sold out quantities are atomically deducted from real balance and recorded in the Stock Ledger.</li>
+                  <li><strong>Article Code Detection</strong>: Automatically links the Excel article code directly to your stock inventory.</li>
+                  <li><strong>Real-Time Stock Calculation</strong>: <code>Stock Balance = Opening Balance − Items Sold Out</code>.</li>
+                  <li><strong>Negative Balance Approved</strong>: If sold quantity exceeds store opening balance (e.g. <code>10 pcs − 49 pcs = −39 pcs</code>), the transaction is <strong>approved</strong> and balance is recorded accurately.</li>
+                  <li><strong>Cost &amp; Profit Calculations</strong>: Unit cost, COGS, revenue, and gross profit are automatically calculated for each line.</li>
+                  <li>On confirm, the sold out quantities are atomically deducted from store <strong>{selectedStore}</strong> and posted to the Stock Ledger.</li>
                 </ul>
               </div>
             </div>
@@ -843,7 +934,7 @@ export default function SalesImport() {
                 disabled={loading}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 shadow-md flex items-center gap-2"
               >
-                {loading ? 'Processing…' : `Confirm & Deduct Stock for ${parsed.rows.length} Items`}
+                {loading ? 'Processing…' : `Confirm & Deduct Stock (${parsed.rows.length} Items • Negative Balance Approved)`}
                 <ArrowRight size={16} />
               </Button>
             </div>

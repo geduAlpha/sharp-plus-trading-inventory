@@ -1555,6 +1555,11 @@ const checkSalesStock = asyncHandler(async (req, res) => {
       const remaining = Math.round((available - qty) * 10000) / 10000;
       const isSufficient = available >= qty;
 
+      const totalCost = Math.round((mat.unitCost || 0) * qty * 100) / 100;
+      const lineRev = revenue > 0 ? revenue : (unitPrice > 0 ? unitPrice * qty : 0);
+      const grossProfit = Math.round((lineRev - totalCost) * 100) / 100;
+      const profitMargin = lineRev > 0 ? Math.round(((lineRev - totalCost) / lineRev) * 1000) / 10 : 0;
+
       matchedCount++;
       if (isSufficient) {
         inStockCount++;
@@ -1570,6 +1575,10 @@ const checkSalesStock = asyncHandler(async (req, res) => {
         matchedItemName: mat.name,
         unit: mat.unit || 'pcs',
         unitCost: mat.unitCost || 0,
+        totalCost,
+        revenue: lineRev,
+        grossProfit,
+        profitMargin,
         openingBalance: available,
         availableStock: available,
         itemsSoldOut: qty,
@@ -1579,7 +1588,7 @@ const checkSalesStock = asyncHandler(async (req, res) => {
         isSufficient,
         status: isSufficient
           ? (remaining <= (mat.reorderLevel || 10) ? 'low_stock' : 'in_stock')
-          : 'insufficient',
+          : 'negative_approved', // Negative balance approved on!
         ingredients: [],
       };
     } else if (match.type === 'recipe_product' && match.product) {
@@ -1606,6 +1615,7 @@ const checkSalesStock = asyncHandler(async (req, res) => {
           name: mat.name,
           unit: mat.unit,
           unitCost: mat.unitCost || 0,
+          totalCost: Math.round((mat.unitCost || 0) * reqQty * 100) / 100,
           openingBalance: available,
           availableStock: available,
           itemsSoldOut: reqQty,
@@ -1615,6 +1625,11 @@ const checkSalesStock = asyncHandler(async (req, res) => {
           isSufficient: ingSufficient,
         });
       }
+
+      const totalCost = Math.round(ingResults.reduce((s, ing) => s + (ing.unitCost * ing.requiredQuantity), 0) * 100) / 100;
+      const lineRev = revenue > 0 ? revenue : (unitPrice > 0 ? unitPrice * qty : (prod.sellingPrice ? prod.sellingPrice * qty : 0));
+      const grossProfit = Math.round((lineRev - totalCost) * 100) / 100;
+      const profitMargin = lineRev > 0 ? Math.round(((lineRev - totalCost) / lineRev) * 1000) / 10 : 0;
 
       matchedCount++;
       if (allIngSufficient) {
@@ -1631,6 +1646,11 @@ const checkSalesStock = asyncHandler(async (req, res) => {
         matchedItemName: prod.name,
         unit: prod.uom || 'Pcs',
         unitCost: prod.sellingPrice || 0,
+        recipeCost: totalCost,
+        totalCost,
+        revenue: lineRev,
+        grossProfit,
+        profitMargin,
         openingBalance: null,
         availableStock: null,
         itemsSoldOut: qty,
@@ -1638,7 +1658,7 @@ const checkSalesStock = asyncHandler(async (req, res) => {
         stockBalance: null,
         remainingStock: null,
         isSufficient: allIngSufficient,
-        status: allIngSufficient ? 'in_stock' : 'insufficient',
+        status: allIngSufficient ? 'in_stock' : 'negative_approved', // Negative balance approved on!
         ingredients: ingResults,
       };
     } else {
@@ -1656,6 +1676,12 @@ const checkSalesStock = asyncHandler(async (req, res) => {
     });
   }
 
+  const totalRevenue = Math.round(checkedLines.reduce((s, l) => s + (l.revenue || 0), 0) * 100) / 100;
+  const totalCost = Math.round(checkedLines.reduce((s, l) => s + (l.stock?.totalCost || 0), 0) * 100) / 100;
+  const totalGrossProfit = Math.round((totalRevenue - totalCost) * 100) / 100;
+  const overallMargin = totalRevenue > 0 ? Math.round(((totalRevenue - totalCost) / totalRevenue) * 1000) / 10 : 0;
+  const negativeCount = checkedLines.filter(l => l.stock?.isMatched && l.stock?.stockBalance < 0).length;
+
   res.json({
     totalLines: checkedLines.length,
     storeLocation: targetStore,
@@ -1663,7 +1689,12 @@ const checkSalesStock = asyncHandler(async (req, res) => {
     unmatchedCount,
     inStockCount,
     insufficientCount,
-    allowNegativeStock: allowNegative,
+    negativeCount,
+    totalRevenue,
+    totalCost,
+    totalGrossProfit,
+    overallMargin,
+    allowNegativeStock: true,
     lines: checkedLines,
   });
 });
