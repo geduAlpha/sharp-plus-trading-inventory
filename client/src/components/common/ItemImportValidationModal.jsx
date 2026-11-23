@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Copy,
   Check,
@@ -33,6 +34,7 @@ export default function ItemImportValidationModal({
   onConfirmPushNewOnly,
   onConfirmPushAll,
   onResubmitFile,
+  error = null,
   loading = false,
   title = 'Import Items Preview & Submission',
 }) {
@@ -140,6 +142,20 @@ export default function ItemImportValidationModal({
           accept=".xlsx,.xls"
           className="hidden"
         />
+
+        {/* Error Alert inside modal if import/validation had an issue */}
+        {error && (
+          <div className="flex items-start gap-3 p-3.5 rounded-xl border border-red-300 bg-red-50 text-red-950 shadow-sm animate-fadeIn">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <h4 className="font-bold text-sm text-red-950 mb-0.5">Import Error Detected</h4>
+              <p className="text-red-900 leading-relaxed font-medium">{error}</p>
+              <p className="text-red-800 text-[11px] mt-1">
+                You can click "Resubmit / Change File" below to select an updated file, or check that your Excel file has valid data.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Top File Summary & Resubmit Action Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-950">

@@ -107,6 +107,7 @@ const Items = () => {
   const [importValidationOpen, setImportValidationOpen] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importModalError, setImportModalError] = useState(null);
   const [showSkippedCodes, setShowSkippedCodes] = useState(false);
   const importRef = useRef();
   const { hasRole, can, isDeveloper } = useAuth();
@@ -453,6 +454,7 @@ const Items = () => {
     if (e?.target) e.target.value = '';
     setPendingImportFile(file);
     setImportLoading(true);
+    setImportModalError(null);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -468,10 +470,13 @@ const Items = () => {
         ...valRes.data,
         fileName: file.name,
       });
+      setImportModalError(null);
       setImportValidationOpen(true);
     } catch (err) {
+      const msg = err.response?.data?.message ?? 'Validation failed. Please verify the Excel structure.';
+      setImportModalError(msg);
       setImportResult({
-        message: err.response?.data?.message ?? 'Validation failed. Please verify the Excel structure.',
+        message: msg,
         isError: true,
       });
     } finally {
@@ -488,6 +493,7 @@ const Items = () => {
     const file = fileToImport || pendingImportFile;
     if (!file) return;
     setImportLoading(true);
+    setImportModalError(null);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -501,11 +507,14 @@ const Items = () => {
       setImportValidationOpen(false);
       setPendingImportFile(null);
       setImportValidationData(null);
+      setImportModalError(null);
       loadMaterials();
       loadCategories();
     } catch (err) {
+      const msg = err.response?.data?.message ?? 'Import execution failed';
+      setImportModalError(msg);
       setImportResult({
-        message: err.response?.data?.message ?? 'Import execution failed',
+        message: msg,
         isError: true,
       });
     } finally {
@@ -1698,11 +1707,13 @@ const Items = () => {
           setImportValidationOpen(false);
           setPendingImportFile(null);
           setImportValidationData(null);
+          setImportModalError(null);
         }}
         validationData={importValidationData}
         onConfirmPushNewOnly={() => executeImport(pendingImportFile, 'skip_duplicates')}
         onConfirmPushAll={() => executeImport(pendingImportFile, 'override_duplicates')}
         onResubmitFile={handleResubmitFile}
+        error={importModalError}
         loading={importLoading}
         title="Import Items Preview & Submission"
       />
