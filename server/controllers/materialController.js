@@ -644,7 +644,8 @@ const IMPORT_COLUMN_KEYS = {
     'openbalance', 'openstock', 'begbalance', 'initialbalance', 'initialstock', 'stockqty',
     'instock', 'qtyinstock', 'available', 'avail', 'onhand', 'currentbalance', 'totalstock',
     'totalqty', 'amount', 'bal', 'physical', 'closingbalance', 'closingstock', 'total', 'opening',
-    'beginningbalance', 'begbal', 'openbal', 'openingqty'
+    'beginningbalance', 'begbal', 'openbal', 'openingqty', 'stock_balance', 'stockbal', 'balancestock',
+    'currentstockbalance', 'physicalstockbalance', 'actualstockbalance'
   ],
   openingBalance: [
     'openingbalance', 'openingstock', 'openbalance', 'openstock', 'begbalance', 'initialbalance',
@@ -654,7 +655,8 @@ const IMPORT_COLUMN_KEYS = {
     'unitcost', 'cost', 'unitcostetb', 'unitprice', 'price', 'rate', 'unitrate', 'purchaseprice',
     'costprice', 'buyingprice', 'avgamount', 'avgprice', 'avgcost', 'costetb', 'priceetb', 'rateetb',
     'unitcostinbirr', 'costbirr', 'unitpriceetb', 'sellingprice', 'valuation', 'unitvalue', 'value',
-    'standardcost', 'unit_cost', 'unit_price', 'cost_price', 'purchase_price', 'avg_amount', 'avg_price'
+    'standardcost', 'unit_cost', 'unit_price', 'cost_price', 'purchase_price', 'avg_amount', 'avg_price',
+    'costperunit', 'priceperunit', 'itemunitcost', 'standardunitcost', 'avgunitcost'
   ],
   storeLocation: ['storelocation', 'store', 'location', 'warehouse', 'branch', 'depot', 'storagelocation', 'site', 'wh'],
   barcode: ['barcode', 'bar_code', 'upc', 'ean', 'serial', 'serialno', 'serialnumber', 'barcode#'],
@@ -693,6 +695,18 @@ function getColVal(row, keyArray) {
     for (const k of keys) {
       const rawNorm = String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       if (rawNorm === targetNorm) {
+        const v = row[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+    }
+  }
+  // Pass 3: substring / containment match for compound column headers (e.g. 'Actual Stock Balance', 'Purchasing Unit Cost')
+  for (const target of keyArray) {
+    const targetNorm = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (targetNorm.length < 5) continue; // avoid over-matching short generic words
+    for (const k of keys) {
+      const colNorm = normalizeColName(k);
+      if (colNorm.includes(targetNorm) || (colNorm.length >= 6 && targetNorm.includes(colNorm))) {
         const v = row[k];
         if (v !== undefined && v !== null && String(v).trim() !== '') return v;
       }
@@ -878,9 +892,20 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       ? parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.currentStock), 0)
       : (dbExisting ? Number(dbExisting.currentStock || 0) : 0);
 
-    const unitCost = hasCol(row, IMPORT_COLUMN_KEYS.unitCost)
+    let unitCost = hasCol(row, IMPORT_COLUMN_KEYS.unitCost)
       ? parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.unitCost), 0)
       : (dbExisting ? Number(dbExisting.unitCost || 0) : 0);
+
+    // Fallback: if unitCost is 0 but row has a total cost / valuation column, compute unit cost = total / stock
+    if (unitCost <= 0 && currentStock > 0) {
+      const totalVal = getColVal(row, ['totalcost', 'totalvalue', 'totalamount', 'valuation', 'netamount', 'totalprice']);
+      if (totalVal !== undefined && totalVal !== null) {
+        const parsedTotal = parseNumberClean(totalVal, 0);
+        if (parsedTotal > 0) {
+          unitCost = Math.round((parsedTotal / currentStock) * 100) / 100;
+        }
+      }
+    }
 
     const storeLocation = hasCol(row, IMPORT_COLUMN_KEYS.storeLocation)
       ? String(getColVal(row, IMPORT_COLUMN_KEYS.storeLocation)).trim()
@@ -1116,9 +1141,20 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
         ? parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.currentStock), 0)
         : (existing ? Number(existing.currentStock || 0) : 0);
 
-      const unitCost = hasCol(row, IMPORT_COLUMN_KEYS.unitCost)
+      let unitCost = hasCol(row, IMPORT_COLUMN_KEYS.unitCost)
         ? parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.unitCost), 0)
         : (existing ? Number(existing.unitCost || 0) : 0);
+
+      // Fallback: if unitCost is 0 but row has a total cost / valuation column, compute unit cost = total / stock
+      if (unitCost <= 0 && currentStock > 0) {
+        const totalVal = getColVal(row, ['totalcost', 'totalvalue', 'totalamount', 'valuation', 'netamount', 'totalprice']);
+        if (totalVal !== undefined && totalVal !== null) {
+          const parsedTotal = parseNumberClean(totalVal, 0);
+          if (parsedTotal > 0) {
+            unitCost = Math.round((parsedTotal / currentStock) * 100) / 100;
+          }
+        }
+      }
 
       const storeLocation = hasCol(row, IMPORT_COLUMN_KEYS.storeLocation)
         ? String(getColVal(row, IMPORT_COLUMN_KEYS.storeLocation)).trim()
