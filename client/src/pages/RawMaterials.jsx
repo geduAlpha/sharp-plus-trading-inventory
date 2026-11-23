@@ -308,20 +308,17 @@ const Items = () => {
 
     // Pre-flight duplicate check against loaded items
     const trimmedCode = (form.code || '').trim();
-    const duplicate = materials.find(m => {
+    const duplicateByCode = trimmedCode ? materials.find(m => {
       if (editing && m._id === editing._id) return false;
-      const sameName = (m.name || '').trim().toLowerCase() === trimmedName.toLowerCase();
-      const sameCode = trimmedCode && (m.code || '').trim().toLowerCase() === trimmedCode.toLowerCase();
-      return sameName || sameCode;
-    });
+      return (m.code || '').trim().toLowerCase() === trimmedCode.toLowerCase();
+    }) : null;
 
-    if (duplicate) {
-      if ((duplicate.name || '').trim().toLowerCase() === trimmedName.toLowerCase()) {
-        setFormError(`An item named "${duplicate.name}" already exists.`);
-        return;
-      }
-      if (trimmedCode && (duplicate.code || '').trim().toLowerCase() === trimmedCode.toLowerCase()) {
-        setFormError(`Item code "${trimmedCode}" is already assigned to "${duplicate.name}".`);
+    if (duplicateByCode) {
+      const confirmOverride = window.confirm(
+        `Item code "${trimmedCode}" already exists for "${duplicateByCode.name}".\n\nWould you like to override and update this existing item with the changes?`
+      );
+      if (!confirmOverride) {
+        setFormError(`Item code "${trimmedCode}" already exists for "${duplicateByCode.name}".`);
         return;
       }
     }
@@ -343,13 +340,18 @@ const Items = () => {
       unitCost: Number(form.unitCost) || 0,
       storeLocation: (form.storeLocation || 'Main Store').trim(),
       isActive: Boolean(form.isActive),
+      overrideIfExists: Boolean(duplicateByCode),
     };
 
     setIsSubmitting(true);
     try {
       if (editing) {
         await api.put(`/materials/${editing._id}`, payload);
+      } else if (duplicateByCode) {
+        // Override the existing item with the same code
+        await api.put(`/materials/${duplicateByCode._id}`, payload);
       } else {
+        // Non-duplicate code: create brand new item, never replace existing records
         await api.post('/materials', payload);
       }
       setModalOpen(false);
@@ -466,8 +468,8 @@ const Items = () => {
         setImportValidationData(valRes.data);
         setImportValidationOpen(true);
       } else {
-        // No duplicate codes: directly push all items
-        await executeImport(file, 'skip_duplicates');
+        // No duplicate codes: directly push all items (creates new records without replacing anything)
+        await executeImport(file, 'override_duplicates');
       }
     } catch (err) {
       setImportResult({
@@ -1695,7 +1697,7 @@ const Items = () => {
         }}
         validationData={importValidationData}
         onConfirmPushNewOnly={() => executeImport(pendingImportFile, 'skip_duplicates')}
-        onConfirmPushAll={() => executeImport(pendingImportFile, 'update_all')}
+        onConfirmPushAll={() => executeImport(pendingImportFile, 'override_duplicates')}
         loading={importLoading}
         title="Authenticate & Validate Items Import"
       />

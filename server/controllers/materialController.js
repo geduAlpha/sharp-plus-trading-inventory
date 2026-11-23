@@ -243,33 +243,66 @@ const createMaterial = asyncHandler(async (req, res) => {
     code = `${prefix}-${String(next).padStart(4, '0')}`;
   }
 
-  // 2. Check duplicate by Name (case-insensitive)
-  const escapedName = escapeRegex(name);
-  const existingByName = await RawMaterial.findOne({
-    name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
-  });
-
-  if (existingByName) {
-    res.status(400);
-    if (!existingByName.isActive || existingByName.deletedAt) {
-      throw new Error(`An item named "${existingByName.name}" is already in the Recycle Bin. Please restore it or permanently delete it first.`);
-    } else {
-      throw new Error(`An item named "${existingByName.name}" already exists${existingByName.code ? ` (Code: ${existingByName.code})` : ''}.`);
-    }
-  }
-
-  // 3. Check duplicate by Code
+  // 2. Check duplicate by Code
   const escapedCode = escapeRegex(code);
   const existingByCode = await RawMaterial.findOne({
     code: { $regex: new RegExp(`^${escapedCode}$`, 'i') },
   });
 
   if (existingByCode) {
+    // If client requested to override changes on existing code
+    if (req.body.overrideIfExists) {
+      existingByCode.name = name;
+      existingByCode.category = category;
+      existingByCode.itemType = itemType;
+      existingByCode.unit = unit;
+      existingByCode.description = description;
+      existingByCode.barcode = barcode;
+      existingByCode.minStock = min;
+      existingByCode.maxStock = max;
+      existingByCode.reorderLevel = reorder;
+      existingByCode.unitCost = cost;
+      if (req.body.currentStock !== undefined) {
+        existingByCode.currentStock = stock;
+        const store = normalizeStore(storeLocation);
+        if (!Array.isArray(existingByCode.storeBalances) || existingByCode.storeBalances.length === 0) {
+          existingByCode.storeBalances = [{ store, balance: stock }];
+        } else {
+          const idx = existingByCode.storeBalances.findIndex((sb) => normalizeStore(sb.store) === store);
+          if (idx >= 0) existingByCode.storeBalances[idx].balance = stock;
+          else existingByCode.storeBalances.push({ store, balance: stock });
+        }
+      }
+      existingByCode.storeLocation = normalizeStore(storeLocation);
+      existingByCode.isActive = isActive !== undefined ? Boolean(isActive) : true;
+      existingByCode.deletedAt = null;
+      await existingByCode.save();
+      invalidateDashboardCache();
+      return res.json(existingByCode);
+    }
+
     res.status(400);
     if (!existingByCode.isActive || existingByCode.deletedAt) {
       throw new Error(`Item code "${code}" is already associated with "${existingByCode.name}" in the Recycle Bin.`);
     } else {
       throw new Error(`Item code "${code}" is already assigned to "${existingByCode.name}".`);
+    }
+  }
+
+  // 3. Check duplicate by Name (only if no explicit code was originally passed)
+  if (!req.body.code) {
+    const escapedName = escapeRegex(name);
+    const existingByName = await RawMaterial.findOne({
+      name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+    });
+
+    if (existingByName) {
+      res.status(400);
+      if (!existingByName.isActive || existingByName.deletedAt) {
+        throw new Error(`An item named "${existingByName.name}" is already in the Recycle Bin. Please restore it or permanently delete it first.`);
+      } else {
+        throw new Error(`An item named "${existingByName.name}" already exists${existingByName.code ? ` (Code: ${existingByName.code})` : ''}.`);
+      }
     }
   }
 
@@ -567,7 +600,7 @@ const exportMaterialsExcel = asyncHandler(async (req, res) => {
 });
 
 // POST /api/materials/import/validate
-// Validates Excel rows before importing, detecting duplicate/existing item codes
+// Validates Excel rows before importing, detecting duplicate/existing item codes and computing diffs
 const validateMaterialsExcel = asyncHandler(async (req, res) => {
   if (!req.file) {
     res.status(400);
@@ -623,6 +656,8 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
         reason: `Item code "${code}" is repeated in uploaded file (Row ${fileCodesMap.get(code.toLowerCase())})`,
         existingCode: code,
         existingName: name,
+        hasChanges: true,
+        fieldChanges: [{ field: 'File Row', old: `Row ${fileCodesMap.get(code.toLowerCase())}`, new: `Row ${rowNumber}` }],
       });
       continue;
     }
@@ -630,7 +665,7 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       fileCodesMap.set(code.toLowerCase(), rowNumber);
     }
 
-    // Check 2: Existing in database by Code
+    // Check 2: Existing in database by Code (Primary unique identity)
     let dbExisting = null;
     if (code) {
       const escapedCode = escapeRegex(code);
@@ -640,8 +675,8 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       }).lean();
     }
 
-    // Check 3: Existing in database by exact Name (if no code match)
-    if (!dbExisting) {
+    // Check 3: ONLY if no code was specified in the Excel row, check if exact name exists
+    if (!dbExisting && !code) {
       const escapedName = escapeRegex(name);
       dbExisting = await RawMaterial.findOne({
         name: { $regex: `^${escapedName}$`, $options: 'i' },
@@ -650,6 +685,40 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
     }
 
     if (dbExisting) {
+      // Calculate field changes / diffs between database record and incoming Excel data
+      const fieldChanges = [];
+      if (name && dbExisting.name && name.toLowerCase() !== dbExisting.name.toLowerCase()) {
+        fieldChanges.push({ field: 'Name', old: dbExisting.name, new: name });
+      }
+      if (row['Unit Cost'] !== undefined || row['Unit Cost (ETB)'] !== undefined) {
+        if (Number(unitCost) !== Number(dbExisting.unitCost || 0)) {
+          fieldChanges.push({ field: 'Unit Cost', old: `ETB ${dbExisting.unitCost || 0}`, new: `ETB ${unitCost}` });
+        }
+      }
+      if (row['Current Stock'] !== undefined || row['Stock'] !== undefined) {
+        if (Number(currentStock) !== Number(dbExisting.currentStock || 0)) {
+          fieldChanges.push({ field: 'Stock', old: dbExisting.currentStock || 0, new: currentStock });
+        }
+      }
+      if (category && dbExisting.category && category.toLowerCase() !== dbExisting.category.toLowerCase()) {
+        fieldChanges.push({ field: 'Category', old: dbExisting.category, new: category });
+      }
+      if (unit && dbExisting.unit && unit.toLowerCase() !== dbExisting.unit.toLowerCase()) {
+        fieldChanges.push({ field: 'Unit', old: dbExisting.unit, new: unit });
+      }
+      if (row['Reorder Level'] !== undefined && Number(reorderLevel) !== Number(dbExisting.reorderLevel || 10)) {
+        fieldChanges.push({ field: 'Reorder Level', old: dbExisting.reorderLevel || 10, new: reorderLevel });
+      }
+      if (storeLocation && dbExisting.storeLocation && storeLocation.toLowerCase() !== dbExisting.storeLocation.toLowerCase()) {
+        fieldChanges.push({ field: 'Store', old: dbExisting.storeLocation, new: storeLocation });
+      }
+      if (row['Barcode'] && String(row['Barcode']).trim() !== String(dbExisting.barcode || '').trim()) {
+        fieldChanges.push({ field: 'Barcode', old: dbExisting.barcode || '—', new: String(row['Barcode']).trim() });
+      }
+      if (row['Description'] && String(row['Description']).trim() !== String(dbExisting.description || '').trim()) {
+        fieldChanges.push({ field: 'Description', old: dbExisting.description || '—', new: String(row['Description']).trim() });
+      }
+
       existingItems.push({
         ...itemData,
         duplicateType: 'database_match',
@@ -662,8 +731,12 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
         existingStock: dbExisting.currentStock,
         existingCost: dbExisting.unitCost,
         existingCategory: dbExisting.category,
+        existingUnit: dbExisting.unit,
+        hasChanges: fieldChanges.length > 0,
+        fieldChanges,
       });
     } else {
+      // Code is not duplicate: strictly a new item, will never replace existing records
       newItems.push(itemData);
     }
   }
@@ -677,19 +750,20 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
     existingItems,
     newItemsSummary: newItems.slice(0, 50),
     message: existingItems.length > 0
-      ? `Authentication alert: ${existingItems.length} existing/duplicate item code(s) detected out of ${total} items.`
+      ? `Authentication alert: ${existingItems.length} existing/duplicate item code(s) detected out of ${total} items. You can override changes or add new items only.`
       : `Authentication verified: All ${total} items are new and ready to import.`,
   });
 });
 
 // POST /api/materials/import/excel
+// Supports override_duplicates (upsert: override changes for same codes, insert non-duplicate codes)
 const importMaterialsExcel = asyncHandler(async (req, res) => {
   if (!req.file) {
     res.status(400);
     throw new Error('No file uploaded');
   }
 
-  const mode = req.body.mode || req.query.mode || 'default';
+  const mode = req.body.mode || req.query.mode || 'override_duplicates';
   const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws);
@@ -700,6 +774,7 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
   const processedIds = new Set();
   const fileCodesMap = new Map();
   const skippedItems = [];
+  const overriddenItems = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -726,7 +801,7 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
       isActive: true,
     };
 
-    // Detect duplicate code in file
+    // Detect duplicate code within file
     let isFileDuplicate = false;
     if (code && fileCodesMap.has(code.toLowerCase())) {
       isFileDuplicate = true;
@@ -735,14 +810,25 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
     }
 
     let existing = null;
+    // Primary identification: match strictly by code
     if (code) {
       const escapedCode = escapeRegex(code);
-      existing = await RawMaterial.findOne({ code: { $regex: `^${escapedCode}-?$`, $options: 'i' }, deletedAt: null });
-      if (existing && processedIds.has(existing._id.toString())) existing = null;
+      existing = await RawMaterial.findOne({
+        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
+        deletedAt: null,
+      });
+      if (existing && processedIds.has(existing._id.toString())) {
+        // If already processed in this import batch, treat as already updated/existing
+      }
     }
-    if (!existing) {
+
+    // Only if no code was given in Excel row, fall back to exact name
+    if (!existing && !code) {
       const escapedName = escapeRegex(name);
-      const byName = await RawMaterial.findOne({ name: { $regex: `^${escapedName}$`, $options: 'i' }, deletedAt: null });
+      const byName = await RawMaterial.findOne({
+        name: { $regex: `^${escapedName}$`, $options: 'i' },
+        deletedAt: null,
+      });
       if (byName && !processedIds.has(byName._id.toString())) existing = byName;
     }
 
@@ -758,19 +844,61 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
         continue;
       }
 
+      // Non-duplicate code: insert new item
+      const storeName = normalizeStore(data.storeLocation || 'Main Store');
+      data.storeBalances = [{ store: storeName, balance: data.currentStock }];
+      data.openingBalance = data.currentStock;
       const created_ = await RawMaterial.create(data);
       processedIds.add(created_._id.toString());
       created++;
       continue;
     }
 
-    // Default or update_all mode
+    // Default, override_duplicates, or update_all mode
     if (existing) {
-      Object.assign(existing, data);
+      // OVERRIDE the existing item with the changes from Excel
+      existing.name = data.name;
+      if (data.category) existing.category = data.category;
+      if (data.itemType) existing.itemType = data.itemType;
+      if (data.unit) existing.unit = data.unit;
+      if (row['Unit Cost'] !== undefined || row['Unit Cost (ETB)'] !== undefined) {
+        existing.unitCost = data.unitCost;
+      }
+      if (row['Reorder Level'] !== undefined) existing.reorderLevel = data.reorderLevel;
+      if (row['Min Stock'] !== undefined) existing.minStock = data.minStock;
+      if (row['Max Stock'] !== undefined) existing.maxStock = data.maxStock;
+      if (row['Barcode'] !== undefined) existing.barcode = data.barcode;
+      if (row['Description'] !== undefined) existing.description = data.description;
+      if (data.storeLocation) existing.storeLocation = data.storeLocation;
+
+      // Update currentStock & storeBalances if provided in Excel
+      if (row['Current Stock'] !== undefined || row['Stock'] !== undefined) {
+        existing.currentStock = data.currentStock;
+        const storeName = normalizeStore(data.storeLocation || existing.storeLocation || 'Main Store');
+        if (!Array.isArray(existing.storeBalances) || existing.storeBalances.length === 0) {
+          existing.storeBalances = [{ store: storeName, balance: data.currentStock }];
+        } else {
+          const idx = existing.storeBalances.findIndex((sb) => normalizeStore(sb.store) === storeName);
+          if (idx >= 0) {
+            existing.storeBalances[idx].balance = data.currentStock;
+          } else {
+            existing.storeBalances.push({ store: storeName, balance: data.currentStock });
+          }
+        }
+      }
+
       await existing.save();
       processedIds.add(existing._id.toString());
       updated++;
+      overriddenItems.push({
+        code: existing.code,
+        name: existing.name,
+      });
     } else {
+      // Non-duplicate code: create brand new item, never replace existing records!
+      const storeName = normalizeStore(data.storeLocation || 'Main Store');
+      data.storeBalances = [{ store: storeName, balance: data.currentStock }];
+      data.openingBalance = data.currentStock;
       const created_ = await RawMaterial.create(data);
       processedIds.add(created_._id.toString());
       created++;
@@ -781,18 +909,20 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
 
   let message = '';
   if (mode === 'skip_duplicates') {
-    message = `Import completed: ${created} new items pushed to system. ${skipped} existing item codes skipped.`;
+    message = `Import completed: ${created} new items added to system. ${skipped} existing item codes skipped.`;
   } else {
-    message = `Import completed: ${created} items created, ${updated} items updated.`;
+    message = `Import completed successfully: ${created} new items added, ${updated} existing items overridden with changes.`;
   }
 
   res.json({
+    success: true,
     message,
     created,
     updated,
     skipped,
     skippedItems,
-    skippedCodes: skippedItems.map(it => it.code),
+    skippedCodes: skippedItems.map((it) => it.code),
+    overriddenCount: updated,
   });
 });
 
