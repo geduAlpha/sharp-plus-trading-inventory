@@ -448,9 +448,9 @@ const Items = () => {
   };
 
   const handleImport = async (e) => {
-    const file = e.target.files[0];
+    const file = e?.target?.files ? e.target.files[0] : e;
     if (!file) return;
-    e.target.value = '';
+    if (e?.target) e.target.value = '';
     setPendingImportFile(file);
     setImportLoading(true);
 
@@ -463,14 +463,12 @@ const Items = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      if (valRes.data?.hasDuplicates) {
-        // Step 2: Existing item codes detected — prompt user with validation modal
-        setImportValidationData(valRes.data);
-        setImportValidationOpen(true);
-      } else {
-        // No duplicate codes: directly push all items (creates new records without replacing anything)
-        await executeImport(file, 'override_duplicates');
-      }
+      // ALWAYS open Preview modal so user can inspect, verify, or resubmit before committing
+      setImportValidationData({
+        ...valRes.data,
+        fileName: file.name,
+      });
+      setImportValidationOpen(true);
     } catch (err) {
       setImportResult({
         message: err.response?.data?.message ?? 'Validation failed. Please verify the Excel structure.',
@@ -479,6 +477,11 @@ const Items = () => {
     } finally {
       setImportLoading(false);
     }
+  };
+
+  const handleResubmitFile = async (newFile) => {
+    if (!newFile) return;
+    await handleImport(newFile);
   };
 
   const executeImport = async (fileToImport, mode = 'skip_duplicates') => {
@@ -1688,18 +1691,20 @@ const Items = () => {
         </div>
       </Modal>
 
-      {/* ── Item Code Authentication & Validation Modal ── */}
+      {/* ── Item Code Authentication & Validation Preview Modal ── */}
       <ItemImportValidationModal
         open={importValidationOpen}
         onClose={() => {
           setImportValidationOpen(false);
           setPendingImportFile(null);
+          setImportValidationData(null);
         }}
         validationData={importValidationData}
         onConfirmPushNewOnly={() => executeImport(pendingImportFile, 'skip_duplicates')}
         onConfirmPushAll={() => executeImport(pendingImportFile, 'override_duplicates')}
+        onResubmitFile={handleResubmitFile}
         loading={importLoading}
-        title="Authenticate & Validate Items Import"
+        title="Import Items Preview & Submission"
       />
     </div>
   );

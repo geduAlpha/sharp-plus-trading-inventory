@@ -748,7 +748,9 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
     newCount: newItems.length,
     existingCount: existingItems.length,
     existingItems,
+    newItems,
     newItemsSummary: newItems.slice(0, 50),
+    fileName: req.file.originalname,
     message: existingItems.length > 0
       ? `Authentication alert: ${existingItems.length} existing/duplicate item code(s) detected out of ${total} items. You can override changes or add new items only.`
       : `Authentication verified: All ${total} items are new and ready to import.`,
