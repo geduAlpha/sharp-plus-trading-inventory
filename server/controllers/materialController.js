@@ -599,8 +599,59 @@ const exportMaterialsExcel = asyncHandler(async (req, res) => {
   res.send(buf);
 });
 
+// Column keys mapping dictionary supporting diverse Excel header aliases (case-insensitive & whitespace-tolerant)
+const IMPORT_COLUMN_KEYS = {
+  code: ['code', 'itemcode', 'itemid', 'item_code', 'item_id', 'articlecode', 'articleno', 'article', 'itemno', 'productcode', 'partnumber', 'partno'],
+  name: ['name', 'itemname', 'item_name', 'articlename', 'productname', 'description', 'itemdescription', 'particulars', 'title'],
+  category: ['category', 'itemcategory', 'categoryname', 'group', 'family', 'classification'],
+  itemType: ['itemtype', 'type', 'producttype', 'materialtype'],
+  unit: ['unit', 'uom', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement'],
+  currentStock: ['currentstock', 'stock', 'qty', 'quantity', 'availablestock', 'balance', 'count', 'quantityonhand', 'stockbalance', 'physicalstock'],
+  unitCost: ['unitcost', 'cost', 'unitcostetb', 'unitprice', 'price', 'rate', 'unitrate', 'purchaseprice', 'costprice', 'buyingprice'],
+  storeLocation: ['storelocation', 'store', 'location', 'warehouse', 'branch', 'depot', 'storagelocation'],
+  barcode: ['barcode', 'bar_code', 'upc', 'ean', 'serial', 'serialno', 'serialnumber'],
+  reorderLevel: ['reorderlevel', 'reorder', 'reorderpoint', 'minlevel'],
+  minStock: ['minstock', 'minimumstock', 'min'],
+  maxStock: ['maxstock', 'maximumstock', 'max'],
+  description: ['description', 'remark', 'remarks', 'note', 'notes', 'comment'],
+};
+
+function normalizeColName(str) {
+  return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getColVal(row, keyArray) {
+  const keys = Object.keys(row || {});
+  for (const target of keyArray) {
+    const targetNorm = normalizeColName(target);
+    for (const k of keys) {
+      if (normalizeColName(k) === targetNorm) {
+        const v = row[k];
+        if (v !== undefined && v !== null) {
+          const s = String(v).trim();
+          if (s !== '') return v;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function hasCol(row, keyArray) {
+  const keys = Object.keys(row || {});
+  for (const target of keyArray) {
+    const targetNorm = normalizeColName(target);
+    for (const k of keys) {
+      if (normalizeColName(k) === targetNorm) {
+        return row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '';
+      }
+    }
+  }
+  return false;
+}
+
 // POST /api/materials/import/validate
-// Validates Excel rows before importing, detecting duplicate/existing item codes and computing diffs
+// Validates Excel rows before importing, detecting duplicate/existing item codes and computing parallel column diffs
 const validateMaterialsExcel = asyncHandler(async (req, res) => {
   if (!req.file) {
     res.status(400);
@@ -617,18 +668,83 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const name = String(row['Name'] || row['Item Name'] || '').trim();
-    const rawCode = String(row['Code'] || row['Item Code'] || '').trim();
-    const code = rawCode.replace(/-+$/, '');
-    if (!name) continue;
-
     const rowNumber = i + 2;
-    const category = String(row['Category'] || 'General').trim();
-    const itemType = String(row['Item Type'] || row['Type'] || 'Raw Material').trim();
-    const unit = String(row['Unit'] || 'pcs').trim();
-    const currentStock = Number(row['Current Stock'] || row['Stock']) || 0;
-    const unitCost = Number(row['Unit Cost'] || row['Unit Cost (ETB)']) || 0;
-    const storeLocation = String(row['Store Location'] || 'Main Store').trim();
+
+    const rawCode = String(getColVal(row, IMPORT_COLUMN_KEYS.code) || '').trim();
+    const code = rawCode.replace(/-+$/, '');
+    let name = String(getColVal(row, IMPORT_COLUMN_KEYS.name) || '').trim();
+
+    // Check existing in database by Code (Primary unique identity)
+    let dbExisting = null;
+    if (code) {
+      const escapedCode = escapeRegex(code);
+      dbExisting = await RawMaterial.findOne({
+        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
+        deletedAt: null,
+      }).lean();
+    }
+
+    // Check by name ONLY if no code was given at all
+    if (!dbExisting && !code && name) {
+      const escapedName = escapeRegex(name);
+      dbExisting = await RawMaterial.findOne({
+        name: { $regex: `^${escapedName}$`, $options: 'i' },
+        deletedAt: null,
+      }).lean();
+    }
+
+    // If row matches an existing item by code and name was omitted in row, retain existing name
+    if (dbExisting && !name) {
+      name = dbExisting.name;
+    }
+
+    // Skip empty rows (neither name nor code present)
+    if (!name && !code) continue;
+
+    // Extract columns with fallback to existing DB item values
+    const category = hasCol(row, IMPORT_COLUMN_KEYS.category)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.category)).trim()
+      : (dbExisting ? dbExisting.category : 'General');
+
+    const itemType = hasCol(row, IMPORT_COLUMN_KEYS.itemType)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.itemType)).trim()
+      : (dbExisting ? dbExisting.itemType : 'Raw Material');
+
+    const unit = hasCol(row, IMPORT_COLUMN_KEYS.unit)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.unit)).trim()
+      : (dbExisting ? dbExisting.unit : 'pcs');
+
+    const currentStock = hasCol(row, IMPORT_COLUMN_KEYS.currentStock)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.currentStock)) || 0
+      : (dbExisting ? Number(dbExisting.currentStock || 0) : 0);
+
+    const unitCost = hasCol(row, IMPORT_COLUMN_KEYS.unitCost)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.unitCost)) || 0
+      : (dbExisting ? Number(dbExisting.unitCost || 0) : 0);
+
+    const storeLocation = hasCol(row, IMPORT_COLUMN_KEYS.storeLocation)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.storeLocation)).trim()
+      : (dbExisting ? dbExisting.storeLocation : 'Main Store');
+
+    const barcode = hasCol(row, IMPORT_COLUMN_KEYS.barcode)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.barcode)).trim()
+      : (dbExisting ? dbExisting.barcode || '' : '');
+
+    const reorderLevel = hasCol(row, IMPORT_COLUMN_KEYS.reorderLevel)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.reorderLevel)) || 10
+      : (dbExisting ? Number(dbExisting.reorderLevel || 10) : 10);
+
+    const minStock = hasCol(row, IMPORT_COLUMN_KEYS.minStock)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.minStock)) || 0
+      : (dbExisting ? Number(dbExisting.minStock || 0) : 0);
+
+    const maxStock = hasCol(row, IMPORT_COLUMN_KEYS.maxStock)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.maxStock)) || 0
+      : (dbExisting ? Number(dbExisting.maxStock || 0) : 0);
+
+    const description = hasCol(row, IMPORT_COLUMN_KEYS.description)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.description)).trim()
+      : (dbExisting ? dbExisting.description || '' : '');
 
     const itemData = {
       rowNumber,
@@ -637,12 +753,12 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       category,
       itemType,
       unit,
-      description: String(row['Description'] || '').trim(),
-      barcode: String(row['Barcode'] || '').trim(),
+      description,
+      barcode,
       currentStock,
-      minStock: Number(row['Min Stock']) || 0,
-      maxStock: Number(row['Max Stock']) || 0,
-      reorderLevel: Number(row['Reorder Level']) || 10,
+      minStock,
+      maxStock,
+      reorderLevel,
       unitCost,
       storeLocation,
       isActive: true,
@@ -658,6 +774,7 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
         existingName: name,
         hasChanges: true,
         fieldChanges: [{ field: 'File Row', old: `Row ${fileCodesMap.get(code.toLowerCase())}`, new: `Row ${rowNumber}` }],
+        parallelOverrides: {},
       });
       continue;
     }
@@ -665,65 +782,53 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       fileCodesMap.set(code.toLowerCase(), rowNumber);
     }
 
-    // Check 2: Existing in database by Code (Primary unique identity)
-    let dbExisting = null;
-    if (code) {
-      const escapedCode = escapeRegex(code);
-      dbExisting = await RawMaterial.findOne({
-        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
-        deletedAt: null,
-      }).lean();
-    }
-
-    // Check 3: ONLY if no code was specified in the Excel row, check if exact name exists
-    if (!dbExisting && !code) {
-      const escapedName = escapeRegex(name);
-      dbExisting = await RawMaterial.findOne({
-        name: { $regex: `^${escapedName}$`, $options: 'i' },
-        deletedAt: null,
-      }).lean();
-    }
-
     if (dbExisting) {
-      // Calculate field changes / diffs between database record and incoming Excel data
+      // Calculate parallel column overrides / diffs between database record and incoming Excel data
       const fieldChanges = [];
-      if (name && dbExisting.name && name.toLowerCase() !== dbExisting.name.toLowerCase()) {
+      const parallelOverrides = {};
+
+      if (hasCol(row, IMPORT_COLUMN_KEYS.name) && name.toLowerCase() !== String(dbExisting.name || '').toLowerCase()) {
         fieldChanges.push({ field: 'Name', old: dbExisting.name, new: name });
+        parallelOverrides.name = { old: dbExisting.name, new: name };
       }
-      if (row['Unit Cost'] !== undefined || row['Unit Cost (ETB)'] !== undefined) {
-        if (Number(unitCost) !== Number(dbExisting.unitCost || 0)) {
-          fieldChanges.push({ field: 'Unit Cost', old: `ETB ${dbExisting.unitCost || 0}`, new: `ETB ${unitCost}` });
-        }
+      if (hasCol(row, IMPORT_COLUMN_KEYS.unitCost) && Number(unitCost) !== Number(dbExisting.unitCost || 0)) {
+        fieldChanges.push({ field: 'Unit Cost', old: `ETB ${dbExisting.unitCost || 0}`, new: `ETB ${unitCost}` });
+        parallelOverrides.unitCost = { old: Number(dbExisting.unitCost || 0), new: Number(unitCost) };
       }
-      if (row['Current Stock'] !== undefined || row['Stock'] !== undefined) {
-        if (Number(currentStock) !== Number(dbExisting.currentStock || 0)) {
-          fieldChanges.push({ field: 'Stock', old: dbExisting.currentStock || 0, new: currentStock });
-        }
+      if (hasCol(row, IMPORT_COLUMN_KEYS.currentStock) && Number(currentStock) !== Number(dbExisting.currentStock || 0)) {
+        fieldChanges.push({ field: 'Stock', old: dbExisting.currentStock || 0, new: currentStock });
+        parallelOverrides.currentStock = { old: Number(dbExisting.currentStock || 0), new: Number(currentStock) };
       }
-      if (category && dbExisting.category && category.toLowerCase() !== dbExisting.category.toLowerCase()) {
+      if (hasCol(row, IMPORT_COLUMN_KEYS.category) && category.toLowerCase() !== String(dbExisting.category || '').toLowerCase()) {
         fieldChanges.push({ field: 'Category', old: dbExisting.category, new: category });
+        parallelOverrides.category = { old: dbExisting.category, new: category };
       }
-      if (unit && dbExisting.unit && unit.toLowerCase() !== dbExisting.unit.toLowerCase()) {
+      if (hasCol(row, IMPORT_COLUMN_KEYS.unit) && unit.toLowerCase() !== String(dbExisting.unit || '').toLowerCase()) {
         fieldChanges.push({ field: 'Unit', old: dbExisting.unit, new: unit });
+        parallelOverrides.unit = { old: dbExisting.unit, new: unit };
       }
-      if (row['Reorder Level'] !== undefined && Number(reorderLevel) !== Number(dbExisting.reorderLevel || 10)) {
-        fieldChanges.push({ field: 'Reorder Level', old: dbExisting.reorderLevel || 10, new: reorderLevel });
-      }
-      if (storeLocation && dbExisting.storeLocation && storeLocation.toLowerCase() !== dbExisting.storeLocation.toLowerCase()) {
+      if (hasCol(row, IMPORT_COLUMN_KEYS.storeLocation) && storeLocation.toLowerCase() !== String(dbExisting.storeLocation || '').toLowerCase()) {
         fieldChanges.push({ field: 'Store', old: dbExisting.storeLocation, new: storeLocation });
+        parallelOverrides.storeLocation = { old: dbExisting.storeLocation, new: storeLocation };
       }
-      if (row['Barcode'] && String(row['Barcode']).trim() !== String(dbExisting.barcode || '').trim()) {
-        fieldChanges.push({ field: 'Barcode', old: dbExisting.barcode || '—', new: String(row['Barcode']).trim() });
+      if (hasCol(row, IMPORT_COLUMN_KEYS.reorderLevel) && Number(reorderLevel) !== Number(dbExisting.reorderLevel || 10)) {
+        fieldChanges.push({ field: 'Reorder Level', old: dbExisting.reorderLevel || 10, new: reorderLevel });
+        parallelOverrides.reorderLevel = { old: dbExisting.reorderLevel || 10, new: reorderLevel };
       }
-      if (row['Description'] && String(row['Description']).trim() !== String(dbExisting.description || '').trim()) {
-        fieldChanges.push({ field: 'Description', old: dbExisting.description || '—', new: String(row['Description']).trim() });
+      if (hasCol(row, IMPORT_COLUMN_KEYS.barcode) && String(barcode).trim() !== String(dbExisting.barcode || '').trim()) {
+        fieldChanges.push({ field: 'Barcode', old: dbExisting.barcode || '—', new: String(barcode).trim() });
+        parallelOverrides.barcode = { old: dbExisting.barcode || '—', new: String(barcode).trim() };
+      }
+      if (hasCol(row, IMPORT_COLUMN_KEYS.description) && String(description).trim() !== String(dbExisting.description || '').trim()) {
+        fieldChanges.push({ field: 'Description', old: dbExisting.description || '—', new: String(description).trim() });
+        parallelOverrides.description = { old: dbExisting.description || '—', new: String(description).trim() };
       }
 
       existingItems.push({
         ...itemData,
         duplicateType: 'database_match',
         reason: (code && dbExisting.code && dbExisting.code.toLowerCase().startsWith(code.toLowerCase()))
-          ? `Item code "${code}" already exists in system`
+          ? `Item code "${code}" matches system item`
           : `Item name "${name}" matches existing item (${dbExisting.code})`,
         existingId: dbExisting._id,
         existingCode: dbExisting.code,
@@ -734,9 +839,10 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
         existingUnit: dbExisting.unit,
         hasChanges: fieldChanges.length > 0,
         fieldChanges,
+        parallelOverrides,
       });
     } else {
-      // Code is not duplicate: strictly a new item, will never replace existing records
+      // Non-duplicate code: strictly a new item, will never replace existing records
       newItems.push(itemData);
     }
   }
@@ -758,7 +864,7 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
 });
 
 // POST /api/materials/import/excel
-// Supports override_duplicates (upsert: override changes for same codes, insert non-duplicate codes)
+// Performs parallel column overrides for matching codes and inserts non-duplicate codes
 const importMaterialsExcel = asyncHandler(async (req, res) => {
   if (!req.file) {
     res.status(400);
@@ -780,26 +886,101 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const name = String(row['Name'] || row['Item Name'] || '').trim();
-    const rawCode = String(row['Code'] || row['Item Code'] || '').trim();
-    const code = rawCode.replace(/-+$/, '');
-    if (!name) continue;
-
     const rowNumber = i + 2;
+
+    const rawCode = String(getColVal(row, IMPORT_COLUMN_KEYS.code) || '').trim();
+    const code = rawCode.replace(/-+$/, '');
+    let name = String(getColVal(row, IMPORT_COLUMN_KEYS.name) || '').trim();
+
+    // Primary identification: match strictly by perspective code
+    let existing = null;
+    if (code) {
+      const escapedCode = escapeRegex(code);
+      existing = await RawMaterial.findOne({
+        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
+        deletedAt: null,
+      });
+      if (existing && processedIds.has(existing._id.toString())) {
+        // already handled in this batch
+      }
+    }
+
+    // Only if no code was given in Excel row, fall back to exact name
+    if (!existing && !code && name) {
+      const escapedName = escapeRegex(name);
+      const byName = await RawMaterial.findOne({
+        name: { $regex: `^${escapedName}$`, $options: 'i' },
+        deletedAt: null,
+      });
+      if (byName && !processedIds.has(byName._id.toString())) existing = byName;
+    }
+
+    // If matching existing item by code and name is omitted in row, retain existing name
+    if (existing && !name) {
+      name = existing.name;
+    }
+
+    // Skip if row has neither code nor name
+    if (!name && !code) continue;
+
+    const category = hasCol(row, IMPORT_COLUMN_KEYS.category)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.category)).trim()
+      : (existing ? existing.category : 'General');
+
+    const itemType = hasCol(row, IMPORT_COLUMN_KEYS.itemType)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.itemType)).trim()
+      : (existing ? existing.itemType : 'Raw Material');
+
+    const unit = hasCol(row, IMPORT_COLUMN_KEYS.unit)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.unit)).trim()
+      : (existing ? existing.unit : 'pcs');
+
+    const currentStock = hasCol(row, IMPORT_COLUMN_KEYS.currentStock)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.currentStock)) || 0
+      : (existing ? Number(existing.currentStock || 0) : 0);
+
+    const unitCost = hasCol(row, IMPORT_COLUMN_KEYS.unitCost)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.unitCost)) || 0
+      : (existing ? Number(existing.unitCost || 0) : 0);
+
+    const storeLocation = hasCol(row, IMPORT_COLUMN_KEYS.storeLocation)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.storeLocation)).trim()
+      : (existing ? existing.storeLocation : 'Main Store');
+
+    const barcode = hasCol(row, IMPORT_COLUMN_KEYS.barcode)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.barcode)).trim()
+      : (existing ? existing.barcode || '' : '');
+
+    const reorderLevel = hasCol(row, IMPORT_COLUMN_KEYS.reorderLevel)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.reorderLevel)) || 10
+      : (existing ? Number(existing.reorderLevel || 10) : 10);
+
+    const minStock = hasCol(row, IMPORT_COLUMN_KEYS.minStock)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.minStock)) || 0
+      : (existing ? Number(existing.minStock || 0) : 0);
+
+    const maxStock = hasCol(row, IMPORT_COLUMN_KEYS.maxStock)
+      ? Number(getColVal(row, IMPORT_COLUMN_KEYS.maxStock)) || 0
+      : (existing ? Number(existing.maxStock || 0) : 0);
+
+    const description = hasCol(row, IMPORT_COLUMN_KEYS.description)
+      ? String(getColVal(row, IMPORT_COLUMN_KEYS.description)).trim()
+      : (existing ? existing.description || '' : '');
+
     const data = {
       code,
       name,
-      category: String(row['Category'] || 'General').trim(),
-      itemType: String(row['Item Type'] || row['Type'] || 'Raw Material').trim(),
-      unit: String(row['Unit'] || 'pcs').trim(),
-      description: String(row['Description'] || '').trim(),
-      barcode: String(row['Barcode'] || '').trim(),
-      currentStock: Number(row['Current Stock'] || row['Stock']) || 0,
-      minStock: Number(row['Min Stock']) || 0,
-      maxStock: Number(row['Max Stock']) || 0,
-      reorderLevel: Number(row['Reorder Level']) || 10,
-      unitCost: Number(row['Unit Cost'] || row['Unit Cost (ETB)']) || 0,
-      storeLocation: String(row['Store Location'] || 'Main Store').trim(),
+      category,
+      itemType,
+      unit,
+      description,
+      barcode,
+      currentStock,
+      minStock,
+      maxStock,
+      reorderLevel,
+      unitCost,
+      storeLocation,
       isActive: true,
     };
 
@@ -809,29 +990,6 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
       isFileDuplicate = true;
     } else if (code) {
       fileCodesMap.set(code.toLowerCase(), rowNumber);
-    }
-
-    let existing = null;
-    // Primary identification: match strictly by code
-    if (code) {
-      const escapedCode = escapeRegex(code);
-      existing = await RawMaterial.findOne({
-        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
-        deletedAt: null,
-      });
-      if (existing && processedIds.has(existing._id.toString())) {
-        // If already processed in this import batch, treat as already updated/existing
-      }
-    }
-
-    // Only if no code was given in Excel row, fall back to exact name
-    if (!existing && !code) {
-      const escapedName = escapeRegex(name);
-      const byName = await RawMaterial.findOne({
-        name: { $regex: `^${escapedName}$`, $options: 'i' },
-        deletedAt: null,
-      });
-      if (byName && !processedIds.has(byName._id.toString())) existing = byName;
     }
 
     // Handle skip duplicates mode
@@ -858,33 +1016,31 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
 
     // Default, override_duplicates, or update_all mode
     if (existing) {
-      // OVERRIDE the existing item with the changes from Excel
-      existing.name = data.name;
-      if (data.category) existing.category = data.category;
-      if (data.itemType) existing.itemType = data.itemType;
-      if (data.unit) existing.unit = data.unit;
-      if (row['Unit Cost'] !== undefined || row['Unit Cost (ETB)'] !== undefined) {
-        existing.unitCost = data.unitCost;
-      }
-      if (row['Reorder Level'] !== undefined) existing.reorderLevel = data.reorderLevel;
-      if (row['Min Stock'] !== undefined) existing.minStock = data.minStock;
-      if (row['Max Stock'] !== undefined) existing.maxStock = data.maxStock;
-      if (row['Barcode'] !== undefined) existing.barcode = data.barcode;
-      if (row['Description'] !== undefined) existing.description = data.description;
-      if (data.storeLocation) existing.storeLocation = data.storeLocation;
+      // Parallel override of columns present in Excel row
+      if (hasCol(row, IMPORT_COLUMN_KEYS.name) && name) existing.name = name;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.category) && category) existing.category = category;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.itemType) && itemType) existing.itemType = itemType;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.unit) && unit) existing.unit = unit;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.unitCost)) existing.unitCost = Number(unitCost) || 0;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.reorderLevel)) existing.reorderLevel = Number(reorderLevel) || 10;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.minStock)) existing.minStock = Number(minStock) || 0;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.maxStock)) existing.maxStock = Number(maxStock) || 0;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.barcode)) existing.barcode = barcode;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.description)) existing.description = description;
+      if (hasCol(row, IMPORT_COLUMN_KEYS.storeLocation)) existing.storeLocation = storeLocation;
 
-      // Update currentStock & storeBalances if provided in Excel
-      if (row['Current Stock'] !== undefined || row['Stock'] !== undefined) {
-        existing.currentStock = data.currentStock;
+      // Update currentStock & storeBalances if stock column is present
+      if (hasCol(row, IMPORT_COLUMN_KEYS.currentStock)) {
+        existing.currentStock = Number(currentStock) || 0;
         const storeName = normalizeStore(data.storeLocation || existing.storeLocation || 'Main Store');
         if (!Array.isArray(existing.storeBalances) || existing.storeBalances.length === 0) {
-          existing.storeBalances = [{ store: storeName, balance: data.currentStock }];
+          existing.storeBalances = [{ store: storeName, balance: existing.currentStock }];
         } else {
           const idx = existing.storeBalances.findIndex((sb) => normalizeStore(sb.store) === storeName);
           if (idx >= 0) {
-            existing.storeBalances[idx].balance = data.currentStock;
+            existing.storeBalances[idx].balance = existing.currentStock;
           } else {
-            existing.storeBalances.push({ store: storeName, balance: data.currentStock });
+            existing.storeBalances.push({ store: storeName, balance: existing.currentStock });
           }
         }
       }
