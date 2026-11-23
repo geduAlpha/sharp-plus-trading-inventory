@@ -603,9 +603,10 @@ const exportMaterialsExcel = asyncHandler(async (req, res) => {
 function parseNumberClean(val, fallback = 0) {
   if (val === undefined || val === null || val === '') return fallback;
   if (typeof val === 'number') return isNaN(val) ? fallback : val;
-  const clean = String(val).replace(/[^0-9.-]/g, '').trim();
-  if (!clean || clean === '-' || clean === '.') return fallback;
-  const num = parseFloat(clean);
+  const s = String(val).replace(/,/g, '').trim();
+  const match = s.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return fallback;
+  const num = parseFloat(match[0]);
   return isNaN(num) ? fallback : num;
 }
 
@@ -619,36 +620,81 @@ function normalizeItemType(str) {
 
 // Column keys mapping dictionary supporting diverse Excel header aliases (case-insensitive & whitespace-tolerant)
 const IMPORT_COLUMN_KEYS = {
-  code: ['code', 'itemcode', 'itemid', 'item_code', 'item_id', 'articlecode', 'articleno', 'article', 'itemno', 'productcode', 'partnumber', 'partno'],
-  name: ['name', 'itemname', 'item_name', 'articlename', 'productname', 'description', 'itemdescription', 'particulars', 'title'],
-  category: ['category', 'itemcategory', 'categoryname', 'group', 'family', 'classification'],
-  itemType: ['itemtype', 'type', 'producttype', 'materialtype'],
-  unit: ['unit', 'uom', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement'],
-  currentStock: ['currentstock', 'stock', 'qty', 'quantity', 'availablestock', 'balance', 'count', 'quantityonhand', 'stockbalance', 'physicalstock'],
-  unitCost: ['unitcost', 'cost', 'unitcostetb', 'unitprice', 'price', 'rate', 'unitrate', 'purchaseprice', 'costprice', 'buyingprice'],
-  storeLocation: ['storelocation', 'store', 'location', 'warehouse', 'branch', 'depot', 'storagelocation'],
-  barcode: ['barcode', 'bar_code', 'upc', 'ean', 'serial', 'serialno', 'serialnumber'],
-  reorderLevel: ['reorderlevel', 'reorder', 'reorderpoint', 'minlevel'],
-  minStock: ['minstock', 'minimumstock', 'min'],
-  maxStock: ['maxstock', 'maximumstock', 'max'],
-  description: ['description', 'remark', 'remarks', 'note', 'notes', 'comment'],
+  code: [
+    'code', 'itemcode', 'itemid', 'item_code', 'item_id', 'articlecode', 'articleno',
+    'article', 'itemno', 'productcode', 'partnumber', 'partno', 'artcode', 'artno',
+    'articlenumber', 'itemnumber', 'sku', 'ref', 'reference', 'id', 'materialcode',
+    'productid', 'art', 'item#', 'art#', 'code#', 'article#', 'art_code', 'art_no'
+  ],
+  name: [
+    'name', 'itemname', 'item_name', 'articlename', 'productname', 'description',
+    'itemdescription', 'particulars', 'title', 'item', 'product', 'material',
+    'articledesc', 'itemdesc', 'details', 'itemdetails', 'goods', 'commodity',
+    'specification', 'desc', 'article_name', 'product_name', 'item_title'
+  ],
+  category: [
+    'category', 'itemcategory', 'categoryname', 'group', 'family', 'classification',
+    'childcategory', 'parentcategory', 'class', 'department', 'section', 'cat', 'item_category'
+  ],
+  itemType: ['itemtype', 'type', 'producttype', 'materialtype', 'itemclassification', 'kind', 'item_type'],
+  unit: ['unit', 'uom', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement', 'packing', 'pack', 'pkg', 'packaging'],
+  currentStock: [
+    'currentstock', 'stock', 'qty', 'quantity', 'availablestock', 'balance', 'count',
+    'quantityonhand', 'stockbalance', 'physicalstock', 'openingbalance', 'openingstock',
+    'openbalance', 'openstock', 'begbalance', 'initialbalance', 'initialstock', 'stockqty',
+    'instock', 'qtyinstock', 'available', 'avail', 'onhand', 'currentbalance', 'totalstock',
+    'totalqty', 'amount', 'bal', 'physical', 'closingbalance', 'closingstock', 'total', 'opening',
+    'beginningbalance', 'begbal', 'openbal', 'openingqty'
+  ],
+  openingBalance: [
+    'openingbalance', 'openingstock', 'openbalance', 'openstock', 'begbalance', 'initialbalance',
+    'initialstock', 'opening', 'beginningbalance', 'begbal', 'openbal', 'openingqty'
+  ],
+  unitCost: [
+    'unitcost', 'cost', 'unitcostetb', 'unitprice', 'price', 'rate', 'unitrate', 'purchaseprice',
+    'costprice', 'buyingprice', 'avgamount', 'avgprice', 'avgcost', 'costetb', 'priceetb', 'rateetb',
+    'unitcostinbirr', 'costbirr', 'unitpriceetb', 'sellingprice', 'valuation', 'unitvalue', 'value',
+    'standardcost', 'unit_cost', 'unit_price', 'cost_price', 'purchase_price', 'avg_amount', 'avg_price'
+  ],
+  storeLocation: ['storelocation', 'store', 'location', 'warehouse', 'branch', 'depot', 'storagelocation', 'site', 'wh'],
+  barcode: ['barcode', 'bar_code', 'upc', 'ean', 'serial', 'serialno', 'serialnumber', 'barcode#'],
+  reorderLevel: ['reorderlevel', 'reorder', 'reorderpoint', 'minlevel', 'reorderqty'],
+  minStock: ['minstock', 'minimumstock', 'min', 'minqty'],
+  maxStock: ['maxstock', 'maximumstock', 'max', 'maxqty'],
+  description: ['description', 'remark', 'remarks', 'note', 'notes', 'comment', 'desc', 'memo'],
 };
 
+function cleanHeader(str) {
+  return String(str || '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\[.*?\]/g, '')
+    .trim();
+}
+
 function normalizeColName(str) {
-  return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return cleanHeader(str).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function getColVal(row, keyArray) {
-  const keys = Object.keys(row || {});
+  const keys = Object.keys(row || {}).filter((k) => !k.startsWith('_'));
+  // Pass 1: exact normalized match after cleaning header (strips parenthetical units like (pcs), (ETB))
   for (const target of keyArray) {
-    const targetNorm = normalizeColName(target);
+    const targetNorm = target.toLowerCase().replace(/[^a-z0-9]/g, '');
     for (const k of keys) {
       if (normalizeColName(k) === targetNorm) {
         const v = row[k];
-        if (v !== undefined && v !== null) {
-          const s = String(v).trim();
-          if (s !== '') return v;
-        }
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+    }
+  }
+  // Pass 2: raw uncleaned key comparison
+  for (const target of keyArray) {
+    const targetNorm = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const k of keys) {
+      const rawNorm = String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (rawNorm === targetNorm) {
+        const v = row[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
       }
     }
   }
@@ -656,16 +702,94 @@ function getColVal(row, keyArray) {
 }
 
 function hasCol(row, keyArray) {
-  const keys = Object.keys(row || {});
-  for (const target of keyArray) {
-    const targetNorm = normalizeColName(target);
-    for (const k of keys) {
-      if (normalizeColName(k) === targetNorm) {
-        return row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '';
-      }
+  return getColVal(row, keyArray) !== undefined;
+}
+
+// Disambiguates code vs name when column titles might overlap
+function resolveItemIdentifiers(row) {
+  let rawCode = String(getColVal(row, IMPORT_COLUMN_KEYS.code) || '').trim();
+  let code = rawCode.replace(/-+$/, '');
+  let name = String(getColVal(row, IMPORT_COLUMN_KEYS.name) || '').trim();
+
+  // If code and name picked the exact same string or column value, disambiguate
+  if (code && name && code.toLowerCase() === name.toLowerCase()) {
+    const otherDesc = getColVal(row, ['description', 'particulars', 'title', 'itemdesc', 'details', 'itemdescription']);
+    if (otherDesc && otherDesc !== name) {
+      name = String(otherDesc).trim();
     }
   }
-  return false;
+
+  return { code, name };
+}
+
+// Robust sheet extractor that discovers actual header row (even if title rows or blank lines exist)
+function extractRowsFromWorkbook(wb) {
+  if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) return [];
+
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) continue;
+
+    // Convert sheet to array-of-arrays
+    const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (!rawData || rawData.length === 0) continue;
+
+    // Score top 25 rows to identify the actual header row
+    let bestHeaderIdx = -1;
+    let maxKeywordScore = 0;
+    const KEYWORD_REGEX = /code|item|article|name|desc|product|qty|quantity|stock|balance|cost|price|rate|uom|unit|category|location|store|amount/i;
+
+    for (let r = 0; r < Math.min(rawData.length, 25); r++) {
+      const rowArr = rawData[r];
+      if (!Array.isArray(rowArr)) continue;
+      let score = 0;
+      for (const cell of rowArr) {
+        const str = String(cell || '').trim();
+        if (str && KEYWORD_REGEX.test(str)) {
+          score++;
+        }
+      }
+      if (score > maxKeywordScore) {
+        maxKeywordScore = score;
+        bestHeaderIdx = r;
+      }
+    }
+
+    if (bestHeaderIdx === -1 && rawData.length > 0) {
+      bestHeaderIdx = 0;
+    }
+
+    if (bestHeaderIdx === -1) continue;
+
+    const rawHeaders = rawData[bestHeaderIdx];
+    const headers = [];
+    for (let c = 0; c < rawHeaders.length; c++) {
+      const h = String(rawHeaders[c] || '').trim();
+      headers.push(h || `Column_${c + 1}`);
+    }
+
+    const rows = [];
+    for (let r = bestHeaderIdx + 1; r < rawData.length; r++) {
+      const rowArr = rawData[r];
+      if (!Array.isArray(rowArr)) continue;
+
+      const hasAnyVal = rowArr.some((val) => val !== undefined && val !== null && String(val).trim() !== '');
+      if (!hasAnyVal) continue;
+
+      const rowObj = {};
+      rowObj._rawRowNumber = r + 1;
+      for (let c = 0; c < headers.length; c++) {
+        rowObj[headers[c]] = rowArr[c] !== undefined ? rowArr[c] : '';
+      }
+      rows.push(rowObj);
+    }
+
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+
+  return [];
 }
 
 // POST /api/materials/import/validate
@@ -689,18 +813,8 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
     throw new Error('The uploaded Excel file contains no worksheets.');
   }
 
-  // Find first sheet that has actual rows
-  let rows = [];
-  for (const sheetName of wb.SheetNames) {
-    const ws = wb.Sheets[sheetName];
-    if (ws) {
-      const candidate = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      if (candidate && candidate.length > 0) {
-        rows = candidate;
-        break;
-      }
-    }
-  }
+  // Extract rows using smart header detection (handles title rows & multi-format sheets)
+  const rows = extractRowsFromWorkbook(wb);
 
   if (!rows || rows.length === 0) {
     res.status(400);
@@ -713,11 +827,10 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const rowNumber = i + 2;
+    const rowNumber = row._rawRowNumber || (i + 2);
 
-    const rawCode = String(getColVal(row, IMPORT_COLUMN_KEYS.code) || '').trim();
-    const code = rawCode.replace(/-+$/, '');
-    let name = String(getColVal(row, IMPORT_COLUMN_KEYS.name) || '').trim();
+    const { code, name: extractedName } = resolveItemIdentifiers(row);
+    let name = extractedName;
 
     // Check existing in database by Code (Primary unique identity)
     let dbExisting = null;
@@ -793,6 +906,10 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       ? String(getColVal(row, IMPORT_COLUMN_KEYS.description)).trim()
       : (dbExisting ? dbExisting.description || '' : '');
 
+    const openingBalance = hasCol(row, IMPORT_COLUMN_KEYS.openingBalance)
+      ? parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.openingBalance), currentStock)
+      : currentStock;
+
     const itemData = {
       rowNumber,
       code,
@@ -803,6 +920,7 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       description,
       barcode,
       currentStock,
+      openingBalance,
       minStock,
       maxStock,
       reorderLevel,
@@ -928,18 +1046,8 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
     throw new Error('Could not parse Excel file. Please ensure it is a valid spreadsheet.');
   }
 
-  // Find first sheet that has actual rows
-  let rows = [];
-  for (const sheetName of (wb.SheetNames || [])) {
-    const ws = wb.Sheets[sheetName];
-    if (ws) {
-      const candidate = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      if (candidate && candidate.length > 0) {
-        rows = candidate;
-        break;
-      }
-    }
-  }
+  // Extract rows using smart header detection (handles title rows & multi-format sheets)
+  const rows = extractRowsFromWorkbook(wb);
 
   if (!rows || rows.length === 0) {
     res.status(400);
@@ -957,12 +1065,11 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const rowNumber = i + 2;
+    const rowNumber = row._rawRowNumber || (i + 2);
 
     try {
-      const rawCode = String(getColVal(row, IMPORT_COLUMN_KEYS.code) || '').trim();
-      let code = rawCode.replace(/-+$/, '');
-      let name = String(getColVal(row, IMPORT_COLUMN_KEYS.name) || '').trim();
+      const { code, name: extractedName } = resolveItemIdentifiers(row);
+      let name = extractedName;
 
       // Primary identification: match strictly by perspective code
       let existing = null;
@@ -1058,6 +1165,11 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
         }
 
         // Non-duplicate code: insert new item
+        const initialStock = Number(currentStock) || 0;
+        const initialOpening = hasCol(row, IMPORT_COLUMN_KEYS.openingBalance)
+          ? parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.openingBalance), initialStock)
+          : initialStock;
+
         const data = {
           code,
           name: name || (code ? `Item ${code}` : `Item ${rowNumber}`),
@@ -1066,7 +1178,8 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
           unit: unit || 'pcs',
           description,
           barcode,
-          currentStock,
+          currentStock: initialStock,
+          openingBalance: initialOpening,
           minStock,
           maxStock,
           reorderLevel,
@@ -1077,7 +1190,6 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
 
         const storeName = normalizeStore(data.storeLocation || 'Main Store');
         data.storeBalances = [{ store: storeName, balance: data.currentStock }];
-        data.openingBalance = data.currentStock;
         const created_ = await RawMaterial.create(data);
         processedIds.add(created_._id.toString());
         created++;
@@ -1113,6 +1225,12 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
               existing.storeBalances.push({ store: storeName, balance: existing.currentStock });
             }
           }
+          // Also sync opening balance with new stock if not explicitly set
+          existing.openingBalance = Number(currentStock) || 0;
+        }
+
+        if (hasCol(row, IMPORT_COLUMN_KEYS.openingBalance)) {
+          existing.openingBalance = parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.openingBalance), existing.currentStock);
         }
 
         await existing.save();
@@ -1124,6 +1242,11 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
         });
       } else {
         // Non-duplicate code: create brand new item, never replace existing records!
+        const initialStock = Number(currentStock) || 0;
+        const initialOpening = hasCol(row, IMPORT_COLUMN_KEYS.openingBalance)
+          ? parseNumberClean(getColVal(row, IMPORT_COLUMN_KEYS.openingBalance), initialStock)
+          : initialStock;
+
         const data = {
           code,
           name: name || (code ? `Item ${code}` : `Item ${rowNumber}`),
@@ -1132,7 +1255,8 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
           unit: unit || 'pcs',
           description,
           barcode,
-          currentStock,
+          currentStock: initialStock,
+          openingBalance: initialOpening,
           minStock,
           maxStock,
           reorderLevel,
@@ -1143,7 +1267,6 @@ const importMaterialsExcel = asyncHandler(async (req, res) => {
 
         const storeName = normalizeStore(data.storeLocation || 'Main Store');
         data.storeBalances = [{ store: storeName, balance: data.currentStock }];
-        data.openingBalance = data.currentStock;
         const created_ = await RawMaterial.create(data);
         processedIds.add(created_._id.toString());
         created++;

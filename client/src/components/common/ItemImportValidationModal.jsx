@@ -659,10 +659,10 @@ export default function ItemImportValidationModal({
               onClick={onConfirmPushAll}
               disabled={loading || total === 0}
               className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm order-1 sm:order-4"
-              title="Overrides existing item records with new changes from Excel, and inserts all new non-duplicate items"
+              title="Takes all data from Excel as it is: updates existing items with file values and creates new items"
             >
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-              Confirm &amp; Submit Import ({total} Items)
+              Confirm &amp; Apply All File Data ({total} Items)
             </Button>
           </div>
         </div>

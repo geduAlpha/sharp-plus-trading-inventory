@@ -489,7 +489,7 @@ const Items = () => {
     await handleImport(newFile);
   };
 
-  const executeImport = async (fileToImport, mode = 'skip_duplicates') => {
+  const executeImport = async (fileToImport, mode = 'override_duplicates') => {
     const file = fileToImport || pendingImportFile;
     if (!file) return;
     setImportLoading(true);
