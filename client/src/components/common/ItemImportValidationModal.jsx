@@ -44,8 +44,7 @@ export default function ItemImportValidationModal({
   const [viewMode, setViewMode] = useState('parallel'); // 'parallel' | 'standard'
   const fileInputRef = useRef(null);
 
-  if (!validationData) return null;
-
+  // Safely default fields from validationData so hooks execute unconditionally
   const {
     total = 0,
     newCount = 0,
@@ -53,10 +52,11 @@ export default function ItemImportValidationModal({
     existingItems = [],
     newItems = [],
     fileName = 'Excel File',
-  } = validationData;
+  } = validationData || {};
 
-  // Build unified items list for preview
+  // Build unified items list for preview - HOOK CALLED UNCONDITIONALLY
   const allPreviewItems = useMemo(() => {
+    if (!validationData) return [];
     const list = [];
     (existingItems || []).forEach((it) => {
       list.push({
@@ -71,21 +71,24 @@ export default function ItemImportValidationModal({
       });
     });
     return list.sort((a, b) => (Number(a.rowNumber) || 0) - (Number(b.rowNumber) || 0));
-  }, [existingItems, newItems]);
+  }, [validationData, existingItems, newItems]);
 
   const withChangesCount = useMemo(() => {
+    if (!validationData) return 0;
     return (existingItems || []).filter((it) => it.hasChanges).length;
-  }, [existingItems]);
+  }, [validationData, existingItems]);
 
   const totalValuation = useMemo(() => {
+    if (!validationData) return 0;
     return allPreviewItems.reduce((acc, it) => {
       const stock = Number(it.currentStock) || 0;
       const cost = Number(it.unitCost) || 0;
       return acc + stock * cost;
     }, 0);
-  }, [allPreviewItems]);
+  }, [validationData, allPreviewItems]);
 
   const filteredItems = useMemo(() => {
+    if (!validationData) return [];
     let items = allPreviewItems;
     if (activeTab === 'new') {
       items = items.filter((it) => it.statusType === 'new');
@@ -105,7 +108,7 @@ export default function ItemImportValidationModal({
         String(it.category || '').toLowerCase().includes(term) ||
         String(it.storeLocation || '').toLowerCase().includes(term)
     );
-  }, [allPreviewItems, activeTab, search]);
+  }, [validationData, allPreviewItems, activeTab, search]);
 
   const handleCopyCodes = async () => {
     try {
@@ -125,6 +128,9 @@ export default function ItemImportValidationModal({
     }
     e.target.value = '';
   };
+
+  // Safe early return ONLY AFTER all hooks have executed
+  if (!open || !validationData) return null;
 
   return (
     <Modal
