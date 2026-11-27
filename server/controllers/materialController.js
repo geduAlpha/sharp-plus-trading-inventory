@@ -599,15 +599,17 @@ const exportMaterialsExcel = asyncHandler(async (req, res) => {
   res.send(buf);
 });
 
-// Helper to safely parse numeric values from Excel cells (strips currency symbols, commas, trailing text)
+// Helper to safely parse numeric values from Excel cells (strips currency symbols, commas, trailing text, handles accounting parens)
 function parseNumberClean(val, fallback = 0) {
   if (val === undefined || val === null || val === '') return fallback;
   if (typeof val === 'number') return isNaN(val) ? fallback : val;
   const s = String(val).replace(/,/g, '').trim();
-  const match = s.match(/-?\d+(?:\.\d+)?/);
+  const isNegative = /^\(.*\)$/.test(s) || s.startsWith('-') || /^-/.test(s);
+  const match = s.match(/\d+(?:\.\d+)?/);
   if (!match) return fallback;
   const num = parseFloat(match[0]);
-  return isNaN(num) ? fallback : num;
+  if (isNaN(num)) return fallback;
+  return isNegative ? -num : num;
 }
 
 // Helper to normalize item types to valid enum values
@@ -996,6 +998,18 @@ const validateMaterialsExcel = asyncHandler(async (req, res) => {
       if (hasCol(row, IMPORT_COLUMN_KEYS.unit) && unit.toLowerCase() !== String(dbExisting.unit || '').toLowerCase()) {
         fieldChanges.push({ field: 'Unit', old: dbExisting.unit, new: unit });
         parallelOverrides.unit = { old: dbExisting.unit, new: unit };
+      }
+      if (hasCol(row, IMPORT_COLUMN_KEYS.itemType) && itemType !== dbExisting.itemType) {
+        fieldChanges.push({ field: 'Item Type', old: dbExisting.itemType, new: itemType });
+        parallelOverrides.itemType = { old: dbExisting.itemType, new: itemType };
+      }
+      if (hasCol(row, IMPORT_COLUMN_KEYS.minStock) && Number(minStock) !== Number(dbExisting.minStock || 0)) {
+        fieldChanges.push({ field: 'Min Stock', old: dbExisting.minStock || 0, new: minStock });
+        parallelOverrides.minStock = { old: Number(dbExisting.minStock || 0), new: minStock };
+      }
+      if (hasCol(row, IMPORT_COLUMN_KEYS.maxStock) && Number(maxStock) !== Number(dbExisting.maxStock || 0)) {
+        fieldChanges.push({ field: 'Max Stock', old: dbExisting.maxStock || 0, new: maxStock });
+        parallelOverrides.maxStock = { old: Number(dbExisting.maxStock || 0), new: maxStock };
       }
       if (hasCol(row, IMPORT_COLUMN_KEYS.storeLocation) && storeLocation.toLowerCase() !== String(dbExisting.storeLocation || '').toLowerCase()) {
         fieldChanges.push({ field: 'Store', old: dbExisting.storeLocation, new: storeLocation });

@@ -59,7 +59,7 @@ api.interceptors.request.use((config) => {
 
   const stored =
     localStorage.getItem('companyStockAuth') ||
-    localStorage.getItem('hotelStockAuth');
+    localStorage.getItem('companyStockAuth');
   if (stored) {
     try {
       const { token } = JSON.parse(stored);
@@ -102,11 +102,11 @@ api.interceptors.response.use(
         // Only auto-logout if there was actually an active session
         const hadSession =
           !!localStorage.getItem('companyStockAuth') ||
-          !!localStorage.getItem('hotelStockAuth');
+          !!localStorage.getItem('companyStockAuth');
 
         if (hadSession) {
           localStorage.removeItem('companyStockAuth');
-          localStorage.removeItem('hotelStockAuth');
+          localStorage.removeItem('companyStockAuth');
           localStorage.removeItem('companyStockLastActivity');
 
           // Dispatch a custom event so React (AuthContext) can handle the redirect

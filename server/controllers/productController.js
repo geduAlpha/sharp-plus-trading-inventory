@@ -283,46 +283,252 @@ const exportProductsExcel = asyncHandler(async (req, res) => {
   res.send(buf);
 });
 
+// Helper to safely parse numeric values from Excel cells (strips currency symbols, commas, trailing text, handles accounting parens)
+function parseNumberClean(val, fallback = 0) {
+  if (val === undefined || val === null || val === '') return fallback;
+  if (typeof val === 'number') return isNaN(val) ? fallback : val;
+  const s = String(val).replace(/,/g, '').trim();
+  const isNegative = /^\(.*\)$/.test(s) || s.startsWith('-') || /^-/.test(s);
+  const match = s.match(/\d+(?:\.\d+)?/);
+  if (!match) return fallback;
+  const num = parseFloat(match[0]);
+  if (isNaN(num)) return fallback;
+  return isNegative ? -num : num;
+}
+
+// Column keys mapping dictionary supporting diverse Excel header aliases for Products/Articles
+const IMPORT_PRODUCT_COLUMN_KEYS = {
+  code: [
+    'code', 'itemcode', 'itemid', 'item_code', 'item_id', 'articlecode', 'articleno',
+    'article', 'itemno', 'productcode', 'partnumber', 'partno', 'artcode', 'artno',
+    'articlenumber', 'itemnumber', 'sku', 'ref', 'reference', 'id', 'productid',
+    'art', 'item#', 'art#', 'code#', 'article#', 'art_code', 'art_no'
+  ],
+  name: [
+    'name', 'itemname', 'item_name', 'articlename', 'productname', 'description',
+    'itemdescription', 'particulars', 'title', 'item', 'product', 'details',
+    'goods', 'commodity', 'specification', 'desc', 'article_name', 'product_name', 'item_title'
+  ],
+  category: [
+    'childcategory', 'category', 'itemcategory', 'categoryname', 'group', 'family',
+    'classification', 'class', 'department', 'section', 'cat', 'item_category'
+  ],
+  parentCategory: [
+    'parentcategory', 'department', 'supercategory', 'maincategory', 'division',
+    'parent_category', 'section', 'dept'
+  ],
+  uom: [
+    'uom', 'unit', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement',
+    'packing', 'pack', 'pkg', 'packaging'
+  ],
+  sellingPrice: [
+    'defaultvalue', 'sellingprice', 'price', 'rate', 'unitprice', 'val', 'default_value',
+    'selling_price', 'unit_price', 'priceetb', 'rateetb', 'amount', 'saleprice',
+    'retailprice', 'sellingpriceetb', 'unitcost', 'cost'
+  ],
+  description: [
+    'description', 'remark', 'remarks', 'note', 'notes', 'comment', 'desc', 'memo'
+  ],
+};
+
+function cleanHeader(str) {
+  return String(str || '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\[.*?\]/g, '')
+    .trim();
+}
+
+function normalizeColName(str) {
+  return cleanHeader(str).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getProductColVal(row, keyArray) {
+  const keys = Object.keys(row || {}).filter((k) => !k.startsWith('_'));
+  for (const target of keyArray) {
+    const targetNorm = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const k of keys) {
+      if (normalizeColName(k) === targetNorm) {
+        const v = row[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+    }
+  }
+  for (const target of keyArray) {
+    const targetNorm = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const k of keys) {
+      const rawNorm = String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (rawNorm === targetNorm) {
+        const v = row[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+    }
+  }
+  for (const target of keyArray) {
+    const targetNorm = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (targetNorm.length < 5) continue;
+    for (const k of keys) {
+      const colNorm = normalizeColName(k);
+      if (colNorm.includes(targetNorm) || (colNorm.length >= 6 && targetNorm.includes(colNorm))) {
+        const v = row[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+    }
+  }
+  return undefined;
+}
+
+function hasProductCol(row, keyArray) {
+  return getProductColVal(row, keyArray) !== undefined;
+}
+
+function extractProductRowsFromWorkbook(wb) {
+  if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) return [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) continue;
+    const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (!rawData || rawData.length === 0) continue;
+
+    let bestHeaderIdx = -1;
+    let maxKeywordScore = 0;
+    const KEYWORD_REGEX = /code|item|article|name|desc|product|price|uom|unit|category|department|rate|amount|value/i;
+
+    for (let r = 0; r < Math.min(rawData.length, 25); r++) {
+      const rowArr = rawData[r];
+      if (!Array.isArray(rowArr)) continue;
+      let score = 0;
+      for (const cell of rowArr) {
+        const str = String(cell || '').trim();
+        if (str && KEYWORD_REGEX.test(str)) score++;
+      }
+      if (score > maxKeywordScore) {
+        maxKeywordScore = score;
+        bestHeaderIdx = r;
+      }
+    }
+    if (bestHeaderIdx === -1 && rawData.length > 0) bestHeaderIdx = 0;
+    if (bestHeaderIdx === -1) continue;
+
+    const rawHeaders = rawData[bestHeaderIdx];
+    const headers = [];
+    for (let c = 0; c < rawHeaders.length; c++) {
+      const h = String(rawHeaders[c] || '').trim();
+      headers.push(h || `Column_${c + 1}`);
+    }
+
+    const rows = [];
+    for (let r = bestHeaderIdx + 1; r < rawData.length; r++) {
+      const rowArr = rawData[r];
+      if (!Array.isArray(rowArr)) continue;
+      const hasAnyVal = rowArr.some((val) => val !== undefined && val !== null && String(val).trim() !== '');
+      if (!hasAnyVal) continue;
+      const rowObj = {};
+      rowObj._rawRowNumber = r + 1;
+      for (let c = 0; c < headers.length; c++) {
+        rowObj[headers[c]] = rowArr[c] !== undefined ? rowArr[c] : '';
+      }
+      rows.push(rowObj);
+    }
+    if (rows.length > 0) return rows;
+  }
+  return [];
+}
+
 // POST /api/products/import/validate
-// Validates Products/Articles Excel rows before importing, detecting duplicate/existing item codes
+// Validates Products/Articles Excel rows before importing, detecting duplicate/existing item codes with parallel overrides
 const validateProductsExcel = asyncHandler(async (req, res) => {
-  if (!req.file) { res.status(400); throw new Error('No file uploaded'); }
+  if (!req.file || !req.file.buffer) {
+    res.status(400);
+    throw new Error('No Excel file uploaded');
+  }
 
-  const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  let wb;
+  try {
+    wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+  } catch (err) {
+    res.status(400);
+    throw new Error('Could not parse Excel file. Please ensure it is a valid spreadsheet.');
+  }
 
-  const validRows = rows.filter(row => {
-    const name = String(row['Name'] || row['Product Name'] || '').trim();
-    if (!name) return false;
-    if (/^Count:/i.test(name)) return false;
-    if (name.toLowerCase() === 'name') return false;
-    return true;
-  });
+  const rows = extractProductRowsFromWorkbook(wb);
+  if (!rows || rows.length === 0) {
+    res.status(400);
+    throw new Error('No data rows found in uploaded Excel file');
+  }
 
   const newItems = [];
   const existingItems = [];
   const fileCodesMap = new Map();
 
-  for (let i = 0; i < validRows.length; i++) {
-    const row = validRows[i];
-    const name = String(row['Name'] || row['Product Name'] || '').trim();
-    const rawCode = String(row['Code'] || '').trim();
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNumber = row._rawRowNumber || (i + 2);
+
+    const rawCode = String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.code) || '').trim();
     const code = rawCode.replace(/-+$/, '');
-    const rowNumber = i + 2;
+    let name = String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.name) || '').trim();
+
+    if (!name && !code) continue;
+    if (name && (/^Count:/i.test(name) || name.toLowerCase() === 'name')) continue;
+
+    let dbExisting = null;
+    if (code) {
+      const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      dbExisting = await Product.findOne({
+        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
+        deletedAt: null,
+      }).lean();
+    }
+
+    if (!dbExisting && !code && name) {
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      dbExisting = await Product.findOne({
+        name: { $regex: `^${escapedName}$`, $options: 'i' },
+        deletedAt: null,
+      }).lean();
+    }
+
+    if (dbExisting && !name) {
+      name = dbExisting.name;
+    }
+
+    const category = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.category)
+      ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.category)).trim()
+      : (dbExisting ? dbExisting.category : 'General');
+
+    const parentCategory = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.parentCategory)
+      ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.parentCategory)).trim()
+      : (dbExisting ? dbExisting.parentCategory : 'FOOD');
+
+    const uom = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.uom)
+      ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.uom)).trim()
+      : (dbExisting ? dbExisting.uom : 'Pcs');
+
+    const sellingPrice = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.sellingPrice)
+      ? parseNumberClean(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.sellingPrice), 0)
+      : (dbExisting ? Number(dbExisting.sellingPrice || 0) : 0);
+
+    const description = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.description)
+      ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.description)).trim()
+      : (dbExisting ? dbExisting.description || '' : '');
 
     const itemData = {
       rowNumber,
       code,
-      name,
-      uom: String(row['UOM'] || 'Pcs').trim(),
-      category: String(row['Child Category'] || row['Category'] || 'General').trim(),
-      parentCategory: String(row['Parent Category'] || 'FOOD').trim(),
-      sellingPrice: Number(row['Default Value'] ?? row['Selling Price'] ?? 0) || 0,
-      description: String(row['Description'] || '').trim(),
+      name: name || (code ? `Product ${code}` : `Product ${rowNumber}`),
+      category: category || 'General',
+      parentCategory: parentCategory || 'FOOD',
+      uom: uom || 'Pcs',
+      unit: uom || 'Pcs',
+      sellingPrice,
+      unitCost: sellingPrice,
+      description,
+      currentStock: 0,
+      storeLocation: 'Main Store',
+      isActive: true,
     };
 
-    // Check duplicate in file
+    // Duplicate inside file
     if (code && fileCodesMap.has(code.toLowerCase())) {
       existingItems.push({
         ...itemData,
@@ -330,6 +536,9 @@ const validateProductsExcel = asyncHandler(async (req, res) => {
         reason: `Product code "${code}" is repeated in uploaded file (Row ${fileCodesMap.get(code.toLowerCase())})`,
         existingCode: code,
         existingName: name,
+        hasChanges: true,
+        fieldChanges: [{ field: 'File Row', old: `Row ${fileCodesMap.get(code.toLowerCase())}`, new: `Row ${rowNumber}` }],
+        parallelOverrides: {},
       });
       continue;
     }
@@ -337,21 +546,37 @@ const validateProductsExcel = asyncHandler(async (req, res) => {
       fileCodesMap.set(code.toLowerCase(), rowNumber);
     }
 
-    // Check existing in DB
-    let dbExisting = null;
-    if (code) {
-      const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      dbExisting = await Product.findOne({
-        code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
-      }).lean();
-    }
-
-    if (!dbExisting) {
-      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      dbExisting = await Product.findOne({ name: { $regex: `^${escapedName}$`, $options: 'i' } }).lean();
-    }
-
     if (dbExisting) {
+      const fieldChanges = [];
+      const parallelOverrides = {};
+
+      if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.name) && name.toLowerCase() !== String(dbExisting.name || '').toLowerCase()) {
+        fieldChanges.push({ field: 'Name', old: dbExisting.name, new: name });
+        parallelOverrides.name = { old: dbExisting.name, new: name };
+      }
+      if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.category) && category.toLowerCase() !== String(dbExisting.category || '').toLowerCase()) {
+        fieldChanges.push({ field: 'Category', old: dbExisting.category, new: category });
+        parallelOverrides.category = { old: dbExisting.category, new: category };
+      }
+      if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.parentCategory) && parentCategory.toLowerCase() !== String(dbExisting.parentCategory || '').toLowerCase()) {
+        fieldChanges.push({ field: 'Department', old: dbExisting.parentCategory, new: parentCategory });
+        parallelOverrides.parentCategory = { old: dbExisting.parentCategory, new: parentCategory };
+      }
+      if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.uom) && uom.toLowerCase() !== String(dbExisting.uom || '').toLowerCase()) {
+        fieldChanges.push({ field: 'Unit / UOM', old: dbExisting.uom, new: uom });
+        parallelOverrides.uom = { old: dbExisting.uom, new: uom };
+        parallelOverrides.unit = { old: dbExisting.uom, new: uom };
+      }
+      if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.sellingPrice) && Number(sellingPrice) !== Number(dbExisting.sellingPrice || 0)) {
+        fieldChanges.push({ field: 'Price', old: `ETB ${dbExisting.sellingPrice || 0}`, new: `ETB ${sellingPrice}` });
+        parallelOverrides.sellingPrice = { old: Number(dbExisting.sellingPrice || 0), new: Number(sellingPrice) };
+        parallelOverrides.unitCost = { old: Number(dbExisting.sellingPrice || 0), new: Number(sellingPrice) };
+      }
+      if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.description) && String(description).trim() !== String(dbExisting.description || '').trim()) {
+        fieldChanges.push({ field: 'Description', old: dbExisting.description || '—', new: String(description).trim() });
+        parallelOverrides.description = { old: dbExisting.description || '—', new: String(description).trim() };
+      }
+
       existingItems.push({
         ...itemData,
         duplicateType: 'database_match',
@@ -363,6 +588,10 @@ const validateProductsExcel = asyncHandler(async (req, res) => {
         existingName: dbExisting.name,
         existingPrice: dbExisting.sellingPrice,
         existingCategory: dbExisting.category,
+        existingUnit: dbExisting.uom,
+        hasChanges: fieldChanges.length > 0,
+        fieldChanges,
+        parallelOverrides,
       });
     } else {
       newItems.push(itemData);
@@ -376,58 +605,225 @@ const validateProductsExcel = asyncHandler(async (req, res) => {
     newCount: newItems.length,
     existingCount: existingItems.length,
     existingItems,
+    newItems,
     newItemsSummary: newItems.slice(0, 50),
+    fileName: req.file.originalname,
     message: existingItems.length > 0
-      ? `Authentication alert: ${existingItems.length} existing/duplicate product code(s) detected out of ${total} items.`
+      ? `Authentication alert: ${existingItems.length} existing/duplicate product code(s) detected out of ${total} items. You can override changes or add new items only.`
       : `Authentication verified: All ${total} products are new and ready to import.`,
   });
 });
 
 // POST /api/products/import/excel
-// Accepts the Sharp Plus format:
-// Code | Name | UOM | Child Category | Parent Category | Default Value | Default Tax | Created On | State
+// Performs parallel column overrides for matching codes and inserts non-duplicate products
 const importProductsExcel = asyncHandler(async (req, res) => {
-  if (!req.file) { res.status(400); throw new Error('No file uploaded'); }
+  if (!req.file || !req.file.buffer) {
+    res.status(400);
+    throw new Error('No file uploaded');
+  }
 
-  const mode = req.body?.mode || req.query?.mode || 'default';
-  const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  const mode = req.body?.mode || req.query?.mode || 'override_duplicates';
+  let wb;
+  try {
+    wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+  } catch (err) {
+    res.status(400);
+    throw new Error('Could not parse Excel file. Please ensure it is a valid spreadsheet.');
+  }
 
-  // Pre-filter valid rows — only skip truly empty names and the "Count:" summary row
-  const validRows = rows.filter(row => {
-    const name = String(row['Name'] || row['Product Name'] || '').trim();
-    if (!name) return false;
-    // Skip the Excel summary row "Count: 203" etc.
-    if (/^Count:/i.test(name)) return false;
-    // Skip rows where Name is literally a header repeat
-    if (name.toLowerCase() === 'name') return false;
-    return true;
-  });
+  const rows = extractProductRowsFromWorkbook(wb);
+  if (!rows || rows.length === 0) {
+    res.status(400);
+    throw new Error('No data rows found in uploaded Excel file');
+  }
 
-  const total = validRows.length;
+  const total = rows.length;
   let created = 0;
   let updated = 0;
   let skipped = 0;
   const errors = [];
   const skippedItems = [];
-
-  // Use SSE (Server-Sent Events) to stream progress back to client
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
-
-  send({ type: 'start', total });
-
-  // Track which DB _ids have already been updated in THIS import run.
-  // If the same _id is matched again (duplicate row in Excel), we create a NEW product.
   const processedIds = new Set();
   const fileCodesMap = new Map();
 
-  for (let i = 0; i < validRows.length; i++) {
+  // Stream SSE events by default to feed the client-side reader
+  const isStream = req.query.stream !== 'false';
+  let send = () => {};
+  if (isStream) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+    send({ type: 'start', total });
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNumber = row._rawRowNumber || (i + 2);
+
+    const rawCode = String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.code) || '').trim();
+    const code = rawCode.replace(/-+$/, '');
+    let name = String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.name) || '').trim();
+
+    if (!name && !code) continue;
+    if (name && (/^Count:/i.test(name) || name.toLowerCase() === 'name')) continue;
+
+    let isFileDuplicate = false;
+    if (code && fileCodesMap.has(code.toLowerCase())) {
+      isFileDuplicate = true;
+    } else if (code) {
+      fileCodesMap.set(code.toLowerCase(), rowNumber);
+    }
+
+    try {
+      let existing = null;
+      if (code) {
+        const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        existing = await Product.findOne({
+          code: { $regex: `^${escapedCode}-?$`, $options: 'i' },
+          deletedAt: null,
+        });
+        if (existing && processedIds.has(existing._id.toString())) {
+          existing = null;
+        }
+      }
+
+      if (!existing && !code && name) {
+        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const byName = await Product.findOne({
+          name: { $regex: `^${escapedName}$`, $options: 'i' },
+          deletedAt: null,
+        });
+        if (byName && !processedIds.has(byName._id.toString())) {
+          existing = byName;
+        }
+      }
+
+      if (existing && !name) {
+        name = existing.name;
+      }
+
+      const category = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.category)
+        ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.category)).trim()
+        : (existing ? existing.category : 'General');
+
+      const parentCategory = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.parentCategory)
+        ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.parentCategory)).trim()
+        : (existing ? existing.parentCategory : 'FOOD');
+
+      const uom = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.uom)
+        ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.uom)).trim()
+        : (existing ? existing.uom : 'Pcs');
+
+      const sellingPrice = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.sellingPrice)
+        ? parseNumberClean(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.sellingPrice), 0)
+        : (existing ? Number(existing.sellingPrice || 0) : 0);
+
+      const description = hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.description)
+        ? String(getProductColVal(row, IMPORT_PRODUCT_COLUMN_KEYS.description)).trim()
+        : (existing ? existing.description || '' : '');
+
+      if (mode === 'skip_duplicates') {
+        if (existing || isFileDuplicate) {
+          skipped++;
+          skippedItems.push({
+            code: code || existing?.code || `Row ${rowNumber}`,
+            name: name || existing?.name || `Product ${rowNumber}`,
+            reason: isFileDuplicate ? 'Duplicate code in Excel' : `Existing product code (${existing?.code || code}) in system`,
+          });
+          continue;
+        }
+
+        const created_ = await Product.create({
+          code,
+          name: name || (code ? `Product ${code}` : `Product ${rowNumber}`),
+          category: category || 'General',
+          parentCategory: parentCategory || 'FOOD',
+          uom: uom || 'Pcs',
+          sellingPrice,
+          description,
+          ingredients: [],
+          isActive: true,
+        });
+        processedIds.add(created_._id.toString());
+        created++;
+      } else if (existing) {
+        // Parallel override of columns present in Excel row
+        if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.name) && name) existing.name = name;
+        if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.code) && code) existing.code = code;
+        if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.category) && category) existing.category = category;
+        if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.parentCategory) && parentCategory) existing.parentCategory = parentCategory;
+        if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.uom) && uom) existing.uom = uom;
+        if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.sellingPrice)) existing.sellingPrice = sellingPrice;
+        if (hasProductCol(row, IMPORT_PRODUCT_COLUMN_KEYS.description)) existing.description = description;
+        existing.isActive = true;
+        await existing.save();
+        processedIds.add(existing._id.toString());
+        updated++;
+      } else {
+        const created_ = await Product.create({
+          code,
+          name: name || (code ? `Product ${code}` : `Product ${rowNumber}`),
+          category: category || 'General',
+          parentCategory: parentCategory || 'FOOD',
+          uom: uom || 'Pcs',
+          sellingPrice,
+          description,
+          ingredients: [],
+          isActive: true,
+        });
+        processedIds.add(created_._id.toString());
+        created++;
+      }
+    } catch (err) {
+      errors.push(`Row ${rowNumber} "${name}": ${err.message}`);
+      skipped++;
+    }
+
+    if (isStream) {
+      send({
+        type: 'progress',
+        current: i + 1,
+        total,
+        percent: Math.round(((i + 1) / total) * 100),
+        created,
+        updated,
+        skipped,
+      });
+    }
+  }
+
+  invalidateDashboardCache();
+
+  const summaryMsg = mode === 'skip_duplicates'
+    ? `Import complete: ${created} new products pushed to system. ${skipped} existing codes skipped.`
+    : `Import complete: ${created} new products created, ${updated} existing products overridden with parallel column changes.`;
+
+  if (isStream) {
+    send({
+      type: 'done',
+      created,
+      updated,
+      skipped,
+      total,
+      errors,
+      skippedCodes: skippedItems.map(it => it.code),
+      message: summaryMsg,
+    });
+    res.end();
+  } else {
+    res.json({
+      success: true,
+      message: summaryMsg,
+      created,
+      updated,
+      skipped,
+      errors,
+      skippedCodes: skippedItems.map(it => it.code),
+    });
+  }
+});
     const row = validRows[i];
 
     const name = String(row['Name'] || row['Product Name'] || '').trim();

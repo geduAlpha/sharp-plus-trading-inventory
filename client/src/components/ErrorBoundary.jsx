@@ -14,7 +14,7 @@ export default class ErrorBoundary extends React.Component {
       try {
         window.location.reload();
         return { hasError: false, error: null };
-      } catch {}
+      } catch { }
     }
     return { hasError: true, error };
   }
@@ -26,7 +26,7 @@ export default class ErrorBoundary extends React.Component {
   handleReset = () => {
     try {
       localStorage.removeItem('companyStockAuth');
-      localStorage.removeItem('hotelStockAuth');
+      localStorage.removeItem('companyStockAuth');
       localStorage.removeItem('companyStockPermissions');
       localStorage.removeItem('companyStockNavVisibility');
     } catch { }

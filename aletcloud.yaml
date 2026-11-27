@@ -9,7 +9,7 @@
 # 3. Select your repository and this file will be used automatically
 # 4. Set the required Environment Variables in the Aletcloud dashboard:
 #       MONGO_URI      = mongodb+srv://sharpplus:SharpPlus2026!@cluster0...
-#       JWT_SECRET     = hotel_stock_jwt_secret_key_super_secure_2026
+#       JWT_SECRET     = company_stock_jwt_secret_key_super_secure_2026
 #       JWT_EXPIRES_IN = 7d
 #       NODE_ENV       = production
 #       PUBLIC_URL     = https://<your-app-name>.aletcloud.com

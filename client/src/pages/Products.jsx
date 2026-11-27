@@ -231,14 +231,12 @@ const Products = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      if (valRes.data?.hasDuplicates) {
-        // Step 2: Existing item codes detected — prompt user with validation modal
-        setImportValidationData(valRes.data);
-        setImportValidationOpen(true);
-      } else {
-        // No duplicate codes: directly push all items
-        await executeImport(file, 'skip_duplicates');
-      }
+      // ALWAYS open preview modal so user can inspect parallel columns, diffs, or resubmit before committing
+      setImportValidationData({
+        ...valRes.data,
+        fileName: file.name,
+      });
+      setImportValidationOpen(true);
     } catch (err) {
       setImportResult({
         message: err.response?.data?.message ?? 'Validation failed. Please verify the Excel structure.',
@@ -991,6 +989,7 @@ const Products = () => {
         validationData={importValidationData}
         onConfirmPushNewOnly={() => executeImport(pendingImportFile, 'skip_duplicates')}
         onConfirmPushAll={() => executeImport(pendingImportFile, 'update_all')}
+        onResubmitFile={(file) => handleImport({ target: { files: [file] } })}
         loading={Boolean(importProgress?.running)}
         title="Authenticate & Validate Products / Articles Import"
       />

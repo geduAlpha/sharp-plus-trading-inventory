@@ -26,7 +26,7 @@ Go to your app → **Environment** tab and add these variables:
 | `NODE_ENV` | `production` |
 | `PORT` | `5000` |
 | `MONGO_URI` | `mongodb+srv://sharpplus:SharpPlus2026!@cluster0.dihvcpk.mongodb.net/sharp_plus_db?retryWrites=true&w=majority` |
-| `JWT_SECRET` | `hotel_stock_jwt_secret_key_super_secure_2026` |
+| `JWT_SECRET` | `company_stock_jwt_secret_key_super_secure_2026` |
 | `JWT_EXPIRES_IN` | `7d` |
 | `PUBLIC_URL` | `https://YOUR-APP-NAME.aletcloud.com` |
 | `CLIENT_URL` | `https://YOUR-APP-NAME.aletcloud.com` |

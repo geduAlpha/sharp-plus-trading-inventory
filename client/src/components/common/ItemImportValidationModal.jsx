@@ -363,10 +363,10 @@ export default function ItemImportValidationModal({
                     <tr>
                       <th className="py-2 px-2.5 w-10 text-slate-400">#</th>
                       <th className="py-2 px-2.5">Item Code</th>
-                      <th className="py-2 px-2.5">Item Name</th>
+                      <th className="py-2 px-2.5">Item / Article Name</th>
                       <th className="py-2 px-2.5">Category</th>
-                      <th className="py-2 px-2.5">Unit</th>
-                      <th className="py-2 px-2.5 text-right">Unit Cost</th>
+                      <th className="py-2 px-2.5">Unit / UOM</th>
+                      <th className="py-2 px-2.5 text-right">Unit Cost / Price</th>
                       <th className="py-2 px-2.5 text-center">Stock</th>
                       <th className="py-2 px-2.5">Store</th>
                       <th className="py-2 px-2.5 text-center">Status</th>
@@ -421,37 +421,37 @@ export default function ItemImportValidationModal({
 
                             {/* Parallel Column: Category */}
                             <td className="py-2 px-2.5 whitespace-nowrap">
-                              {po.category ? (
+                              {po.category || po.parentCategory ? (
                                 <div className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-950 text-[10px]">
-                                  <span className="line-through text-slate-400 mr-1">{po.category.old}</span>
-                                  <span className="font-bold text-blue-900">{po.category.new}</span>
+                                  <span className="line-through text-slate-400 mr-1">{(po.category || po.parentCategory).old}</span>
+                                  <span className="font-bold text-blue-900">{(po.category || po.parentCategory).new}</span>
                                 </div>
                               ) : (
-                                <span className="text-slate-600">{item.category || 'General'}</span>
+                                <span className="text-slate-600">{item.category || item.parentCategory || 'General'}</span>
                               )}
                             </td>
 
-                            {/* Parallel Column: Unit */}
+                            {/* Parallel Column: Unit / UOM */}
                             <td className="py-2 px-2.5 whitespace-nowrap">
-                              {po.unit ? (
+                              {po.unit || po.uom ? (
                                 <div className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-950 text-[10px]">
-                                  <span className="line-through text-slate-400 mr-1">{po.unit.old}</span>
-                                  <span className="font-bold text-blue-900">{po.unit.new}</span>
+                                  <span className="line-through text-slate-400 mr-1">{(po.unit || po.uom).old}</span>
+                                  <span className="font-bold text-blue-900">{(po.unit || po.uom).new}</span>
                                 </div>
                               ) : (
-                                <span className="text-slate-600">{item.unit || 'pcs'}</span>
+                                <span className="text-slate-600">{item.unit || item.uom || 'pcs'}</span>
                               )}
                             </td>
 
-                            {/* Parallel Column: Unit Cost */}
+                            {/* Parallel Column: Unit Cost / Price */}
                             <td className="py-2 px-2.5 text-right whitespace-nowrap font-mono">
-                              {po.unitCost ? (
+                              {po.unitCost || po.sellingPrice ? (
                                 <div className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-950 text-[10px]">
-                                  <span className="line-through text-slate-400 block">ETB {Number(po.unitCost.old).toFixed(2)}</span>
-                                  <span className="font-bold text-blue-900 block">ETB {Number(po.unitCost.new).toFixed(2)}</span>
+                                  <span className="line-through text-slate-400 block">ETB {Number((po.unitCost || po.sellingPrice).old).toFixed(2)}</span>
+                                  <span className="font-bold text-blue-900 block">ETB {Number((po.unitCost || po.sellingPrice).new).toFixed(2)}</span>
                                 </div>
                               ) : (
-                                <span>ETB {Number(item.unitCost || 0).toFixed(2)}</span>
+                                <span>ETB {Number(item.unitCost ?? item.sellingPrice ?? 0).toFixed(2)}</span>
                               )}
                             </td>
 

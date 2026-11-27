@@ -307,7 +307,7 @@ export const AuthProvider = ({ children }) => {
       }
       // Sync fresh user custom permissions if session is active
       try {
-        const stored = localStorage.getItem('companyStockAuth') || localStorage.getItem('hotelStockAuth');
+        const stored = localStorage.getItem('companyStockAuth') || localStorage.getItem('companyStockAuth');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed?.token) {
@@ -355,10 +355,10 @@ export const AuthProvider = ({ children }) => {
       if (cachedRP) setRolePermissions(JSON.parse(cachedRP));
       if (cachedNV) setNavVisibility(JSON.parse(cachedNV));
       if (cachedME) {
-        try { setModulesEnabled(JSON.parse(cachedME)); } catch {}
+        try { setModulesEnabled(JSON.parse(cachedME)); } catch { }
       }
       if (cachedCI) {
-        try { setCompanyInfo(JSON.parse(cachedCI)); } catch {}
+        try { setCompanyInfo(JSON.parse(cachedCI)); } catch { }
       }
       return null;
     }
@@ -369,7 +369,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const stored =
           localStorage.getItem('companyStockAuth') ||
-          localStorage.getItem('hotelStockAuth');
+          localStorage.getItem('companyStockAuth');
 
         if (stored) {
           const parsed = JSON.parse(stored);
@@ -380,7 +380,7 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         console.error('Failed to parse auth token:', err);
         localStorage.removeItem('companyStockAuth');
-        localStorage.removeItem('hotelStockAuth');
+        localStorage.removeItem('companyStockAuth');
       } finally {
         await fetchPermissions();
         setLoading(false);
@@ -482,7 +482,7 @@ export const AuthProvider = ({ children }) => {
     if (emailOrData && typeof emailOrData === 'object') {
       const userData = emailOrData;
       localStorage.setItem('companyStockAuth', JSON.stringify(userData));
-      localStorage.removeItem('hotelStockAuth');
+      localStorage.removeItem('companyStockAuth');
       setUser(userData);
       await fetchPermissions();
       return userData;
@@ -503,7 +503,7 @@ export const AuthProvider = ({ children }) => {
 
       // Persist and activate session
       localStorage.setItem('companyStockAuth', JSON.stringify(userData));
-      localStorage.removeItem('hotelStockAuth');
+      localStorage.removeItem('companyStockAuth');
       // Reset session activity timestamp so the timeout clock starts fresh
       localStorage.setItem('companyStockLastActivity', String(Date.now()));
       setUser(userData);
@@ -519,7 +519,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = (navigate) => {
     localStorage.removeItem('companyStockAuth');
-    localStorage.removeItem('hotelStockAuth');
+    localStorage.removeItem('companyStockAuth');
     localStorage.removeItem('companyStockLastActivity');
     clearSettingsCache();
     setUser(null);
@@ -970,7 +970,7 @@ export const AuthProvider = ({ children }) => {
       if (data.token) {
         const authData = data.user ? { ...data.user, token: data.token } : data;
         localStorage.setItem('companyStockAuth', JSON.stringify(authData));
-        localStorage.removeItem('hotelStockAuth');
+        localStorage.removeItem('companyStockAuth');
         localStorage.setItem('companyStockLastActivity', String(Date.now()));
         setUser(authData);
       }
