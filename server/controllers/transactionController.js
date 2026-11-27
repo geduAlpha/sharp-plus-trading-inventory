@@ -435,13 +435,24 @@ const createTransaction = asyncHandler(async (req, res) => {
       }
     }
 
-    const systemStock = item.systemStock !== undefined ? Number(item.systemStock) : (mat.currentStock || 0);
+    const { getStoreStock } = require('../utils/stockBalanceHelper');
+    const detectedAvailable = getStoreStock(mat, itemLocation || assignedStoreLocation || 'Main Store');
+    const openingBal = item.openingBalance !== undefined ? Number(item.openingBalance) : (item.systemStock !== undefined ? Number(item.systemStock) : detectedAvailable);
+    const finalBal = direction === 'in'
+      ? Math.round((openingBal + Number(item.quantity)) * 10000) / 10000
+      : Math.round((openingBal - Number(item.quantity)) * 10000) / 10000;
+
+    const systemStock = openingBal;
     const physicalCount = (item.physicalCount !== null && item.physicalCount !== undefined && item.physicalCount !== '') ? Number(item.physicalCount) : null;
-    const projectedBalance = item.projectedBalance !== undefined ? Number(item.projectedBalance) : (direction === 'in' ? systemStock + Number(item.quantity) : systemStock - Number(item.quantity));
+    const projectedBalance = item.projectedBalance !== undefined ? Number(item.projectedBalance) : finalBal;
     const reconciliationNote = (item.reconciliationNote || '').trim();
 
     resolvedItems.push({
       material: mat._id,
+      articleCode: mat.code || item.articleCode || '',
+      articleName: mat.name || item.articleName || '',
+      materialCode: mat.code || '',
+      materialName: mat.name || '',
       quantity: Number(item.quantity),
       uom: item.uom || mat.unit || '',
       unitCost,
@@ -450,6 +461,14 @@ const createTransaction = asyncHandler(async (req, res) => {
       serialNumber,
       category,
       storeLocation: itemLocation,
+      openingBalance: openingBal,
+      initialStock: openingBal,
+      availableStock: openingBal,
+      stockBalance: finalBal,
+      remainingStock: finalBal,
+      finalStock: finalBal,
+      itemsSoldOut: direction === 'out' ? Number(item.quantity) : 0,
+      deductQuantity: direction === 'out' ? Number(item.quantity) : 0,
       systemStock,
       physicalCount,
       projectedBalance,
@@ -464,8 +483,9 @@ const createTransaction = asyncHandler(async (req, res) => {
     });
   }
 
-  // Enforce negative stock validation for any outward voucher (NSAV, disposal, sales)
-  if (direction === 'out') {
+  // Enforce negative stock validation for outward vouchers unless negative adjustment or approved
+  const isAdjustmentOrApprovedOut = canonicalVoucherType === 'neg_adjustment' || canonicalVoucherType === 'nsav' || req.body.allowNegativeStock === true;
+  if (direction === 'out' && !isAdjustmentOrApprovedOut) {
     const val = await validateStockForReduction(resolvedItems, assignedStoreLocation);
     if (!val.valid) {
       res.status(400);
@@ -568,8 +588,38 @@ const createTransaction = asyncHandler(async (req, res) => {
     material:  firstItem.material,
     quantity:  firstItem.quantity,
     unitCost:  firstItem.unitCost,
-    items:     resolvedItems.map(({ material, quantity, uom, unitCost, discount, additionalCharge, serialNumber, category, storeLocation, systemStock, physicalCount, projectedBalance, reconciliationNote, taxRate, taxAmount, subTotal, sellingPrice, totalCost, totalRevenue }) => ({
-      material, quantity, uom, unitCost, discount, additionalCharge, serialNumber, category, storeLocation, systemStock, physicalCount, projectedBalance, reconciliationNote, taxRate, taxAmount, subTotal, sellingPrice, totalCost, totalRevenue
+    items:     resolvedItems.map(it => ({
+      material: it.material,
+      articleCode: it.articleCode || '',
+      articleName: it.articleName || '',
+      materialCode: it.materialCode || '',
+      materialName: it.materialName || '',
+      quantity: it.quantity,
+      uom: it.uom,
+      unitCost: it.unitCost,
+      discount: it.discount,
+      additionalCharge: it.additionalCharge,
+      serialNumber: it.serialNumber,
+      category: it.category,
+      storeLocation: it.storeLocation,
+      openingBalance: it.openingBalance,
+      initialStock: it.initialStock,
+      availableStock: it.availableStock,
+      stockBalance: it.stockBalance,
+      remainingStock: it.remainingStock,
+      finalStock: it.finalStock,
+      itemsSoldOut: it.itemsSoldOut,
+      deductQuantity: it.deductQuantity,
+      systemStock: it.systemStock,
+      physicalCount: it.physicalCount,
+      projectedBalance: it.projectedBalance,
+      reconciliationNote: it.reconciliationNote,
+      taxRate: it.taxRate,
+      taxAmount: it.taxAmount,
+      subTotal: it.subTotal,
+      sellingPrice: it.sellingPrice,
+      totalCost: it.totalCost,
+      totalRevenue: it.totalRevenue,
     })),
     reason:    reason || (isSale ? `${voucherType === 'cash_sale' ? 'Cash Sale' : 'Credit Sale'}` : ''),
     reference: reference || '',
@@ -628,7 +678,7 @@ const createTransaction = asyncHandler(async (req, res) => {
   try {
     const shouldApplyStockOnPrepare = ['cash_grv', 'credit_grv', 'fresh_bazaar', 'pos_adjustment', 'neg_adjustment', 'psav', 'nsav'].includes(canonicalVoucherType);
     if (shouldApplyStockOnPrepare) {
-      if (direction === 'out') {
+      if (direction === 'out' && !isAdjustmentOrApprovedOut) {
         const val = await validateStockForReduction(resolvedItems, assignedStoreLocation, session);
         if (!val.valid) {
           throw new Error(val.error);
@@ -822,13 +872,24 @@ const updateTransaction = asyncHandler(async (req, res) => {
       }
     }
 
-    const systemStock = item.systemStock !== undefined ? Number(item.systemStock) : (mat.currentStock || 0);
+    const { getStoreStock } = require('../utils/stockBalanceHelper');
+    const detectedAvailable = getStoreStock(mat, itemLocation || transaction.storeLocation || 'Main Store');
+    const openingBal = item.openingBalance !== undefined ? Number(item.openingBalance) : (item.systemStock !== undefined ? Number(item.systemStock) : detectedAvailable);
+    const finalBal = newDirection === 'in'
+      ? Math.round((openingBal + Number(item.quantity)) * 10000) / 10000
+      : Math.round((openingBal - Number(item.quantity)) * 10000) / 10000;
+
+    const systemStock = openingBal;
     const physicalCount = (item.physicalCount !== null && item.physicalCount !== undefined && item.physicalCount !== '') ? Number(item.physicalCount) : null;
-    const projectedBalance = item.projectedBalance !== undefined ? Number(item.projectedBalance) : (newDirection === 'in' ? systemStock + Number(item.quantity) : systemStock - Number(item.quantity));
+    const projectedBalance = item.projectedBalance !== undefined ? Number(item.projectedBalance) : finalBal;
     const reconciliationNote = (item.reconciliationNote || '').trim();
 
     resolvedItems.push({
       material: mat._id,
+      articleCode: mat.code || item.articleCode || '',
+      articleName: mat.name || item.articleName || '',
+      materialCode: mat.code || '',
+      materialName: mat.name || '',
       quantity: Number(item.quantity),
       uom: item.uom || mat.unit || '',
       unitCost,
@@ -837,6 +898,14 @@ const updateTransaction = asyncHandler(async (req, res) => {
       serialNumber,
       category,
       storeLocation: itemLocation,
+      openingBalance: openingBal,
+      initialStock: openingBal,
+      availableStock: openingBal,
+      stockBalance: finalBal,
+      remainingStock: finalBal,
+      finalStock: finalBal,
+      itemsSoldOut: newDirection === 'out' ? Number(item.quantity) : 0,
+      deductQuantity: newDirection === 'out' ? Number(item.quantity) : 0,
       systemStock,
       physicalCount,
       projectedBalance,
@@ -876,7 +945,8 @@ const updateTransaction = asyncHandler(async (req, res) => {
 
     // 2. Validate negative stock reduction for new items if stock is to be applied
     const assignedStore = req.body.storeLocation || req.body.consigneeUnit || transaction.storeLocation || 'Main Store';
-    if (mustApplyStock && newDirection === 'out') {
+    const isAdjustmentOrApprovedOut = voucherType === 'neg_adjustment' || voucherType === 'nsav' || req.body.allowNegativeStock === true;
+    if (mustApplyStock && newDirection === 'out' && !isAdjustmentOrApprovedOut) {
       const val = await validateStockForReduction(resolvedItems, assignedStore, session);
       if (!val.valid) {
         throw new Error(val.error);
@@ -936,8 +1006,36 @@ const updateTransaction = asyncHandler(async (req, res) => {
     transaction.material    = firstItem.material;
     transaction.quantity    = firstItem.quantity;
     transaction.unitCost    = firstItem.unitCost;
-    transaction.items       = resolvedItems.map(({ material, quantity, uom, unitCost, discount, additionalCharge, serialNumber, category, storeLocation, systemStock, physicalCount, projectedBalance, reconciliationNote, taxRate, taxAmount, subTotal, totalCost }) => ({
-      material, quantity, uom: uom || '', unitCost, discount: discount || 0, additionalCharge: additionalCharge || 0, serialNumber: serialNumber || '', category: category || '', storeLocation: storeLocation || '', systemStock: systemStock || 0, physicalCount, projectedBalance: projectedBalance || 0, reconciliationNote: reconciliationNote || '', taxRate: taxRate || 15, taxAmount: taxAmount || 0, subTotal: subTotal || totalCost, totalCost
+    transaction.items       = resolvedItems.map(it => ({
+      material: it.material,
+      articleCode: it.articleCode || '',
+      articleName: it.articleName || '',
+      materialCode: it.materialCode || '',
+      materialName: it.materialName || '',
+      quantity: it.quantity,
+      uom: it.uom || '',
+      unitCost: it.unitCost,
+      discount: it.discount || 0,
+      additionalCharge: it.additionalCharge || 0,
+      serialNumber: it.serialNumber || '',
+      category: it.category || '',
+      storeLocation: it.storeLocation || '',
+      openingBalance: it.openingBalance,
+      initialStock: it.initialStock,
+      availableStock: it.availableStock,
+      stockBalance: it.stockBalance,
+      remainingStock: it.remainingStock,
+      finalStock: it.finalStock,
+      itemsSoldOut: it.itemsSoldOut,
+      deductQuantity: it.deductQuantity,
+      systemStock: it.systemStock || 0,
+      physicalCount: it.physicalCount,
+      projectedBalance: it.projectedBalance || 0,
+      reconciliationNote: it.reconciliationNote || '',
+      taxRate: it.taxRate || 15,
+      taxAmount: it.taxAmount || 0,
+      subTotal: it.subTotal || it.totalCost,
+      totalCost: it.totalCost,
     }));
     transaction.reason      = reason || '';
     transaction.reference   = reference || '';

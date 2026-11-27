@@ -152,15 +152,22 @@ const applyStockMovement = async (items, direction, session = null, options = {}
     mat.currentStock = Math.round(((mat.currentStock || 0) + delta) * 10000) / 10000;
     mat.markModified('storeBalances');
 
-    // WAC (Weighted Average Cost) update for IN movements with valid unitCost
-    if (updateWac && direction === 'in' && Number(item.unitCost) > 0) {
-      const oldStock = (mat.currentStock - qty) > 0 ? (mat.currentStock - qty) : 0;
-      const oldCost  = mat.unitCost || 0;
-      const inCost   = Number(item.unitCost) || oldCost;
-      const totalQty = oldStock + qty;
-      if (totalQty > 0) {
-        mat.unitCost = Math.round((((oldStock * oldCost) + (qty * inCost)) / totalQty) * 10000) / 10000;
-      }
+    // Update article unitCost to the added value if provided on GRV or positive adjustments
+    if (Number(item.unitCost) > 0 && (direction === 'in' || updateWac || options.updateCost)) {
+      mat.unitCost = Number(item.unitCost);
+    }
+
+    // Sync matching product default selling price / value if article code is linked
+    if (mat.code) {
+      try {
+        const Product = require('../models/Product');
+        const syncUpdate = { $set: { sellingPrice: Number(item.sellingPrice || item.unitCost) } };
+        if (session) {
+          await Product.updateMany({ code: mat.code, deletedAt: null }, syncUpdate, { session });
+        } else {
+          await Product.updateMany({ code: mat.code, deletedAt: null }, syncUpdate);
+        }
+      } catch { /* ignore non-blocking product sync */ }
     }
 
     await mat.save({ session: session || undefined });

@@ -9,7 +9,7 @@ console.log('[STARTUP] JWT_SECRET set:', !!process.env.JWT_SECRET);
 
 // ── Process-level error protection for Node v26 ────────────────────────
 process.on('uncaughtException', (err) => {
-  console.error('[UNCAUGHT EXCEPTION]:', err?.message || err);
+  console.error('[UNCAUGHT EXCEPTION]:', err?.stack || err?.message || err);
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[UNHANDLED REJECTION]:', reason?.message || reason);
