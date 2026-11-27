@@ -1145,32 +1145,58 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
       const debitQty = isOut ? 0 : qty;
       const creditQty = isOut ? qty : 0;
 
-      // Determine batch number
+      // Determine batch number:
+      // If a physical batch or serial number is specifically assigned, group under that batch.
+      // Otherwise, group under the article's main stock batch so running balance tracks continuously!
       let batchNumber = '';
       if (item.batchNumber && String(item.batchNumber).trim()) {
         batchNumber = String(item.batchNumber).trim();
-      } else if (item.serialNumber && String(item.serialNumber).trim()) {
+      } else if (item.serialNumber && String(item.serialNumber).trim() && !item.serialNumber.startsWith('TXN') && !item.serialNumber.startsWith('SALE') && !item.serialNumber.startsWith('GRV')) {
         batchNumber = String(item.serialNumber).trim();
-      } else if (txn.reference && String(txn.reference).trim()) {
-        batchNumber = String(txn.reference).trim();
-      } else if (txn.voucherNo && String(txn.voucherNo).trim()) {
-        batchNumber = 'BN-' + String(txn.voucherNo).trim();
       } else {
-        batchNumber = 'BN-' + txn._id.toString().slice(-6).toUpperCase();
+        batchNumber = entry.material.code ? 'BN-' + String(entry.material.code).trim() : 'BN-MAIN';
       }
 
       if (!entry.batches[batchNumber]) {
+        // Detect initial available opening balance for this article batch
+        const initialBal = Number((entry.material.openingBalance !== undefined && entry.material.openingBalance !== null)
+          ? entry.material.openingBalance
+          : (entry.material.currentStock || 0));
+
         entry.batches[batchNumber] = {
           batchNumber,
           totalDebit: 0,
           totalCredit: 0,
-          runningBalance: 0,
+          runningBalance: initialBal,
           firstDate: txnDate,
-          transactions: [],
+          transactions: initialBal !== 0 ? [
+            {
+              txnId: entry.material._id,
+              voucher: 'OPENING-BAL',
+              voucherType: 'Opening Balance',
+              consignee: entry.material.storeLocation || 'Main Store',
+              date: entry.material.createdAt || txnDate,
+              unitAmount: Number(entry.material.unitCost || 0),
+              openingBalance: initialBal,
+              availableStock: initialBal,
+              debitQuantity: initialBal > 0 ? initialBal : 0,
+              creditQuantity: initialBal < 0 ? Math.abs(initialBal) : 0,
+              deductedQuantity: 0,
+              balance: initialBal,
+              lastBalance: initialBal,
+              stockBalance: initialBal,
+              score: '100% (Verified)',
+              batchNumber,
+              articleCode: entry.material.code || '',
+              articleName: entry.material.name || '',
+              enquiryDate: effectiveEnquiryDate,
+            }
+          ] : [],
         };
       }
 
       const batchObj = entry.batches[batchNumber];
+      const detectedAvailableStock = batchObj.runningBalance;
       batchObj.runningBalance = Number((batchObj.runningBalance + debitQty - creditQty).toFixed(4));
       batchObj.totalDebit = Number((batchObj.totalDebit + debitQty).toFixed(4));
       batchObj.totalCredit = Number((batchObj.totalCredit + creditQty).toFixed(4));
@@ -1182,11 +1208,18 @@ const getSerialBinCardReport = asyncHandler(async (req, res) => {
         consignee,
         date: txnDate,
         unitAmount: Number(unitAmount.toFixed(2)),
+        openingBalance: Number(detectedAvailableStock.toFixed(4)),
+        availableStock: Number(detectedAvailableStock.toFixed(4)),
         debitQuantity: debitQty,
         creditQuantity: creditQty,
+        deductedQuantity: creditQty,
         balance: batchObj.runningBalance,
+        lastBalance: batchObj.runningBalance,
+        stockBalance: batchObj.runningBalance,
         score,
         batchNumber,
+        articleCode: entry.material.code || '',
+        articleName: entry.material.name || '',
         enquiryDate: effectiveEnquiryDate,
       });
     }

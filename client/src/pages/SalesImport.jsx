@@ -1185,7 +1185,9 @@ export default function SalesImport() {
                       <th className="px-3 py-2.5 text-left">Code</th>
                       <th className="px-3 py-2.5 text-left">Product Name</th>
                       <th className="px-3 py-2.5 text-left">Category</th>
+                      <th className="px-3 py-2.5 text-right">Available Stock</th>
                       <th className="px-3 py-2.5 text-right">Qty Sold</th>
+                      <th className="px-3 py-2.5 text-right">Last Balance</th>
                       <th className="px-3 py-2.5 text-right">Selling Price</th>
                       <th className="px-3 py-2.5 text-right">Total Revenue</th>
                       <th className="px-3 py-2.5 text-center">Status</th>
@@ -1196,18 +1198,36 @@ export default function SalesImport() {
                   </thead>
                   <tbody className="divide-y divide-ink-100">
                     {displayedSoldProducts.length === 0 && (
-                      <tr><td colSpan={11} className="px-4 py-8 text-center text-ink-400">No items match the filter.</td></tr>
+                      <tr><td colSpan={13} className="px-4 py-8 text-center text-ink-400">No items match the filter.</td></tr>
                     )}
                     {displayedSoldProducts.map((item, idx) => (
                       <React.Fragment key={idx}>
                         <tr className="hover:bg-blue-50/20 transition-colors">
                           <td className="px-3 py-2 text-ink-400 font-mono text-[11px]">{idx + 1}</td>
-                          <td className="px-3 py-2 font-mono text-ink-600 whitespace-nowrap">{item.productCode || '—'}</td>
-                          <td className="px-3 py-2 font-semibold text-ink-900 whitespace-nowrap">{item.productName}</td>
+                          <td className="px-3 py-2 font-mono text-ink-600 whitespace-nowrap">{item.productCode || item.articleCode || '—'}</td>
+                          <td className="px-3 py-2 font-semibold text-ink-900 whitespace-nowrap">{item.productName || item.articleName}</td>
                           <td className="px-3 py-2 text-ink-500 whitespace-nowrap">
                             <span className="text-[10px] bg-ink-100 text-ink-600 px-1.5 py-0.5 rounded">{item.category || 'General'}</span>
                           </td>
-                          <td className="px-3 py-2 text-right tabular font-bold text-ink-900">{item.quantitySold} {item.uom || ''}</td>
+                          <td className="px-3 py-2 text-right tabular font-mono text-slate-700">
+                            {item.availableStock !== null && item.availableStock !== undefined
+                              ? `${fmt(item.availableStock)} ${item.uom || ''}`
+                              : (item.openingBalance !== null && item.openingBalance !== undefined
+                                  ? `${fmt(item.openingBalance)} ${item.uom || ''}`
+                                  : '—')}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular font-bold text-rose-700 font-mono">
+                            −{item.quantitySold} {item.uom || ''}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular font-bold font-mono">
+                            {(item.remainingStock !== null && item.remainingStock !== undefined) || (item.stockBalance !== null && item.stockBalance !== undefined) ? (
+                              <span className={(item.remainingStock ?? item.stockBalance) >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                                {fmt(item.remainingStock ?? item.stockBalance)} {item.uom || ''}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-right tabular text-ink-600">ETB {fmt(item.sellingPrice)}</td>
                           <td className="px-3 py-2 text-right tabular font-bold text-blue-700">ETB {fmt(item.revenue)}</td>
                           <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -1275,9 +1295,11 @@ export default function SalesImport() {
                       <td colSpan={4} className="px-3 py-2.5 text-ink-900 font-extrabold uppercase">
                         Total ({displayedSoldProducts.length} items)
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular text-ink-900">
-                        {displayedSoldProducts.reduce((s, i) => s + (i.quantitySold || 0), 0)}
+                      <td className="px-3 py-2.5 text-right text-ink-400 font-mono">—</td>
+                      <td className="px-3 py-2.5 text-right tabular text-ink-900 font-bold">
+                        −{displayedSoldProducts.reduce((s, i) => s + (i.quantitySold || 0), 0)}
                       </td>
+                      <td className="px-3 py-2.5 text-right text-ink-400 font-mono">—</td>
                       <td className="px-3 py-2.5 text-right text-ink-400">—</td>
                       <td className="px-3 py-2.5 text-right tabular text-blue-900 font-extrabold">
                         ETB {fmt(displayedSoldProducts.reduce((s, i) => s + (i.revenue || 0), 0))}

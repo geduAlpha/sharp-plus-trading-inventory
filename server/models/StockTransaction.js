@@ -54,6 +54,10 @@ const VOUCHER_DIRECTION = {
 const lineItemSchema = new mongoose.Schema(
   {
     material:         { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
+    articleCode:      { type: String, trim: true, default: '' },
+    articleName:      { type: String, trim: true, default: '' },
+    materialCode:     { type: String, trim: true, default: '' },
+    materialName:     { type: String, trim: true, default: '' },
     quantity:         { type: Number, required: true, min: 0.001 },
     uom:              { type: String, default: '' },
     unitCost:         { type: Number, default: 0 },
@@ -72,6 +76,15 @@ const lineItemSchema = new mongoose.Schema(
     physicalCount:    { type: Number, default: null },
     projectedBalance: { type: Number, default: 0 },
     reconciliationNote: { type: String, trim: true, default: '' },
+    // Detected stock balance & last balance after deductions audit fields
+    openingBalance:   { type: Number, default: null },
+    initialStock:     { type: Number, default: null },
+    availableStock:   { type: Number, default: null },
+    itemsSoldOut:     { type: Number, default: null },
+    deductQuantity:   { type: Number, default: null },
+    stockBalance:     { type: Number, default: null },
+    finalStock:       { type: Number, default: null },
+    remainingStock:   { type: Number, default: null },
   },
   { _id: false }
 );

@@ -1761,42 +1761,74 @@ export default function SalesMarketingVoucherReport() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
                     <tr>
-                      <th className="py-2 px-3">Item / Description</th>
+                      <th className="py-2 px-3">Article / Item Description</th>
                       <th className="py-2 px-3 text-center">UOM</th>
-                      <th className="py-2 px-3 text-right">Qty</th>
+                      <th className="py-2 px-3 text-right">Available Stock</th>
+                      <th className="py-2 px-3 text-right">Qty Sold</th>
+                      <th className="py-2 px-3 text-right">Last Balance</th>
                       <th className="py-2 px-3 text-right">Unit Price</th>
                       <th className="py-2 px-3 text-right">Line Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {Array.isArray(selectedVoucher.items) && selectedVoucher.items.length > 0 ? (
-                      selectedVoucher.items.map((it, idx) => (
-                        <tr key={idx}>
-                          <td className="py-2 px-3">
-                            <p className="font-semibold text-slate-900">{it.material?.name || `Item #${idx + 1}`}</p>
-                            {it.material?.code && (
-                              <p className="text-[10px] font-mono text-slate-400">{it.material.code}</p>
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-center font-mono text-slate-600">
-                            {it.uom || it.material?.unit || 'Pcs'}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                            {it.quantity}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-700">
-                            {formatETB(it.sellingPrice || it.unitCost || 0)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-950">
-                            {formatETB(Number(it.quantity) * Number(it.sellingPrice || it.unitCost || 0))}
-                          </td>
-                        </tr>
-                      ))
+                      selectedVoucher.items.map((it, idx) => {
+                        const openBal = it.openingBalance ?? it.availableStock ?? it.initialStock;
+                        const lastBal = it.stockBalance ?? it.remainingStock ?? it.finalStock;
+                        return (
+                          <tr key={idx}>
+                            <td className="py-2 px-3">
+                              <p className="font-semibold text-slate-900">{it.articleName || it.materialName || it.material?.name || `Item #${idx + 1}`}</p>
+                              {(it.articleCode || it.materialCode || it.material?.code) && (
+                                <p className="text-[10px] font-mono text-slate-400">{it.articleCode || it.materialCode || it.material?.code}</p>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-center font-mono text-slate-600">
+                              {it.uom || it.material?.unit || 'Pcs'}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-700">
+                              {openBal !== null && openBal !== undefined ? Number(openBal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                              {it.quantity}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold">
+                              {lastBal !== null && lastBal !== undefined ? (
+                                <span className={lastBal >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                                  {Number(lastBal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-700">
+                              {formatETB(it.sellingPrice || it.unitCost || 0)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-950">
+                              {formatETB(Number(it.quantity) * Number(it.sellingPrice || it.unitCost || 0))}
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td className="py-2 px-3 font-semibold text-slate-900">{selectedVoucher.material?.name || 'Item'}</td>
                         <td className="py-2 px-3 text-center font-mono text-slate-600">{selectedVoucher.material?.unit || 'Pcs'}</td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-700">
+                          {selectedVoucher.openingBalance !== undefined && selectedVoucher.openingBalance !== null
+                            ? Number(selectedVoucher.openingBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : '—'}
+                        </td>
                         <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">{selectedVoucher.quantity || 1}</td>
+                        <td className="py-2 px-3 text-right font-mono font-bold">
+                          {selectedVoucher.stockBalance !== undefined && selectedVoucher.stockBalance !== null ? (
+                            <span className={selectedVoucher.stockBalance >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                              {Number(selectedVoucher.stockBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
                         <td className="py-2 px-3 text-right font-mono text-slate-700">{formatETB(selectedVoucher.unitCost || 0)}</td>
                         <td className="py-2 px-3 text-right font-mono font-bold text-slate-950">{formatETB(selectedVoucher.totalRevenue || selectedVoucher.totalAmount || 0)}</td>
                       </tr>
@@ -1804,7 +1836,7 @@ export default function SalesMarketingVoucherReport() {
                   </tbody>
                   <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200">
                     <tr>
-                      <td colSpan={4} className="py-2 px-3 text-right text-slate-600">
+                      <td colSpan={6} className="py-2 px-3 text-right text-slate-600">
                         Subtotal (Tax Exclusive):
                       </td>
                       <td className="py-2 px-3 text-right font-mono text-slate-900">
@@ -1813,7 +1845,7 @@ export default function SalesMarketingVoucherReport() {
                     </tr>
                     {Number(selectedVoucher.discountAmount || selectedVoucher.discount || 0) > 0 && (
                       <tr>
-                        <td colSpan={4} className="py-1 px-3 text-right text-slate-600">
+                        <td colSpan={6} className="py-1 px-3 text-right text-slate-600">
                           Discount:
                         </td>
                         <td className="py-1 px-3 text-right font-mono text-rose-600">
@@ -1822,7 +1854,7 @@ export default function SalesMarketingVoucherReport() {
                       </tr>
                     )}
                     <tr>
-                      <td colSpan={4} className="py-1.5 px-3 text-right text-slate-600">
+                      <td colSpan={6} className="py-1.5 px-3 text-right text-slate-600">
                         15% Value Added Tax (VAT):
                       </td>
                       <td className="py-1.5 px-3 text-right font-mono text-slate-900">
@@ -1830,7 +1862,7 @@ export default function SalesMarketingVoucherReport() {
                       </td>
                     </tr>
                     <tr className="text-sm">
-                      <td colSpan={4} className="py-2 px-3 text-right text-slate-950">
+                      <td colSpan={6} className="py-2 px-3 text-right text-slate-950">
                         Official Grand Total:
                       </td>
                       <td className="py-2 px-3 text-right font-mono font-black text-emerald-700">

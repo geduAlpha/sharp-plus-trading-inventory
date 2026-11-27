@@ -1750,16 +1750,24 @@ const importSales = asyncHandler(async (req, res) => {
         const ingCost = (mat.unitCost || 0) * deductQty;
         cogs += ingCost;
 
+        const availStock = getStoreStock(mat, targetStore);
+        const remStock = Math.round((availStock - deductQty) * 10000) / 10000;
+
         materialDeductions[matId] = (materialDeductions[matId] || 0) + deductQty;
         lineIngredients.push({
           materialId: mat._id,
           materialName: mat.name,
+          materialCode: mat.code || '',
           unit: mat.unit,
           quantityUsed: deductQty,
           unitCost: mat.unitCost || 0,
           totalCost: ingCost,
           storeLocation: targetStore,
-          availableStock: getStoreStock(mat, targetStore),
+          openingBalance: availStock,
+          availableStock: availStock,
+          stockBalance: remStock,
+          remainingStock: remStock,
+          finalStock: remStock,
         });
       }
 
@@ -1773,6 +1781,8 @@ const importSales = asyncHandler(async (req, res) => {
       const recordLine = {
         productName: product.name || nameStr,
         productCode: product.code || codeStr,
+        articleCode: product.code || codeStr,
+        articleName: product.name || nameStr,
         productId: product._id,
         category: product.category || 'General',
         parentCategory: product.parentCategory || 'FOOD',
@@ -1784,6 +1794,11 @@ const importSales = asyncHandler(async (req, res) => {
         grossProfit: lineRev - cogs,
         matchStatus: lineIngredients.length > 0 ? 'recipe_deducted' : 'no_recipe',
         ingredientsUsed: lineIngredients,
+        openingBalance: lineIngredients.length > 0 ? lineIngredients[0].openingBalance : null,
+        availableStock: lineIngredients.length > 0 ? lineIngredients[0].availableStock : null,
+        stockBalance: lineIngredients.length > 0 ? lineIngredients[0].stockBalance : null,
+        remainingStock: lineIngredients.length > 0 ? lineIngredients[0].remainingStock : null,
+        finalStock: lineIngredients.length > 0 ? lineIngredients[0].finalStock : null,
         storeLocation: targetStore,
       };
 
@@ -1797,18 +1812,23 @@ const importSales = asyncHandler(async (req, res) => {
       const matId = material._id.toString();
       const ingCost = (material.unitCost || 0) * qty;
       const available = getStoreStock(material, targetStore);
+      const remaining = Math.round((available - qty) * 10000) / 10000;
 
       materialDeductions[matId] = (materialDeductions[matId] || 0) + qty;
       lineIngredients.push({
         materialId: material._id,
         materialName: material.name,
+        materialCode: material.code || '',
         unit: material.unit,
         quantityUsed: qty,
         unitCost: material.unitCost || 0,
         totalCost: ingCost,
         storeLocation: targetStore,
+        openingBalance: available,
         availableStock: available,
-        remainingStock: Math.round((available - qty) * 10000) / 10000,
+        stockBalance: remaining,
+        remainingStock: remaining,
+        finalStock: remaining,
       });
 
       let lineRev = rev;
@@ -1821,6 +1841,8 @@ const importSales = asyncHandler(async (req, res) => {
       const recordLine = {
         productName: material.name || nameStr,
         productCode: material.code || codeStr,
+        articleCode: material.code || codeStr,
+        articleName: material.name || nameStr,
         productId: match.product?._id || null,
         materialId: material._id,
         category: material.category || 'General',
@@ -1833,8 +1855,11 @@ const importSales = asyncHandler(async (req, res) => {
         grossProfit: lineRev - ingCost,
         matchStatus: 'direct_material',
         ingredientsUsed: lineIngredients,
+        openingBalance: available,
         availableStock: available,
-        remainingStock: Math.round((available - qty) * 10000) / 10000,
+        stockBalance: remaining,
+        remainingStock: remaining,
+        finalStock: remaining,
         storeLocation: targetStore,
       };
 
@@ -1925,12 +1950,25 @@ const importSales = asyncHandler(async (req, res) => {
       voucherType: 'sales_import',
       voucherNo: await generateVoucherNo('sales_import'),
       type: 'out',
-      items: resolvedItems.map(({ material, quantity, unitCost, totalCost, storeLocation: itemStore }) => ({
-        material,
-        quantity,
-        unitCost,
-        totalCost,
-        storeLocation: itemStore || targetStore,
+      items: resolvedItems.map(item => ({
+        material: item.material,
+        articleCode: item.materialCode || '',
+        articleName: item.materialName || '',
+        materialCode: item.materialCode || '',
+        materialName: item.materialName || '',
+        quantity: item.quantity,
+        uom: item.unit || 'Pcs',
+        unitCost: item.unitCost,
+        totalCost: item.totalCost,
+        storeLocation: item.storeLocation || targetStore,
+        openingBalance: item.openingBalance,
+        initialStock: item.initialStock,
+        availableStock: item.openingBalance,
+        itemsSoldOut: item.itemsSoldOut,
+        deductQuantity: item.quantity,
+        stockBalance: item.stockBalance,
+        finalStock: item.finalStock,
+        remainingStock: item.stockBalance,
       })),
       material: resolvedItems[0].material,
       quantity: resolvedItems[0].quantity,
@@ -1956,6 +1994,8 @@ const importSales = asyncHandler(async (req, res) => {
     });
 
     salesRecord.stockTransaction = transaction._id;
+    salesRecord.voucherNo = transaction.voucherNo;
+    salesRecord.storeLocation = targetStore;
     await salesRecord.save();
 
     // DEDUCT FROM REAL BALANCE
